@@ -1,6 +1,8 @@
-# node_exporter使用
+# node_exporter采集主机数据
 
-Prometheus Server并不能直接服务监控特定的目标，其主要任务负责数据的收集，存储并且对外提供数据查询支持。因此为了能够能够监控到某些东西，如主机的CPU使用率，我们需要使用到Exporter。Prometheus周期性的从Exporter暴露的HTTP服务地址（通常是/metrics）拉取监控样本数据。
+Prometheus Server并不能直接服务监控特定的目标，其主要任务负责数据的收集，存储并且对外提供数据查询支持。因此为了能够能够监控到某些东西，如主机的CPU使用率，我们需要使用到Exporter。**Prometheus周期性的从Exporter暴露的HTTP服务地址（通常是/metrics）拉取监控样本数据。**
+
+端口：9100
 
 ## 安装node_exporter
 
@@ -9,8 +11,8 @@ Prometheus Server并不能直接服务监控特定的目标，其主要任务负
 ```shell
 wget https://github.com/prometheus/node_exporter/releases/download/v1.1.1/node_exporter-1.1.1.linux-amd64.tar.gz
 tar xzf node_exporter-1.1.1.linux-amd64.tar.gz
-cd node_exporter-1.1.1.linux-amd64
-cp node_exporter /usr/local/bin
+mv node_exporter-1.1.1.linux-amd64 /usr/local/node_exporter
+
 nohup ./node_exporter &
 ss -tnl	#9100端口
 State       Recv-Q Send-Q                                    Local Address:Port                                                   Peer Address:Port              
@@ -50,6 +52,7 @@ EOF
 vim /usr/local/prometheus/prometheus.yml
 scrape_configs:
 ...
+  # 采集node exporter监控数据
   - job_name: 'nodes'
     static_configs:
     - targets:
