@@ -240,8 +240,56 @@ possible_keys: NULL #没有用索引
 
 `desc s1;`
 
+![img](https://cdn.jsdelivr.net/gh/chh-cc/linuxnotes//img/20210204202923.png)
+
 查看s1表的结构，显示name字段
 `SHOW COLUMNS FROM s21 LIKE '%name';`
+
+
+
+information_schema.tables视图
+
+```text
+DESC information_schema.TABLES
+TABLE_SCHEMA    ---->库名
+TABLE_NAME      ---->表名
+ENGINE          ---->引擎
+TABLE_ROWS      ---->表的行数
+AVG_ROW_LENGTH  ---->表中行的平均行（字节）
+INDEX_LENGTH    ---->索引的占用空间大小（字节）
+```
+
+查询整个数据库中所有库和所对应的表信息:
+
+```mysql
+SELECT table_schema,GROUP_CONCAT(table_name)
+FROM  information_schema.tables
+GROUP BY table_schema;
+```
+
+查询所有innodb引擎的表及所在的库:
+
+```mysql
+SELECT table_schema,table_name,ENGINE FROM information_schema.`TABLES`
+WHERE ENGINE='innodb';
+```
+
+统计world数据库下每张表的磁盘空间占用:
+
+```mysql
+SELECT table_name,CONCAT((TABLE_ROWS*AVG_ROW_LENGTH+INDEX_LENGTH)/1024," KB")  AS size_KB
+FROM information_schema.tables WHERE TABLE_SCHEMA='world';
+```
+
+统计所有数据库的总的磁盘空间占用:
+
+```mysql
+SELECT
+TABLE_SCHEMA,
+CONCAT(SUM(TABLE_ROWS*AVG_ROW_LENGTH+INDEX_LENGTH)/1024," KB") AS Total_KB
+FROM information_schema.tables
+GROUP BY table_schema;
+```
 
 ### 数据
 
@@ -278,7 +326,122 @@ truncate、delete 清空表数据的区别 :
 
 #### 查
 
+获取参数信息：
 
+` select @@参数;`
+
+`select @@port;`
+
+`select 函数()`
+
+`select version()`
+
+
+
+where(> < >= <= <> and or):
+
+`select * from world.city where countrycode='CHN';`
+
+`select * from world.city where countrycode like 'C%';`(不要出现%在前面的情况，效率低)
+
+`select * from world.city where population<10000 and population>20000;`
+
+
+
+group by+聚合函数
+
+常用聚合函数：
+
+``` text
+max()      ：最大值
+min()      ：最小值
+avg()      ：平均值
+sum()      ：总和
+count()    ：个数
+group_concat() : 列转行
+```
+
+统计**每个国家**的总人口:
+
+```mysql
+select countrycode,sum(population) from world.city group by countrycode;
+```
+
+统计每个国家的城市个数:
+
+```mysql
+select countrycode,count(id) from world.city group by countrycode;
+```
+
+统计并显示每个国家的省名字并列出来:
+
+```mysql
+select countrycode,group_concat(district) from world.city group by countrycode;
+```
+
+统计中国每个省的城市列表:
+
+``` mysql
+select district,group_concat(name) from world.city where countrycode='CHN' group by district;
+```
+
+
+
+having
+
+统计中国每个省的总人口数，只打印总人口数小于100：
+
+`SELECT district,SUM(Population) FROM city WHERE countrycode='chn' GROUP BY district HAVING SUM(Population) < 1000000 ;`
+
+
+
+order by + limit
+
+查看中国所有的城市，并按人口数进行排序(从大到小):
+
+`SELECT * FROM city WHERE countrycode='CHN' ORDER BY population DESC;`
+
+统计中国各个省的总人口数量，按照总人口从大到小排序:
+
+`SELECT district AS 省 ,SUM(Population) AS 总人口 FROM city WHERE countrycode='chn' GROUP BY district ORDER BY 总人口 DESC ;`
+
+统计中国,每个省的总人口,找出总人口大于500w的,并按总人口从大到小排序,只显示前三名:
+
+``` mysql
+SELECT  district, SUM(population)  FROM  city 
+
+WHERE countrycode='CHN'
+
+GROUP BY district 
+
+HAVING SUM(population)>5000000
+
+ORDER BY SUM(population) DESC
+
+LIMIT 3 ;
+```
+
+
+
+distinct去重复
+
+```mysql
+SELECT DISTINCT(countrycode) FROM city  ;
+```
+
+
+
+union all联合查询
+
+中国或美国城市信息:
+
+```mysql
+SELECT * FROM city WHERE countrycode='CHN'
+UNION ALL
+SELECT * FROM city WHERE countrycode='USA'
+UNION     去重复 
+UNION ALL 不去重复
+```
 
 #### 改
 
