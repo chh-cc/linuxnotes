@@ -4,6 +4,8 @@
 
 Redis是一款开源的、高性能的键-值存储。它常被称作是一款数据结构服务器、缓存服务器。Rredis属于非关系型数据库和Memcached类似，Redis也是一种key-value型存储系统。
 
+Redis在奇数版本为非稳定版本，例如2.7，3.1。如果为偶数则为稳定版本，例如3.2，3.4
+
 ## 为什么使用redis?
 
 **分析**:博主觉得在项目中使用redis，主要是从两个角度去考虑:**性能**和**并发**。当然，redis还具备可以做分布式锁等其他功能，但是如果只是为了分布式锁这些其他功能，完全还有其他中间件(如zookpeer等)代替，并不是非要使用redis。因此，这个问题主要从性能和并发两个角度去答。
@@ -72,3 +74,55 @@ I/O多路复用机制
 
 3.使用C语言编写，更好的发挥服务器性能，并且代码简洁，性能高
 
+## Redis数据类型
+
+![img](https://cdn.jsdelivr.net/gh/chh-cc/linuxnotes//img/20210206012510.png)
+
+**string:**
+
+信息缓存、计数器、分布式锁等
+
+场景1：缓存频繁读取但不常修改，如用户信息
+
+方案：先从redis读取，没有值就从mysql读取，并写一份到redis作缓存，要设置过期时间
+
+键值设计：直接将用户一条mysql记录做序列化(通常序列化为json)作为值，userInfo:userid 作为key，键名如：userInfo:123，value存储对应用户信息的json串。如 key为："user:id :name:1", value为"{"name":"leijia","age":18}"。
+
+场景2：分布式session
+
+如果你的应用做了负载均衡，将网站的项目放在多个服务器上，当用户在服务器A上进行登陆，session文件会写在A服务器；当用户跳转页面时，请求被分配到B服务器上的时候，就找不到这个session文件，用户就要重新登陆。
+
+可以将session存放在redis中，redis可以独立于所有负载均衡服务器，也可以放在其中一台负载均衡服务器上；但是所有应用所在的服务器连接的都是同一个redis服务器。
+
+**hash：**
+
+场景：以购物车为例子，用户id设置为key，那么购物车里所有的商品就是用户key对应的值了，每个商品有id和购买数量，对应hash的结构就是商品id为field，商品数量为value。
+
+**list：**
+
+列表本质是一个有序的，元素可重复的队列。
+
+场景：定时排行榜，不支持实时排行榜
+
+**set：**
+
+集合的特点是无序性和确定性（不重复）
+
+场景：收藏夹；每一个用户做一个收藏的集合，每个收藏的集合存放用户收藏过的歌曲id，key为用户id，value为歌曲id的集合。
+
+**sorted set：**
+
+有序集合的特点是有序，无重复值。与set不同的是sorted set每个元素都会关联一个score属性，redis正是通过score来为集合中的成员进行从小到大的排序。
+
+场景：实时排行；QQ音乐中有多种实时榜单，比如飙升榜、热歌榜、新歌榜，可以用redis key存储榜单类型，score为点击量，value为歌曲id，用户每点击一首歌曲会更新redis数据，sorted set会依据score即点击量将歌曲id排序。
+
+## 信息
+
+- 默认端口：TCP`6379`
+- 编写语言：c
+- 启动redis：`redis-server`
+- redis客户端：`redis-cli`
+- redis基准测试工具：`redis-benchmark`
+- AOF文件检测和修复工具：`redis-check-aof`
+- ADB文件检测和修复工具：`redis-check-dump`
+- 启动哨兵：`redis-sentinel`
