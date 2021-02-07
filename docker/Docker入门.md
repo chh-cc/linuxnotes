@@ -130,10 +130,14 @@ docker run [参数] 镜像名
 --name	为容器分配一个名字，不指定会随机分配一个名称
 -d	容器运行在后台，此时所有I/O数据只能通过网络资源或共享卷组进行交互
 -p	指定映射端口
+-v	指定挂载一个本地的已有目录到容器中去作为数据卷
 ```
 
-指定映射端口：
-docker run -d -p 127.0.0.1:81:80 --name mynginx nginx
+```shell
+[root@localhost ~]# docker run -d -p 88:80 --name web -v /src/webapp:/opt/webapp training/webapp python app.py
+```
+
+
 
 #### 查看
 
@@ -238,7 +242,7 @@ docker system df
 
 ## 容器镜像制作
 
-#### 容器文件系统打包
+### 容器文件系统打包
 
 把正在运行的容器直接导出为tar包的镜像文件：
 
@@ -255,7 +259,7 @@ docker system df
 [root@qfedu.com ~]# docker import elated_lovelace.tar elated_lovelace:v1
 ```
 
-#### 通过容器创建本地镜像
+### 通过容器创建本地镜像
 
 容器运⾏起来后，⼜在⾥⾯做了⼀些操作，并且要把操作结果保存到镜像⾥
 
@@ -269,7 +273,7 @@ docker system df
 -p 提交时暂停容器
 ```
 
-#### 镜像迁移
+### 镜像迁移
 
 保存一台宿主机的镜像为tar包，然后导入到其他主机
 
@@ -288,5 +292,66 @@ docker system df
 #2.导⼊的镜像如果没有名称，⾃⼰打tag起名字
 ```
 
-#### 通过dockerfile创建镜像
+### 通过dockerfile创建镜像
 
+docker build命令⽤于根据给定的Dockerfile和上下⽂以构建 Docker镜像。
+
+docker build语法：
+
+```shell
+[root@qfedu.com ~]# docker build [OPTIONS] <PATH | URL | ->
+#选项说明
+--build-arg，设置构建时的变量
+--no-cache，默认false。设置该选项，将不使⽤Build Cache构建镜像
+--pull，默认false。设置该选项，总是尝试pull镜像的最新版本
+--compress，默认false。设置该选项，将使⽤gzip压缩构建的上下⽂
+--disable-content-trust，默认true。设置该选项，将对镜像进⾏验证
+--file, -f，Dockerfile的完整路径，默认值为‘PATH/Dockerfile’
+--isolation，默认--isolation="default"，即Linux命名空间；其他还有process或hyperv
+--label，为⽣成的镜像设置metadata
+--squash，默认false。设置该选项，将新构建出的多个层压缩为⼀个新层，但是将⽆法在多个镜像之间共享新层；设置该选项，实际上是创建了新image，同时保留原有image。
+--tag, -t，镜像的名字及tag，通常name:tag或者name格式；可以在⼀次构建中为⼀个镜像设置多个tag
+--network，默认default。设置该选项，Set the networking mode for the RUN instructions during build
+--quiet, -q ，默认false。设置该选项，Suppress the build output and print image ID on success
+--force-rm，默认false。设置该选项，总是删除掉中间环节的容器
+--rm，默认--rm=true，即整个构建过程成功后删除中间环节的容器
+```
+
+dockerfile
+
+Dockerfile 由一行行命令语句组成，并且支持以#开头的注释行。
+一般而言，Dockerfile分为四部分：基础镜像信息、维护者信息、镜像操作指令和容器启动时执行指令。
+
+## dockerfile封装nginx
+
+```shell
+mkdir  nginx
+cd nginx
+wget  http://nginx.org/download/nginx-1.15.2.tar.gz
+vim Dockerfile
+FROM centos	//使用官方的centos镜像作为基础镜像
+RUN yum -y install gcc make pcre-devel zlib-devel tar zlib
+ADD nginx-1.15.2.tar.gz /usr/src/	//把nginx压缩包复制到/usr/src/
+RUN cd /usr/src/nginx-1.15.2 \
+	&& mkdir /usr/local/nginx \
+    && ./configure --prefix=/usr/local/nginx && make && make install \
+    && ln -s /usr/local/nginx/sbin/nginx /usr/local/sbin/ \
+    && nginx
+RUN rm -rf /usr/src/nginx-1.15.2
+EXPOSE 80	//允许外界访问容器的 80 端⼝
+ENTRYPOINT [ "nginx", "-g", "daemon off;"]
+#构建镜像
+docker build -t nginx:2020 .
+#启动镜像
+docker run -itd -p 88:80  -v /home/anhao1226/:/usr/local/nginx/html nginx:20201020
+```
+
+## Dockerfile优化 
+
+编译⼀个简单的nginx成功以后发现好⼏百M。 
+
+1、RUN 命令要尽量写在⼀条⾥，每次 RUN 命令都是在之前的镜 像上封装，只会增⼤不会减⼩ 
+
+2、每次进⾏依赖安装后使⽤yum clean all清除缓存中的rpm头⽂ 件和包⽂件 
+
+3、选择⽐较⼩的基础镜像，⽐如：alpine
