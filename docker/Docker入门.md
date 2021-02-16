@@ -2,11 +2,11 @@
 
 ## 简介
 
-Docker属于Linux容器的一种封装，提供简单易用的容器使用接口。它是目前最流行的 Linux 容器解决方案。
+不同的应用程序可能会有不同的应用环境，比如.net开发的网站和java开发的网站依赖的软件就不一样，如果把他们依赖的软件都安装在一个服务器上就要调试很久，而且很麻烦，还会造成一些冲突。比如IIS和tomcat访问端口冲突。这个时候你就要隔离.net开发的网站和tomcat开发的网站。常规来讲，我们可以在服务器上创建不同的虚拟机在不同的虚拟机上放置不同的应用，但是虚拟机开销比较高。**docker可以实现虚拟机隔离应用环境的功能，并且开销比虚拟机小**，小就意味着省钱了。
 
 Docker将应用程序与该程序的依赖，打包在一个文件里面。运行这个文件，就会生成一个虚拟容器。程序在这个虚拟容器里运行，就好像在真实的物理机上运行一样。有了 Docker，就不用担心环境问题。
 
-## 用途
+### 用途
 
 1.提供一次性的环境。比如，本地测试他人的软件、持续集成的时候提供单元测试和构建的环境。
 
@@ -36,13 +36,11 @@ Docker将应用程序与该程序的依赖，打包在一个文件里面。运�
 
  10）不要依赖IP地址 – 每个容器都有自己的内部IP地址，如果你启动并停止它地址可能会变化。如果你的应用或微服务需要与其他容器通讯，使用任何命名与（或者）环境变量来从一个容器传递合适信息到另一个。
 
-## 组件
+## 架构
 
 ### **镜像（Image）**
 
-Docker把应用程序及其依赖，打包在image文件里面。只有通过这个文件，才能生成Docker容器。同一个image文件，可以生成多个同时运行的容器实例。
-
-Docker 镜像是 Docker 容器运行时的只读模板，每一个镜像由一系列的层 (layers) 组成。Docker 使用 UnionFS 来将这些层联合到单独的镜像中。UnionFS 允许独立文件系统中的文件和文件夹(称之为分支)被透明覆盖，形成一个单独连贯的文件系统。正因为有了这些层的存在，Docker 是如此的轻量。当你改变了一个 Docker 镜像，比如升级到某个程序到新的版本，一个新的层会被创建。因此，不用替换整个原先的镜像或者重新建立(在使用虚拟机的时候你可能会这么做)，只是一个新 的层被添加或升级了。现在你不用重新发布整个镜像，只需要升级，层使得分发 Docker 镜像变得简单和快速。
+Docker把应用程序及其依赖，打包在image文件里面。只有通过这个文件，才能生成Docker容器。同一个image文件，可以生成多个同时运行的容器实例。一个image包含多层layer。
 
 镜像名称组成：registry/repo:tag
 
@@ -51,6 +49,8 @@ Docker 镜像是 Docker 容器运行时的只读模板，每一个镜像由一�
 镜像ID：所有镜像都是通过⼀个 64 位⼗六进制字符串 （内部是⼀个 256 bit 的值）来标识的。 为简化使⽤，前
 12 个字符可以组成⼀个短ID，可以在命令⾏中使⽤。短ID还是有⼀定的碰撞机率，所以服务器总是返回
 ⻓ID
+
+分层存储机制：
 
 ***docker采用分层构建机制，最底层为bootfs，其之为rootfs***
 
@@ -76,9 +76,11 @@ Docker 镜像是 Docker 容器运行时的只读模板，每一个镜像由一�
 
 ### **容器（Container）**
 
-⼀个Docker容器包含了所有的某个应⽤运⾏所需要的环境。每⼀个Docker 容器都是从 Docker 镜像创建的。
+⼀个Docker容器包含了所有的**某个应⽤运⾏所需要的环境**。每⼀个Docker 容器都是从 Docker 镜像创建的。
 
-容器有两个状态：运行（running）和退出（exited）
+容器的实质是进程，但与直接在宿主执行的进程不同，容器进程运行于**属于自己的独立的 命名空间**。因此容器可以拥有自己的 root 文件系统、自己的网络配置、自己的进程空间，甚至自己的用户 ID 空间。容器内的进程是运行在一个隔离的环境里，使用起来，就好像是在一个独立于宿主的系统下操作一样。
+
+**容器有两个状态**：运行（running）和退出（exited）
 
 我们可以⽤同⼀个镜像启动多个Docker容器，这些容器启动后都是活动的，彼此还是相互隔离的。我们
 对其中⼀个容器所做的变更只会局限于那个容器本身。
@@ -91,6 +93,84 @@ Docker 镜像是 Docker 容器运行时的只读模板，每一个镜像由一�
 ### **仓库（Repository）**
 
 如百度网盘一样，我们需要一个仓库来存放镜像，Docker官方提供了公共的镜像仓库；从安全和效率的角度考虑我们也可以部署私有环境的Registry或者是Harbor。
+
+----------------------------------------
+
+layer: 在Dockerfile中每一步都会产生一层layer，每一步的结果产出变成文件。
+
+dockerfile: 一种构建image的文件的DSL。
+
+docker-compose: Python写的一个docker编排工具。
+
+docker swarm: docker公司推出的容器调度平台。
+
+kubernetes: google主导的容器调度平台。
+
+## 网络
+
+网络四种模式：
+
+```text
+bridge模式：使用–net =bridge指定，默认设置；
+host模式：使用–net =host指定；
+none模式：使用–net =none指定；
+container模式：使用–net =container:NAMEorID指定。
+```
+
+**bridge模式（docker默认的网络模式）**
+
+```text
+在默认情况下，docker 会在 host 机器上新创建一个 docker0 的 bridge：可以把它想象成一个虚拟的交换机，所有的容器都是连到这台交换机上面的。docker 会从私有网络中选择一段地址来管理容器，比如 172.17.0.1/16，这个地址根据你之前的网络情况而有所不同。
+```
+
+自定义网络：
+
+```text
+建议大家不要使用link的方式，如果容器千千万都link，人就受不了了。还是自定网络比较靠谱。
+测试网络通信，创建容器，进行通信
+不需要ip的方式两个容器都是通的。
+```
+
+```shell
+docker run --name test3 --network net-test -d busybox /bin/sh -c "while true;do echo hello docker;sleep 10;done"
+docker run --name test4 --network net-test -d busybox /bin/sh -c "while true;do echo hello docker;sleep 10;done"
+docker exec -it test3 /bin/sh
+ping test4
+exit
+docker exec -it test4 /bin/sh
+ping test3
+exit
+```
+
+**host模式（共享主机的网络模式）**
+
+```text
+docker 不会为容器创建单独的网络 namespace，而是共享主机的 network namespace，也就是说：容器可以直接访问主机上所有的网络信息。在实际微服务的环境中不建议使用这种。
+```
+
+**none模式（空网络模式）**
+
+```text
+这种none的也就自己通过exec的方式访问。
+```
+
+**container 模式（容器之前的共享模式，学习k8s这个很重要）**
+
+```text
+一个容器直接使用另外一个已经存在容器的网络配置：ip 信息和网络端口等所有网络相关的信息都是共享的。需要注意的是：这两个容器的计算和存储资源还是隔离的。
+```
+
+```shell
+# test7_container 依赖a1的网络模式
+ docker run --name test7_container --network container:a1 -d busybox /bin/sh -c "while true;do echo hello docker;sleep 10;done" 
+# 分别进入test7_container 和a1查看ifconfig 发现两个是一样的
+docker exec -it test7_container /bin/sh
+ifconfig
+exit
+docker exec -it a1 /bin/sh
+ifconfig
+exit
+```
 
 ## 安装
 
@@ -119,18 +199,52 @@ docker version
 [root@localhost ~]# docker search centos
 ```
 
-获取镜像：docker pull
+获取镜像：docker pull [选项] [Docker Registry 地址[:端口]/]仓库名[:标签]
+
+```text
+Docker 镜像仓库地址：地址的格式一般是 <域名/IP>[:端口号]，默认地址是 Docker Hub。
+在library的镜像也就是官方镜像需要：名称
+如果是个人的镜像需要：用户名/软件名
+标签：如果不显式指定TAG，则默认会选择latest标签，这会下载仓库中最新版本的镜像
+```
+
+一般来说，镜像的latest标签意味着该镜像的内容会跟踪最新的非稳定版本而发布，内容是不稳定的。从稳定性上考虑，不要在生产环境中忽略镜像的标签信息或使用默认的latest标记的镜像。
 
 ```shell
-[root@localhost ~]# docker pull library/hello-world 
-#library/hello-world是image文件在仓库里面的位置，其中library是image文件所在的组，hello-world是image文件的名字。
-#Docker官方提供的image文件，都放在library组里面，所以可简写为hello-world
+[root@localhost ~]# docker pull centos
+#该命令相当于docker pull registry.docker-cn.com/library/ centos:latest命令，即从默认的注册服务器Docker Hub Registry中的centos仓库来下载标记为latest的镜像。
 [root@localhost ~]# docker pull ubuntu:14.04
 #镜像可以发布为不同的版本，这种机制我们称之为标签（Tag）。
 ```
 
-列出本地所有镜像：docker images
-删除镜像，多个镜像用空格隔开：docker rmi 镜像名或id
+上传镜像：docker  push  [OPTIONS]  NAME[:TAG]
+
+列出本地所有镜像：docker images [OPTIONS]  [REPOSITORY[:TAG]]
+
+```text
+仓库名称，标签，镜像 ID、创建时间，镜像大小。镜像ID是唯一标识
+dockerhub显示的镜像大小是压缩的
+```
+
+查看镜像层次：docker history
+
+```shell
+[root@localhost ~]# docker history 67f7ad418fdf
+```
+
+删除镜像，多个镜像用空格隔开：docker rmi 镜像名或id：
+
+**使用标签删除镜像**
+
+当同一个镜像拥有多个标签的时候，docker rmi命令**只是删除该镜像多个标签中的指定标签**而已，并不影响镜像文件。但当镜像只剩下一个标签的时候就要小心了，此时再使用docker rmi命令会彻底删除镜像。
+
+```shell
+[root@node1 ~]# docker rmi nginx:v1
+```
+
+**使用镜像ID删除镜像**
+
+删除所有指向该镜像的标签，然后删除该镜像文件本身。注意，当有该镜像创建的容器存在时，镜像文件默认是无法被删除的
 
 ```shell
 [root@node1 ~]# docker rmi d123f4e55e12 
@@ -138,7 +252,7 @@ docker version
 [root@qfedu.com ~]# docker rmi docker.io/ubuntu:latest --force
 ```
 
-删除所有镜像：
+**删除所有镜像**
 
 ```shell
 [root@qfedu.com ~]# docker rmi $(docker images -q)
@@ -156,6 +270,13 @@ docker version
 [root@qfedu.com ~]# docker tag daocloud.io/ubuntu daocloud.io/ubuntu:v1
 ```
 
+打包镜像：
+
+```shell
+[root@node1 ~]# docker save centos > /opt/centos.tar.gz    #导出镜像
+[root@node1 ~]# docker load < /opt/centos.tar.gz           #导入镜像
+```
+
 ### 容器
 
 #### 创建、运行
@@ -165,12 +286,14 @@ docker version
 ```shell
 docker run [参数] 镜像名
 #参数：
--i	捕获标准输入输出
+-i	捕获标准输入输出,交互式操作
 -t	分配一个终端或控制台
---restart=always	容器随着docker engine自启动
---name	为容器分配一个名字，不指定会随机分配一个名称
+--restart=always	自动重启，这样每次docker重启后仓库容器也会自动启动
+--name="mycontainer"	为容器分配一个名字，不指定会随机分配一个名称,容器的名称是唯一的
+--net="bridge": 指定容器的网络连接类型，支持如下：
+     bridge / host / none / container:<name|id>
 -d	容器运行在后台，此时所有I/O数据只能通过网络资源或共享卷组进行交互
--p	指定映射端口
+-p	指定本地端口映射到容器端口
 -v	指定挂载一个本地的已有目录到容器中去作为数据卷
 ```
 
@@ -178,7 +301,13 @@ docker run [参数] 镜像名
 [root@localhost ~]# docker run -d -p 88:80 --name web -v /src/webapp:/opt/webapp training/webapp python app.py
 ```
 
+某些时候，执行docker run会出错，因为命令无法正常执行容器会直接退出，此时可以查看退出的错误代码。默认情况下，常见错误代码包括：
 
+125： Docker daemon执行出错，例如指定了不支持的Docker命令参数；
+
+126：所指定命令无法执行，例如权限出错；
+
+127：容器内命令无法找到。
 
 #### 查看
 
@@ -192,6 +321,12 @@ docker run [参数] 镜像名
 
 ```shell
 [root@qfedu.com ~]# docker ps -a
+```
+
+查看容器的详情：
+
+```shell
+[root@localhost ~]# docker inspect 8be128d85d8d
 ```
 
 查看容器的端口和宿主机端口的映射情况：
@@ -216,6 +351,7 @@ docker kill $(docker ps -q)
 
 ```shell
 [root@localhost ~]# docker stop 2b85a89be878
+#当Docker容器中指定的应用终结时，容器也会自动终止。
 ```
 
 重启容器：docker restart id或名字
@@ -224,15 +360,17 @@ docker kill $(docker ps -q)
 
 强制删除还处于运行状态的容器： docker rm -f id
 
-#### 连接容器
+#### 连接、退出容器
 
 attach
+
+使用attach命令有时候并不方便。当多个窗口同时用attach命令连到同一个容器的时候，所有窗口都会同步显示。当某个窗口因命令阻塞时，其他窗口也无法执行操作了。
 
 ```shell
 [root@qfedu.com ~]# docker attach 容器id //前提是容器创建时必须指定了交互shell
 ```
 
-exec
+exec(最推荐方式)
 
 交互型任务：
 
@@ -247,12 +385,14 @@ root@68656158eb8e:/[root@qfedu.com ~]# ls
 [root@qfedu.com ~]# docker exec 容器id touch /testfile
 ```
 
+退出容器的终端：按Ctrl-p Ctrl-q
+
 #### 监控容器的运行
 
 logs命令来查看容器的运⾏⽇志，其中--tail选项可以指定查看最后⼏条⽇志，⽽-t选项则可以对⽇志条⽬附加时间戳。使⽤-f选项可以跟踪⽇志的输出，直到⼿动停⽌。
 
 ```shell
-[root@qfedu.com ~]# docker logs App_Container //不同终端操作
+[root@qfedu.com ~]# docker logs App_Container
 ```
 
 top命令显示一个运行的容器里面的进程信息
@@ -264,10 +404,127 @@ top命令显示一个运行的容器里面的进程信息
 events实时输出docker服务器端的事件，包括容器的创建启动关闭等
 
 ```shell
-[root@qfedu.com ~]# docker events //不同终端操作
+[root@qfedu.com ~]# docker events
 ```
 
-#### 文件管理
+#### 文件数据管理
+
+默认情况下，容器内创建的所有文件都存储在可写容器层上。
+
+数据卷是一个或多个容器专门指定绕过Union File System，为持续性或共享数据提供一些有用的功能：
+
+```text
+1.数据卷 可以在容器之间共享和重用。
+2.对 数据卷 的修改会立马生效。
+3.对 数据卷 的更新，不会影响镜像。
+4.数据卷 默认会一直存在，即使容器被删除。保护数据不被删除。
+注意：数据卷 的使用，类似于 Linux 下对目录或文件进行 mount，镜像中的被指定为挂载点的目录中的文件会隐藏掉，能显示和看的是挂载的 数据卷，而不是被作为挂载点儿的目录中原来的内容。
+```
+
+操作：
+
+Docker启动的时候可以通过-v选项添加数据卷，实现将主机上的目录或者文件挂载到容器中
+
+```text
+-v host-dir:container-dir:[rw|wo]
+-v container-dir:[rw|wo]
+-v volume-name:container-dir:[rw|wo]
+host-dir：表示主机上的目录，如果不存在，Docker 会自动在主机上创建该目录。必须是绝对路径。
+container-dir：表示容器内部对应的目录，如果该目录不存在，Docker 也会在容器内部创建该目录。
+volume-name：表示卷名，如果该卷不存在，docker将自动创建。
+rw|ro：用于控制volume的读写权限。
+```
+
+（1）
+
+创建一个容器
+
+```shell
+在docker run 命令中使用-v选项可以在容器中创建数据卷。多次使用-v选项可以创建多个数据卷
+[root@docker01 ~]# docker run -itd -P -v /test:/data --name myhttp httpd
+```
+
+进入容器
+
+```shell
+[root@docker01 ~]# docker exec -it myhttp /bin/bash
+[root@28d56ec39d28 /]# df -h
+```
+
+在宿主机/text目录创建文件，观察容器内/data目录下内容变化
+
+查看容器挂载的数据卷
+
+```shell
+[root@docker01 ~]# docker inspect myhttp
+```
+
+删除容器，宿主机/text目录下未发生变化
+
+（2）
+
+```shell
+docker run -itd -P -v /data --name myhttp httpd
+docker exec -it myhttp /bin/bash
+df -h
+```
+
+看到容器内出现了/data,使用docker volume ls查询，发现多了一个本地卷：
+
+f343bc68303155c111bea58a907131d9fe1751bc8ef6528cc53d5b7dce292dee
+
+使用docker volume inspect查询到如下的挂下点目录：
+
+/var/lib/docker/volumes/f343bc68303155c111bea58a907131d9fe1751bc8ef6528cc53d5b7dce292dee/_data
+
+当在上述目录下创建test.txt文件后，容器内也查询到该新增文件。
+
+删除容器后，宿主机上的目录及内容也未发生任何变化。
+
+(3)
+
+```shell
+docker run -itd -P -v my_volume:/data --name myhttp httpd
+docker exec -it myhttp /bin/bash
+ll -a /data
+```
+
+docker自动创建了卷：my_volume，并且这个卷对应的宿主机的挂载点是：
+
+/var/lib/docker/volumes/my_volume/_data
+
+```shell
+docker volume ls
+docker volume inspect my_volume
+docker inspect myhttp查看mount参数
+```
+
+（4）
+
+在dockerfile指定数据卷
+
+```shell
+FROM debian:wheezy
+VOLUME  /data
+```
+
+删除一个数据卷
+
+```shell
+[root@localhost ~]# docker volume rm yangge_vol
+```
+
+对于docker数据卷的总结：
+
+（1） 以上几种方式都可以将宿主机目录或者文件挂载到容器。
+
+（2） Docker提供了docker volume命令专门对volume进行管理。对于第一种方式Type为bind，是无法使用docker volume进行管理的。我们也可以使用docker volume create命令创建volume。
+
+（3） 删除容器是如果使用docker rm container将不会删除对应的Volume。如果想要删除可以使用docker rm -v container。另外也可以单独使用docker volume rm volume_name删除volume。
+
+（4） 对于已运行的数据卷容器，不能动态的调整其卷的挂载。Docker官方提供的方法是先删除容器，然后启动时重新挂载。
+
+
 
 容器和宿主机之间拷贝文件
 
@@ -278,69 +535,20 @@ events实时输出docker服务器端的事件，包括容器的创建启动关�
 
 ### 其他
 
-查看 docker 的硬盘空间使用情况
-docker system df
+查看docker信息：docker info
 
-## 容器镜像制作
+查看 docker 的硬盘空间使用情况：docker system df
 
-### 容器文件系统打包
+更新容器启动项：docker container update --restart=always nginx
 
-把正在运行的容器直接导出为tar包的镜像文件：
+## 通过dockerfile创建镜像
 
-```shell
-第⼀种：
- [root@master ~][root@qfedu.com ~]# docker export -o elated_lovelace.tar elated_lovelace
-第⼆种：
- [root@master ~][root@qfedu.com ~]# docker export 容器名称 > 镜像.tar
-```
+Dockerfile 是一个文本文件，其内包含了一条条的指令(Instruction)，每一条指令构建一层，因此每一条指令的内容，就是描述该层应当如何构建。
 
-导入镜像归档文件到其他宿主机：
+### docker build语法
 
 ```shell
-[root@qfedu.com ~]# docker import elated_lovelace.tar elated_lovelace:v1
-```
-
-### 通过容器创建本地镜像
-
-容器运⾏起来后，⼜在⾥⾯做了⼀些操作，并且要把操作结果保存到镜像⾥
-
-使⽤ docker commit 指令，把⼀个正在运⾏的容器，直接提交为⼀个镜像
-
-```shell
-[root@qfedu.com ~]# docker commit 4ddf4638572d wing/helloworld:v2
-#可加参数
--m 注释
--a 作者
--p 提交时暂停容器
-```
-
-### 镜像迁移
-
-保存一台宿主机的镜像为tar包，然后导入到其他主机
-
-打包镜像：
-
-```shell
-[root@qfedu.com ~]# docker save -o nginx.tar nginx
-[root@qfedu.com ~]# docker save > nginx.tar nginx
-```
-
-导入上面打包的镜像：
-
-```SHELL
-[root@qfedu.com ~]# docker load < nginx.tar
-#1.tar⽂件的名称和保存的镜像名称没有关系
-#2.导⼊的镜像如果没有名称，⾃⼰打tag起名字
-```
-
-### 通过dockerfile创建镜像
-
-docker build命令⽤于根据给定的Dockerfile和上下⽂以构建 Docker镜像。
-
-docker build语法：
-
-```shell
-[root@qfedu.com ~]# docker build [OPTIONS] <PATH | URL | ->
+[root@qfedu.com ~]# docker build [OPTIONS] dockerfile所在路径
 #选项说明
 --build-arg，设置构建时的变量
 --no-cache，默认false。设置该选项，将不使⽤Build Cache构建镜像
@@ -358,12 +566,203 @@ docker build语法：
 --rm，默认--rm=true，即整个构建过程成功后删除中间环节的容器
 ```
 
-dockerfile
+### dockerfile语法
 
 Dockerfile 由一行行命令语句组成，并且支持以#开头的注释行。
 一般而言，Dockerfile分为四部分：基础镜像信息、维护者信息、镜像操作指令和容器启动时执行指令。
 
-## dockerfile封装nginx
+FROM
+
+```text
+指定所创建镜像的基础镜像，如果本地不存在，则默认会去 Docker Hub下载指定镜像
+任何Dockerfile 中的第一条指令必须为 FROM指令
+FROM <image> [AS <name>]                                 #or
+FROM <image>[:<tag>] [AS <name>]                         #or
+FROM <image>[@<digest>] [AS <name>]
+```
+
+MAINTAINER
+
+```text
+LABEL maintainer="SvenDowideit@home.org.au"
+```
+
+USER
+
+```text
+指定运行容器的用户名
+```
+
+RUN
+
+```text
+指令指定将要运行并捕获到新容器映像中的命令。 这些命令包括安装软件、创建文件和目录，以及创建环境配置等。基本就是shell脚本。
+RUN <command>或RUN ["executable"，"param1"，"param2"]
+RUN yum update && yum install -y vim \
+    python-dev #反斜线换行
+注意初学docker容易出现的2个关于RUN命令的问题：
+1.RUN代码没有合并。
+2.每一层构建的最后一定要清理掉无关文件。
+```
+
+CMD
+
+```text
+用来指定启动容器时默认执行的命令。它支持三种格式：
+CMD ["executable","param1","param2"](exec form,this is the preferred form)
+CMD ["param1","param2"] (as default parameters to ENTRYPOINT)
+CMD command param1 param2 (shell form)
+每个Dockerfile只能有一条CMD命令
+如果用户启动容器时手动指定了运行的命令（作为 run 的参数），则会覆盖掉CMD指定的命令。
+```
+
+LABEL
+
+```text
+给镜像添加信息。使用docker inspect可查看镜像的相关信息
+LABEL <key>=<value> <key>=<value> <key>=<value> ...
+LABEL version="1.0"
+LABEL maintainer="394498036@qq.com"
+```
+
+EXPOSE
+
+```text
+声明镜像内服务所监听的端口
+EXPOSE <port> [<port>/<protocol>...]
+EXPOSE 22 80 8443
+注意，该指令只是起到声明作用，并不会自动完成端口映射。
+```
+
+ENV
+
+```text
+指定环境变量，在镜像生成过程中会被后续 RUN 指令使用，在镜像启动的容器中也会存在
+ENV <key> <value>
+ENV <key>=<value> ...
+```
+
+ADD
+
+```text
+将复制指定的 <src>路径下的内容到容器中的<dest>路径下，如果是tar文件会自动解压
+ADD [--chown=<user>:<group>] <src>... <dest>
+ADD [--chown=<user>:<group>] ["<src>",... "<dest>"] (this form is required for paths containing whitespace)
+```
+
+COPY
+
+```text
+复制本地主机的<src>（为 Dockerfile 所在目录的相对路径、文件或目录）下的内容到镜像中的 <dest> 下。目标路径不存在时，会自动创建。
+尽量使用COPY不使用ADD.
+COPY [--chown=<user>:<group>] <src>... <dest>
+COPY [--chown=<user>:<group>] ["<src>",... "<dest>"] (this form is required for paths containing whitespace)
+```
+
+ENTRYPOINT
+
+```text
+设置容器启动时运行的命令，所有传入值作为该命令的参数。
+ENTRYPOINT ["executable", "param1", "param2"] (exec form, preferred)
+ENTRYPOINT command param1 param2 (shell form)
+```
+
+WORKDIR
+
+```text
+为后续的RUN、CMD和ENTRYPOINT 指令配置工作目录
+用WORKDIR，不要用RUN cd 尽量使用绝对目录！
+WORKDIR /path/to/workdir
+```
+
+ENV
+
+```text
+指定环境变量
+ENV <key> <value>
+ENV <key>=<value> ...
+```
+
+VOLUME
+
+### 操作系统
+
+BusyBox
+
+```text
+BusyBox是一个集成了一百多个最常用Linux命令和工具（如cat、echo、grep、mount、telnet等）的精简工具箱，它只有几 MB的大小，很方便进行各种快速验证，被誉为“Linux系统的瑞士军刀”。BusyBox可运行于多款POSIX 环境的操作系统中，如Linux（包括Android）、Hurd、FreeBSD等。
+```
+
+Alpine
+
+```text
+Alpine镜像适用于更多常用场景，并且是一个优秀的可以适用于生产的基础系统/环境。
+Alpine Docker镜像的容量非常小，仅仅只有5MB左右（Ubuntu系列镜像接近200MB），且拥有非常友好的包管理机制。官方镜像来自docker-alpine项目。
+目前Docker官方已开始推荐使用Alpine替代之前的Ubuntu作为基础镜像环境。这样会带来多个好处，包括镜像下载速度加快，镜像安全性提高，主机之间的切换更方便，占用更少磁盘空间等。
+ubuntu/debian -> alpine
+python:2.7 -> python:2.7-alpine
+ruby:2.3 -> ruby:2.3-alpine
+```
+
+Debian
+
+Ubuntu
+
+CentOS
+
+### 为镜像添加ssh服务
+
+创建工作目录,并编写run.sh脚本和authorized_keys文件
+
+```shell
+[root@localhost ~]# mkdir sshd_ubuntu
+[root@localhost ~]# cd sshd_ubuntu/
+[root@localhost sshd_ubuntu]# vim run.sh
+#!/bin/bash
+/usr/sbin/sshd -D
+[root@localhost sshd_ubuntu]# ssh-keygen -t rsa
+[root@localhost sshd_ubuntu]# cat ~/.ssh/id_rsa.pub >authorized_keys
+```
+
+编写dockerfile
+
+```shell
+[root@localhost sshd_ubuntu]# vim Dockerfile
+#设置继承镜像
+FROM ubuntu:14.04
+#提供一些作者的信息
+MAINTAINER docker_user (user@docker.com)
+#下面开始运行更新命令
+RUN apt-get update
+#安装ssh服务
+RUN apt-get install -y openssh-server
+RUN mkdir -p /var/run/sshd
+RUN mkdir -p /root/.ssh
+#取消pam限制
+RUN sed -ri 's/session    required     pam_loginuid.so/#session    required     pam_loginuid.so/g' /etc/pam.d/sshd
+#复制配置文件到相应位置,并赋予脚本可执行权限
+ADD authorized_keys /root/.ssh/authorized_keys
+ADD run.sh /run.sh
+RUN chmod 755 /run.sh
+#开放端口
+EXPOSE 22
+#设置自启动命令
+CMD ["/run.sh"]
+```
+
+创建镜像
+
+```shell
+[root@localhost sshd_ubuntu]# docker build -t sshd:Dockerfile .
+```
+
+运行镜像
+
+```shell
+[root@localhost sshd_ubuntu]# docker run -d -p 10122:22 sshd:Dockerfile
+```
+
+### dockerfile封装nginx
 
 ```shell
 mkdir  nginx
@@ -371,7 +770,8 @@ cd nginx
 wget  http://nginx.org/download/nginx-1.15.2.tar.gz
 vim Dockerfile
 FROM centos	//使用官方的centos镜像作为基础镜像
-RUN yum -y install gcc make pcre-devel zlib-devel tar zlib
+MAINTAINER NGINX Docker Maintainers "docker-maint@nginx.com"	//指定维护者信息
+RUN yum -y install gcc make pcre-devel zlib-devel tar zlib	//运行命令
 ADD nginx-1.15.2.tar.gz /usr/src/	//把nginx压缩包复制到/usr/src/
 RUN cd /usr/src/nginx-1.15.2 \
 	&& mkdir /usr/local/nginx \
@@ -387,12 +787,3 @@ docker build -t nginx:2020 .
 docker run -itd -p 88:80  -v /home/anhao1226/:/usr/local/nginx/html nginx:20201020
 ```
 
-## Dockerfile优化 
-
-编译⼀个简单的nginx成功以后发现好⼏百M。 
-
-1、RUN 命令要尽量写在⼀条⾥，每次 RUN 命令都是在之前的镜 像上封装，只会增⼤不会减⼩ 
-
-2、每次进⾏依赖安装后使⽤yum clean all清除缓存中的rpm头⽂ 件和包⽂件 
-
-3、选择⽐较⼩的基础镜像，⽐如：alpine
