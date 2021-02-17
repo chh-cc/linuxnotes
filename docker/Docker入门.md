@@ -40,7 +40,17 @@ Docker将应用程序与该程序的依赖，打包在一个文件里面。运�
 
 ### **镜像（Image）**
 
-Docker把应用程序及其依赖，打包在image文件里面。只有通过这个文件，才能生成Docker容器。同一个image文件，可以生成多个同时运行的容器实例。一个image包含多层layer。
+Image是docker的基石，是一个可运行的基本单元。image是只读的，包括container运行所需要的数据，主要用来创建container。实际上image是由一层层的文件系统组成的，这种层级的文件系统称为UnionFS。Docker image来源：
+
+```text
+（1）可以基于Dockerfile从无到有的构建；
+
+（2）也可以基于Dockerfile从已有的image创建新的image；
+
+（3）也可以基于容器生成新的image；
+
+（4）甚至也可以直接下载别人的image。
+```
 
 镜像名称组成：registry/repo:tag
 
@@ -105,6 +115,32 @@ docker-compose: Python写的一个docker编排工具。
 docker swarm: docker公司推出的容器调度平台。
 
 kubernetes: google主导的容器调度平台。
+
+### 核心底层技术
+
+Docker使用的核心底层技术：Namespace、Control Groups和Union FS。
+
+**Namespaces**
+
+每个docker主机上可以起很多container，这些container之间是相互隔离，互不影响的。Docker正是借助Linux kernel namespace(命名空间)来实现这一点。具体包括pid、net、ipc、mnt、uts、user等namespace将container的进程、网络、消息、文件系统、UTS("UNIX Time-sharing System")和用户空间隔离开。
+
+**Control groups**
+
+Control groups（Cgroups）中文称为控制组。Docker利用Cgroups实现了对资源的配额和度量。Cgroups可以限制CPU、内存、磁盘读写速率、网络带宽等系统资源。
+
+**Union file systems**（联合文件系统，UnionFS）
+
+Docker目前支持的UnionFS种类包括AUFS,btrfs,vfs和 DeviceMapper。
+
+AUFS是一种 Union FS, 简单来说就是“支持将不同目录挂载到同一个虚拟文件系统下的文件系统”, AUFS支持为每一个成员目录设定只读(Rreadonly)、读写(Readwrite)和写(Whiteout-able)权限。
+
+Linux在启动后，首先将rootfs置为 Readonly，进行一系列检查后将其切换为Readwrite供用户使用。在Docker中，也是利用该技术，然后利用Union Mount在Readonly的rootfs文件系统之上挂载Readwrite文件系统。并且向上叠加, 使得一组Readonly和一个Readwrite的结构构成一个容器的运行目录、每一个被称作一个文件系统Layer。
+
+AUFS的特性, 使得每一个对Readonly层文件/目录的修改都只会存在于上层的Writeable层中。这样使得多个容器可以共享Readonly文件系统层。在Docker中，将**Readonly的层称作image**，将**Writeable层称作container**。对于容器整体而言，整个rootfs变得是read-write的，但事实上所有的修改都写入最上层的container中，image不保存用户状态，可以用于模板、重建和复制。
+
+![img](https://gitee.com/c_honghui/picture/raw/master/img/20210217232523.webp)
+
+在Docker中，上层的image依赖下层的image， 因此Docker中把下层的image称作父image，没有父image的image称作Base image。比如上图中Debian就是Base image，执行add emacs后生成的image就是执行add Apache后生成的image的父image。因此，当想要从一个image启动一个容器，Docker会先逐次加载其父image直到Base image，用户的进程运行在Writeable的文件系统层中。
 
 ## 网络
 
@@ -294,6 +330,7 @@ docker run [参数] 镜像名
      bridge / host / none / container:<name|id>
 -d	容器运行在后台，此时所有I/O数据只能通过网络资源或共享卷组进行交互
 -p	指定本地端口映射到容器端口
+-h	指定主机名
 -v	指定挂载一个本地的已有目录到容器中去作为数据卷
 ```
 

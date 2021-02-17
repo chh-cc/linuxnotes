@@ -6,7 +6,7 @@ redis cluster是去中心化的，集群中的每个节点都是平等的关系�
 
 这样就保证了我们只需要连接集群中的任意一个节点，就可以获取到其他节点的数据。
 
-![file](https://cdn.jsdelivr.net/gh/chh-cc/linuxnotes//img/20210206213247.png)
+![file](https://gitee.com/c_honghui/picture/raw/master/img/20210217233204.png)
 
 ## cluster原理
 

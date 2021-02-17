@@ -13,7 +13,7 @@ Sentinel(哨兵)是用于监控redis集群中Master状态的工具，其已经�
 ### 哨兵原理
 
 Sentinel系统时刻监控着主和从，当主挂掉后选择其中一个从来升任成主，可以启动多个Sentinel来避免监控挂掉，但多个Sentinel它们要投票。
-![file](https://cdn.jsdelivr.net/gh/chh-cc/linuxnotes//img/20210206222909.png)
+![file](https://gitee.com/c_honghui/picture/raw/master/img/20210217233111.png)
 
 **Sentinel作用**
 1.Master状态检测

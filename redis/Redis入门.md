@@ -30,7 +30,7 @@ Redis在奇数版本为非稳定版本，例如2.7，3.1。如果为偶数则为
 
 命令结构
 
-![file](https://cdn.jsdelivr.net/gh/chh-cc/linuxnotes//img/20210204225603.png)
+![file](https://gitee.com/c_honghui/picture/raw/master/img/20210217233221.png)
 
 - 1.客户端发送命令后，Redis服务器将为这个客户端链接创造一个’输入缓存’，将命令放到里面。
 - 2.再由Redis服务器进行分配挨个执行，顺序是随机的，这将不会产生并发冲突问题，也就不需要事物了。
@@ -68,7 +68,7 @@ I/O多路复用机制
 
 下面类比到真实的redis线程模型，如图所示
 
-![image](https://cdn.jsdelivr.net/gh/chh-cc/linuxnotes//img/20210205002116.png)
+![image](https://gitee.com/c_honghui/picture/raw/master/img/20210217233236.png)
 
 2.**单线程**避免的高并发的时候，多线程有锁的问题和线程切换的CPU开销的问题。虽然是单线程的，我们还可以通过多实例来弥补。
 
@@ -76,7 +76,7 @@ I/O多路复用机制
 
 ## Redis数据类型
 
-![img](https://cdn.jsdelivr.net/gh/chh-cc/linuxnotes//img/20210206012510.png)
+![img](https://gitee.com/c_honghui/picture/raw/master/img/20210217233241.png)
 
 **string:**
 

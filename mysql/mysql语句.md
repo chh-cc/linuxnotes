@@ -240,7 +240,7 @@ possible_keys: NULL #没有用索引
 
 `desc s1;`
 
-![img](https://cdn.jsdelivr.net/gh/chh-cc/linuxnotes//img/20210204202923.png)
+![img](https://gitee.com/c_honghui/picture/raw/master/img/20210217233844.png)
 
 查看s1表的结构，显示name字段
 `SHOW COLUMNS FROM s21 LIKE '%name';`

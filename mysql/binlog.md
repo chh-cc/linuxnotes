@@ -58,7 +58,7 @@ show master logs;
 show variables like 'log_%';
 ```
 
-![image-20210206164842768](https://cdn.jsdelivr.net/gh/chh-cc/linuxnotes//img/20210206164842.png)
+![image-20210206164842768](https://gitee.com/c_honghui/picture/raw/master/img/20210217233404.png)
 
 查看master状态，即最后(最新)一个binlog日志的编号名称，及其最后一个操作事件pos结束点(Position)值
 
@@ -66,7 +66,7 @@ show variables like 'log_%';
 show master status;
 ```
 
-![image-20210206164950491](https://cdn.jsdelivr.net/gh/chh-cc/linuxnotes//img/20210206164950.png)
+![image-20210206164950491](https://gitee.com/c_honghui/picture/raw/master/img/20210217233408.png)
 
 flush刷新log日志，自此刻开始产生一个新编号的binlog日志文件。每当mysqld服务重启时，会自动执行此命令，刷新binlog日志
 
