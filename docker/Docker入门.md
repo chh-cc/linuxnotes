@@ -142,71 +142,7 @@ AUFS的特性, 使得每一个对Readonly层文件/目录的修改都只会存�
 
 在Docker中，上层的image依赖下层的image， 因此Docker中把下层的image称作父image，没有父image的image称作Base image。比如上图中Debian就是Base image，执行add emacs后生成的image就是执行add Apache后生成的image的父image。因此，当想要从一个image启动一个容器，Docker会先逐次加载其父image直到Base image，用户的进程运行在Writeable的文件系统层中。
 
-## 网络
 
-网络四种模式：
-
-```text
-bridge模式：使用–net =bridge指定，默认设置；
-host模式：使用–net =host指定；
-none模式：使用–net =none指定；
-container模式：使用–net =container:NAMEorID指定。
-```
-
-**bridge模式（docker默认的网络模式）**
-
-```text
-在默认情况下，docker 会在 host 机器上新创建一个 docker0 的 bridge：可以把它想象成一个虚拟的交换机，所有的容器都是连到这台交换机上面的。docker 会从私有网络中选择一段地址来管理容器，比如 172.17.0.1/16，这个地址根据你之前的网络情况而有所不同。
-```
-
-自定义网络：
-
-```text
-建议大家不要使用link的方式，如果容器千千万都link，人就受不了了。还是自定网络比较靠谱。
-测试网络通信，创建容器，进行通信
-不需要ip的方式两个容器都是通的。
-```
-
-```shell
-docker run --name test3 --network net-test -d busybox /bin/sh -c "while true;do echo hello docker;sleep 10;done"
-docker run --name test4 --network net-test -d busybox /bin/sh -c "while true;do echo hello docker;sleep 10;done"
-docker exec -it test3 /bin/sh
-ping test4
-exit
-docker exec -it test4 /bin/sh
-ping test3
-exit
-```
-
-**host模式（共享主机的网络模式）**
-
-```text
-docker 不会为容器创建单独的网络 namespace，而是共享主机的 network namespace，也就是说：容器可以直接访问主机上所有的网络信息。在实际微服务的环境中不建议使用这种。
-```
-
-**none模式（空网络模式）**
-
-```text
-这种none的也就自己通过exec的方式访问。
-```
-
-**container 模式（容器之前的共享模式，学习k8s这个很重要）**
-
-```text
-一个容器直接使用另外一个已经存在容器的网络配置：ip 信息和网络端口等所有网络相关的信息都是共享的。需要注意的是：这两个容器的计算和存储资源还是隔离的。
-```
-
-```shell
-# test7_container 依赖a1的网络模式
- docker run --name test7_container --network container:a1 -d busybox /bin/sh -c "while true;do echo hello docker;sleep 10;done" 
-# 分别进入test7_container 和a1查看ifconfig 发现两个是一样的
-docker exec -it test7_container /bin/sh
-ifconfig
-exit
-docker exec -it a1 /bin/sh
-ifconfig
-exit
-```
 
 ## 安装
 
@@ -444,7 +380,360 @@ events实时输出docker服务器端的事件，包括容器的创建启动关�
 [root@qfedu.com ~]# docker events
 ```
 
-#### 文件数据管理
+#### 文件管理
+
+容器和宿主机之间拷贝文件
+
+```shell
+[root@qfedu.com ~]# docker cp mysql:/usr/local/bin/docker-entrypoint.sh /root
+#拷贝mysql容器的文件到本地的/root
+```
+
+### 其他
+
+查看docker信息：docker info
+
+查看 docker 的硬盘空间使用情况：docker system df
+
+更新容器启动项：docker container update --restart=always nginx
+
+登录登出仓库：docker login/docker logout
+
+## 通过dockerfile创建镜像
+
+Dockerfile 是一个文本文件，其内包含了一条条的指令(Instruction)，每一条指令构建一层，因此每一条指令的内容，就是描述该层应当如何构建。
+
+### docker build语法
+
+```shell
+[root@qfedu.com ~]# docker build [OPTIONS] dockerfile所在路径
+#选项说明
+--build-arg，设置构建时的变量
+--no-cache，默认false。设置该选项，将不使⽤Build Cache构建镜像
+--pull，默认false。设置该选项，总是尝试pull镜像的最新版本
+--compress，默认false。设置该选项，将使⽤gzip压缩构建的上下⽂
+--disable-content-trust，默认true。设置该选项，将对镜像进⾏验证
+--file, -f，Dockerfile的完整路径，默认值为‘PATH/Dockerfile’
+--isolation，默认--isolation="default"，即Linux命名空间；其他还有process或hyperv
+--label，为⽣成的镜像设置metadata
+--squash，默认false。设置该选项，将新构建出的多个层压缩为⼀个新层，但是将⽆法在多个镜像之间共享新层；设置该选项，实际上是创建了新image，同时保留原有image。
+--tag, -t，镜像的名字及tag，通常name:tag或者name格式；可以在⼀次构建中为⼀个镜像设置多个tag
+--network，默认default。设置该选项，Set the networking mode for the RUN instructions during build
+--quiet, -q ，默认false。设置该选项，Suppress the build output and print image ID on success
+--force-rm，默认false。设置该选项，总是删除掉中间环节的容器
+--rm，默认--rm=true，即整个构建过程成功后删除中间环节的容器
+```
+
+### dockerfile语法
+
+Dockerfile 由一行行命令语句组成，并且支持以#开头的注释行。
+一般而言，Dockerfile分为四部分：基础镜像信息、维护者信息、镜像操作指令和容器启动时执行指令。
+
+FROM
+
+```text
+指定所创建镜像的基础镜像，如果本地不存在，则默认会去 Docker Hub下载指定镜像
+任何Dockerfile 中的第一条指令必须为 FROM指令
+FROM <image> [AS <name>]                                 #or
+FROM <image>[:<tag>] [AS <name>]                         #or
+FROM <image>[@<digest>] [AS <name>]
+```
+
+MAINTAINER
+
+```text
+LABEL maintainer="SvenDowideit@home.org.au"
+```
+
+USER
+
+```text
+指定运行容器的用户名
+```
+
+ENV
+
+```text
+指定环境变量，在镜像生成过程中会被后续 RUN 指令使用，在镜像启动的容器中也会存在
+环境变量可用于ADD、COPY、ENV、EXPOSE、FROM、LABEL、USER、VOLUME、WORKDIR、ONBUILD指令中。
+ENV <key> <value>
+ENV <key>=<value> ...
+```
+
+RUN
+
+```text
+指令指定将要运行并捕获到新容器映像中的命令。 这些命令包括安装软件、创建文件和目录，以及创建环境配置等。基本就是shell脚本。
+RUN <command>或RUN ["executable"，"param1"，"param2"]
+前者将在shell终端中运行命令，即/bin/sh -c；后者则使用exec执行，可以用来指定其它形式的shell来运行指令。
+RUN yum update && yum install -y vim \
+    python-dev #反斜线换行
+注意初学docker容易出现的2个关于RUN命令的问题：
+1.RUN代码没有合并。
+2.每一层构建的最后一定要清理掉无关文件。
+```
+
+CMD
+
+```text
+用来指定启动容器时默认执行的命令。它支持三种格式：
+CMD ["executable","param1","param2"]使用exec执行，推荐方式；
+CMD ["param1","param2"] 提供给ENTRYPOINT的默认参数； 
+CMD command param1 param2 在/bin/sh中执行，提供给需要交互的应用；
+每个Dockerfile只能有一条CMD命令
+如果用户启动容器时手动指定了运行的命令（作为 run 的参数），则会覆盖掉CMD指定的命令。
+```
+
+LABEL
+
+```text
+给镜像添加信息。使用docker inspect可查看镜像的相关信息
+LABEL <key>=<value> <key>=<value> <key>=<value> ...
+LABEL version="1.0"
+LABEL maintainer="394498036@qq.com"
+```
+
+EXPOSE
+
+```text
+声明镜像内服务所监听的端口
+EXPOSE <port> [<port>/<protocol>...]
+EXPOSE 22 80 8443
+注意，该指令只是起到声明作用，并不会自动完成端口映射。
+```
+
+ADD
+
+```text
+将复制指定的 <src>路径下的内容到容器中的<dest>路径下，<src>可以是dockerfile所在目录的相对路径、一个URL、还可以是tar文件（会自动解压）
+ADD [--chown=<user>:<group>] <src>... <dest>
+ADD [--chown=<user>:<group>] ["<src>",... "<dest>"] (this form is required for paths containing whitespace)
+```
+
+COPY
+
+```text
+复制本地主机的<src>（为 Dockerfile 所在目录的相对路径、文件或目录）下的内容到镜像中的 <dest> 下。目标路径不存在时，会自动创建。
+尽量使用COPY不使用ADD.
+COPY [--chown=<user>:<group>] <src>... <dest>
+COPY [--chown=<user>:<group>] ["<src>",... "<dest>"] (this form is required for paths containing whitespace)
+```
+
+ENTRYPOINT
+
+```text
+配置容器启动后执行的命令，并且不可被docker run提供的参数覆盖。每个Dockerfile中只能有一个ENTRYPOINT
+ENTRYPOINT ["executable", "param1", "param2"] (exec form, preferred)
+ENTRYPOINT command param1 param2 (shell form)
+```
+
+WORKDIR
+
+```text
+为后续的RUN、CMD和ENTRYPOINT 指令配置工作目录
+用WORKDIR，不要用RUN cd 尽量使用绝对目录！
+WORKDIR /path/to/workdir
+```
+
+VOLUME
+
+```text
+创建一个可以从本地主机或其他容器挂载的挂载点，一般用来存放数据库和需要保持的数据等
+VOLUME ["/data"]
+```
+
+
+
+### 操作系统
+
+BusyBox
+
+```text
+BusyBox是一个集成了一百多个最常用Linux命令和工具（如cat、echo、grep、mount、telnet等）的精简工具箱，它只有几 MB的大小，很方便进行各种快速验证，被誉为“Linux系统的瑞士军刀”。BusyBox可运行于多款POSIX 环境的操作系统中，如Linux（包括Android）、Hurd、FreeBSD等。
+```
+
+Alpine
+
+```text
+Alpine镜像适用于更多常用场景，并且是一个优秀的可以适用于生产的基础系统/环境。
+Alpine Docker镜像的容量非常小，仅仅只有5MB左右（Ubuntu系列镜像接近200MB），且拥有非常友好的包管理机制。官方镜像来自docker-alpine项目。
+目前Docker官方已开始推荐使用Alpine替代之前的Ubuntu作为基础镜像环境。这样会带来多个好处，包括镜像下载速度加快，镜像安全性提高，主机之间的切换更方便，占用更少磁盘空间等。
+ubuntu/debian -> alpine
+python:2.7 -> python:2.7-alpine
+ruby:2.3 -> ruby:2.3-alpine
+```
+
+Debian
+
+Ubuntu
+
+CentOS
+
+### 为镜像添加ssh服务
+
+创建工作目录,并编写run.sh脚本和authorized_keys文件
+
+```shell
+[root@localhost ~]# mkdir sshd_ubuntu
+[root@localhost ~]# cd sshd_ubuntu/
+[root@localhost sshd_ubuntu]# vim run.sh
+#!/bin/bash
+/usr/sbin/sshd -D
+[root@localhost sshd_ubuntu]# ssh-keygen -t rsa
+[root@localhost sshd_ubuntu]# cat ~/.ssh/id_rsa.pub >authorized_keys
+```
+
+编写dockerfile
+
+```shell
+[root@localhost sshd_ubuntu]# vim Dockerfile
+#设置继承镜像
+FROM ubuntu:14.04
+#提供一些作者的信息
+MAINTAINER docker_user (user@docker.com)
+#下面开始运行更新命令
+RUN apt-get update
+#安装ssh服务
+RUN apt-get install -y openssh-server
+RUN mkdir -p /var/run/sshd
+RUN mkdir -p /root/.ssh
+#取消pam限制
+RUN sed -ri 's/session    required     pam_loginuid.so/#session    required     pam_loginuid.so/g' /etc/pam.d/sshd
+#复制配置文件到相应位置,并赋予脚本可执行权限
+ADD authorized_keys /root/.ssh/authorized_keys
+ADD run.sh /run.sh
+RUN chmod 755 /run.sh
+#开放端口
+EXPOSE 22
+#设置自启动命令
+CMD ["/run.sh"]
+```
+
+创建镜像
+
+```shell
+[root@localhost sshd_ubuntu]# docker build -t sshd:Dockerfile .
+```
+
+运行镜像
+
+```shell
+[root@localhost sshd_ubuntu]# docker run -d -p 10122:22 sshd:Dockerfile
+```
+
+### dockerfile封装nginx
+
+```shell
+mkdir  nginx
+cd nginx
+wget  http://nginx.org/download/nginx-1.15.2.tar.gz
+vim Dockerfile
+FROM centos	//使用官方的centos镜像作为基础镜像
+MAINTAINER NGINX Docker Maintainers "docker-maint@nginx.com"	//指定维护者信息
+RUN yum -y install gcc make pcre-devel zlib-devel tar zlib	//运行命令
+ADD nginx-1.15.2.tar.gz /usr/src/	//把nginx压缩包复制到/usr/src/
+RUN cd /usr/src/nginx-1.15.2 \
+	&& mkdir /usr/local/nginx \
+    && ./configure --prefix=/usr/local/nginx && make && make install \
+    && ln -s /usr/local/nginx/sbin/nginx /usr/local/sbin/ \
+    && nginx
+RUN rm -rf /usr/src/nginx-1.15.2
+EXPOSE 80	//允许外界访问容器的 80 端⼝
+ENTRYPOINT [ "nginx", "-g", "daemon off;"]	#nginx默认是以后台模式启动的，Docker未执行自定义的CMD之前，nginx的pid是1，执行到CMD之后，nginx就在后台运行，bash或sh脚本的pid变成了1。所以一旦执行完自定义CMD，nginx容器也就退出了。为了保持nginx的容器不退出，应该关闭nginx后台运行
+#构建镜像
+docker build -t nginx:2020 .
+#启动镜像
+docker run -itd -p 88:80  -v /home/anhao1226/:/usr/local/nginx/html nginx:20201020
+```
+
+## 网络
+
+网络四种模式：
+
+```text
+bridge模式：使用–net=bridge指定，默认设置；
+host模式：使用–net=host指定；
+none模式：使用–net=none指定；
+container模式：使用–net=container:NAMEorID指定。
+```
+
+**bridge模式（docker默认的网络模式）**
+
+```text
+在默认情况下，docker 会在 host 机器上新创建一个 docker0 的 bridge：可以把它想象成一个虚拟的交换机，所有的容器都是连到这台交换机上面的。docker 会从私有网络中选择一段地址来管理容器，比如 172.17.0.1/16，这个地址根据你之前的网络情况而有所不同。
+```
+
+**host模式（共享主机的网络模式）**
+
+```text
+host网络意味着容器与宿主机共用一套网络，也就是说容器使用的网络就是宿主机的网络。使用--network=host指定使用host网络。在实际微服务的环境中不建议使用这种。
+```
+
+**none模式（空网络模式）**
+
+```text
+none网络意味着没有网络，所创建的容器只有lo，没有其他的网卡。容器创建时可以使用--network=none指定使用none网络。
+```
+
+**container 模式（容器之间的共享模式，学习k8s这个很重要）**
+
+```text
+一个容器直接使用另外一个已经存在容器的网络配置：ip 信息和网络端口等所有网络相关的信息都是共享的。需要注意的是：这两个容器的计算和存储资源还是隔离的。
+```
+
+```shell
+#容器mysql5共享mysql1的network namespace
+docker run -itd --name mysql5 --network=container:mysql1 mysql /bin/bash
+#docker exec mysql5进入的是容器mysql1内部。
+```
+
+container模式存在如下特点：
+
+1、两个容器间通过127.0.0.1可以实现高效快速通信。
+
+2、可能存在端口冲突情况。
+
+**自定义网络**
+
+创建新的bridge网络
+
+```shell
+docker network create --driver bridge --subnet 172.50.0.0/16 --gateway 172.50.0.1 --opt"com.docker.network.bridge.name"="docker1000" my_bridge
+
+docker network inspect my_bridge1
+```
+
+使用创建的网络
+
+```shell
+docker run -itd --name mysql1 --network=my_bridge mysql /bin/bash
+```
+
+不同网络中的容器如何访问？
+
+把容器加到同一个网络中来
+
+```shell
+docker network connect my_bridge mysql2
+```
+
+自定义的bridge网络可以删除，默认bridge网络不可删除
+
+```shell
+docker network rm my_bridge
+```
+
+默认bridge网络中所有容器间只能用IP相互访问。使用自定义bridge网络的容器间既可以通过ip访问，也可以通过容器名访问。原因在于Docker从1.10版本内嵌了了一个DNS服务，使得容器间可以直接通过容器名通信。
+
+docker run指定容器ip启动时仅适用于自定义网络。
+
+**容器与外部网络连接**
+
+容器访问外部网络
+
+外部网络访问容器
+
+## 数据卷管理
 
 默认情况下，容器内创建的所有文件都存储在可写容器层上。
 
@@ -460,7 +749,7 @@ events实时输出docker服务器端的事件，包括容器的创建启动关�
 
 操作：
 
-Docker启动的时候可以通过-v选项添加数据卷，实现将主机上的目录或者文件挂载到容器中
+Docker启动的时候可以通过-v选项添加数据卷，实现**将主机上的目录或者文件挂载到容器中**
 
 ```text
 -v host-dir:container-dir:[rw|wo]
@@ -561,266 +850,8 @@ VOLUME  /data
 
 （4） 对于已运行的数据卷容器，不能动态的调整其卷的挂载。Docker官方提供的方法是先删除容器，然后启动时重新挂载。
 
+## 卷数据备份
 
+## 卷数据恢复或迁移
 
-容器和宿主机之间拷贝文件
-
-```shell
-[root@qfedu.com ~]# docker cp mysql:/usr/local/bin/docker-entrypoint.sh /root
-#拷贝mysql容器的文件到本地的/root
-```
-
-### 其他
-
-查看docker信息：docker info
-
-查看 docker 的硬盘空间使用情况：docker system df
-
-更新容器启动项：docker container update --restart=always nginx
-
-## 通过dockerfile创建镜像
-
-Dockerfile 是一个文本文件，其内包含了一条条的指令(Instruction)，每一条指令构建一层，因此每一条指令的内容，就是描述该层应当如何构建。
-
-### docker build语法
-
-```shell
-[root@qfedu.com ~]# docker build [OPTIONS] dockerfile所在路径
-#选项说明
---build-arg，设置构建时的变量
---no-cache，默认false。设置该选项，将不使⽤Build Cache构建镜像
---pull，默认false。设置该选项，总是尝试pull镜像的最新版本
---compress，默认false。设置该选项，将使⽤gzip压缩构建的上下⽂
---disable-content-trust，默认true。设置该选项，将对镜像进⾏验证
---file, -f，Dockerfile的完整路径，默认值为‘PATH/Dockerfile’
---isolation，默认--isolation="default"，即Linux命名空间；其他还有process或hyperv
---label，为⽣成的镜像设置metadata
---squash，默认false。设置该选项，将新构建出的多个层压缩为⼀个新层，但是将⽆法在多个镜像之间共享新层；设置该选项，实际上是创建了新image，同时保留原有image。
---tag, -t，镜像的名字及tag，通常name:tag或者name格式；可以在⼀次构建中为⼀个镜像设置多个tag
---network，默认default。设置该选项，Set the networking mode for the RUN instructions during build
---quiet, -q ，默认false。设置该选项，Suppress the build output and print image ID on success
---force-rm，默认false。设置该选项，总是删除掉中间环节的容器
---rm，默认--rm=true，即整个构建过程成功后删除中间环节的容器
-```
-
-### dockerfile语法
-
-Dockerfile 由一行行命令语句组成，并且支持以#开头的注释行。
-一般而言，Dockerfile分为四部分：基础镜像信息、维护者信息、镜像操作指令和容器启动时执行指令。
-
-FROM
-
-```text
-指定所创建镜像的基础镜像，如果本地不存在，则默认会去 Docker Hub下载指定镜像
-任何Dockerfile 中的第一条指令必须为 FROM指令
-FROM <image> [AS <name>]                                 #or
-FROM <image>[:<tag>] [AS <name>]                         #or
-FROM <image>[@<digest>] [AS <name>]
-```
-
-MAINTAINER
-
-```text
-LABEL maintainer="SvenDowideit@home.org.au"
-```
-
-USER
-
-```text
-指定运行容器的用户名
-```
-
-RUN
-
-```text
-指令指定将要运行并捕获到新容器映像中的命令。 这些命令包括安装软件、创建文件和目录，以及创建环境配置等。基本就是shell脚本。
-RUN <command>或RUN ["executable"，"param1"，"param2"]
-RUN yum update && yum install -y vim \
-    python-dev #反斜线换行
-注意初学docker容易出现的2个关于RUN命令的问题：
-1.RUN代码没有合并。
-2.每一层构建的最后一定要清理掉无关文件。
-```
-
-CMD
-
-```text
-用来指定启动容器时默认执行的命令。它支持三种格式：
-CMD ["executable","param1","param2"](exec form,this is the preferred form)
-CMD ["param1","param2"] (as default parameters to ENTRYPOINT)
-CMD command param1 param2 (shell form)
-每个Dockerfile只能有一条CMD命令
-如果用户启动容器时手动指定了运行的命令（作为 run 的参数），则会覆盖掉CMD指定的命令。
-```
-
-LABEL
-
-```text
-给镜像添加信息。使用docker inspect可查看镜像的相关信息
-LABEL <key>=<value> <key>=<value> <key>=<value> ...
-LABEL version="1.0"
-LABEL maintainer="394498036@qq.com"
-```
-
-EXPOSE
-
-```text
-声明镜像内服务所监听的端口
-EXPOSE <port> [<port>/<protocol>...]
-EXPOSE 22 80 8443
-注意，该指令只是起到声明作用，并不会自动完成端口映射。
-```
-
-ENV
-
-```text
-指定环境变量，在镜像生成过程中会被后续 RUN 指令使用，在镜像启动的容器中也会存在
-ENV <key> <value>
-ENV <key>=<value> ...
-```
-
-ADD
-
-```text
-将复制指定的 <src>路径下的内容到容器中的<dest>路径下，如果是tar文件会自动解压
-ADD [--chown=<user>:<group>] <src>... <dest>
-ADD [--chown=<user>:<group>] ["<src>",... "<dest>"] (this form is required for paths containing whitespace)
-```
-
-COPY
-
-```text
-复制本地主机的<src>（为 Dockerfile 所在目录的相对路径、文件或目录）下的内容到镜像中的 <dest> 下。目标路径不存在时，会自动创建。
-尽量使用COPY不使用ADD.
-COPY [--chown=<user>:<group>] <src>... <dest>
-COPY [--chown=<user>:<group>] ["<src>",... "<dest>"] (this form is required for paths containing whitespace)
-```
-
-ENTRYPOINT
-
-```text
-设置容器启动时运行的命令，所有传入值作为该命令的参数。
-ENTRYPOINT ["executable", "param1", "param2"] (exec form, preferred)
-ENTRYPOINT command param1 param2 (shell form)
-```
-
-WORKDIR
-
-```text
-为后续的RUN、CMD和ENTRYPOINT 指令配置工作目录
-用WORKDIR，不要用RUN cd 尽量使用绝对目录！
-WORKDIR /path/to/workdir
-```
-
-ENV
-
-```text
-指定环境变量
-ENV <key> <value>
-ENV <key>=<value> ...
-```
-
-VOLUME
-
-### 操作系统
-
-BusyBox
-
-```text
-BusyBox是一个集成了一百多个最常用Linux命令和工具（如cat、echo、grep、mount、telnet等）的精简工具箱，它只有几 MB的大小，很方便进行各种快速验证，被誉为“Linux系统的瑞士军刀”。BusyBox可运行于多款POSIX 环境的操作系统中，如Linux（包括Android）、Hurd、FreeBSD等。
-```
-
-Alpine
-
-```text
-Alpine镜像适用于更多常用场景，并且是一个优秀的可以适用于生产的基础系统/环境。
-Alpine Docker镜像的容量非常小，仅仅只有5MB左右（Ubuntu系列镜像接近200MB），且拥有非常友好的包管理机制。官方镜像来自docker-alpine项目。
-目前Docker官方已开始推荐使用Alpine替代之前的Ubuntu作为基础镜像环境。这样会带来多个好处，包括镜像下载速度加快，镜像安全性提高，主机之间的切换更方便，占用更少磁盘空间等。
-ubuntu/debian -> alpine
-python:2.7 -> python:2.7-alpine
-ruby:2.3 -> ruby:2.3-alpine
-```
-
-Debian
-
-Ubuntu
-
-CentOS
-
-### 为镜像添加ssh服务
-
-创建工作目录,并编写run.sh脚本和authorized_keys文件
-
-```shell
-[root@localhost ~]# mkdir sshd_ubuntu
-[root@localhost ~]# cd sshd_ubuntu/
-[root@localhost sshd_ubuntu]# vim run.sh
-#!/bin/bash
-/usr/sbin/sshd -D
-[root@localhost sshd_ubuntu]# ssh-keygen -t rsa
-[root@localhost sshd_ubuntu]# cat ~/.ssh/id_rsa.pub >authorized_keys
-```
-
-编写dockerfile
-
-```shell
-[root@localhost sshd_ubuntu]# vim Dockerfile
-#设置继承镜像
-FROM ubuntu:14.04
-#提供一些作者的信息
-MAINTAINER docker_user (user@docker.com)
-#下面开始运行更新命令
-RUN apt-get update
-#安装ssh服务
-RUN apt-get install -y openssh-server
-RUN mkdir -p /var/run/sshd
-RUN mkdir -p /root/.ssh
-#取消pam限制
-RUN sed -ri 's/session    required     pam_loginuid.so/#session    required     pam_loginuid.so/g' /etc/pam.d/sshd
-#复制配置文件到相应位置,并赋予脚本可执行权限
-ADD authorized_keys /root/.ssh/authorized_keys
-ADD run.sh /run.sh
-RUN chmod 755 /run.sh
-#开放端口
-EXPOSE 22
-#设置自启动命令
-CMD ["/run.sh"]
-```
-
-创建镜像
-
-```shell
-[root@localhost sshd_ubuntu]# docker build -t sshd:Dockerfile .
-```
-
-运行镜像
-
-```shell
-[root@localhost sshd_ubuntu]# docker run -d -p 10122:22 sshd:Dockerfile
-```
-
-### dockerfile封装nginx
-
-```shell
-mkdir  nginx
-cd nginx
-wget  http://nginx.org/download/nginx-1.15.2.tar.gz
-vim Dockerfile
-FROM centos	//使用官方的centos镜像作为基础镜像
-MAINTAINER NGINX Docker Maintainers "docker-maint@nginx.com"	//指定维护者信息
-RUN yum -y install gcc make pcre-devel zlib-devel tar zlib	//运行命令
-ADD nginx-1.15.2.tar.gz /usr/src/	//把nginx压缩包复制到/usr/src/
-RUN cd /usr/src/nginx-1.15.2 \
-	&& mkdir /usr/local/nginx \
-    && ./configure --prefix=/usr/local/nginx && make && make install \
-    && ln -s /usr/local/nginx/sbin/nginx /usr/local/sbin/ \
-    && nginx
-RUN rm -rf /usr/src/nginx-1.15.2
-EXPOSE 80	//允许外界访问容器的 80 端⼝
-ENTRYPOINT [ "nginx", "-g", "daemon off;"]
-#构建镜像
-docker build -t nginx:2020 .
-#启动镜像
-docker run -itd -p 88:80  -v /home/anhao1226/:/usr/local/nginx/html nginx:20201020
-```
-
+## docker compose
