@@ -42,7 +42,7 @@ Prometheus是一个开源的系统监控和告警工具包，最初由SoundCloud
 
 <img src="https://gitee.com/c_honghui/picture/raw/master/img/20210218215507.webp" alt="img" style="zoom: 67%;" />
 
-Prometheus通过从Jobs/exporters中拉取度量数据；而短周期的jobs在结束前可以先将度量数据推送到网关(pushgateway)，然后Prometheus再从pushgateway中获取短周期jobs的度量数据；还可以通过自动发现目标的方式来监控kubernetes集群。所有收集的数据可以存储在本地的TSDB数据库中，并在这些数据上运行规则、检索、聚合和记录新的时间序列，将产生的告警通知推送到Alertmanager组件。通过PromQL来计算指标，再结合Grafana或其他API客户端来可视化数据。
+
 
 ### 组件
 
@@ -86,6 +86,53 @@ job：具有类似功能的instance的集合，例如一个mysql主从复制集�
 
 ![image-20210218235408414](https://gitee.com/c_honghui/picture/raw/master/img/20210218235408.png)
 
+### 工作模式
+
+prometheus server基于服务发现（service discovery）机制或静态配置获取要监控的目标（target），并通过每个目标上的指标exporter来采集（scrape）指标数据
+
+而短周期的jobs在结束前可以先将度量数据推送到网关(pushgateway)，然后Prometheus再从pushgateway中获取短周期jobs的度量数据；还可以通过自动发现目标的方式来监控kubernetes集群。
+
+所有收集的数据可以存储在本地的TSDB数据库中，并在这些数据上运行规则、检索、聚合和记录新的时间序列，将产生的告警通知推送到Alertmanager组件。通过PromQL来计算指标，再结合Grafana或其他API客户端来可视化数据。
+
+## 部署Prometheus
+
+安装
+
+```shell
+wget https://github.com/prometheus/prometheus/releases/download/v2.25.0/prometheus-2.25.0.linux-amd64.tar.gz
+cd /usr/local/
+ln -sv prometheus-2.25.0.linux-amd64/ prometheus
+cd prometheus
+ll
+total 167992
+drwxr-xr-x 2 3434 3434     4096 Feb 17 16:11 console_libraries
+drwxr-xr-x 2 3434 3434     4096 Feb 17 16:11 consoles
+-rw-r--r-- 1 3434 3434    11357 Feb 17 16:11 LICENSE
+-rw-r--r-- 1 3434 3434     3420 Feb 17 16:11 NOTICE
+-rwxr-xr-x 1 3434 3434 91044140 Feb 17 14:19 prometheus
+-rw-r--r-- 1 3434 3434      926 Feb 17 16:11 prometheus.yml
+-rwxr-xr-x 1 3434 3434 80948693 Feb 17 14:21 promtool
+```
+
+启动
+
+```shell
+nohup ./prometheus &
+ss -tnl
+State       Recv-Q Send-Q                                    Local Address:Port                                                   Peer Address:Port              
+LISTEN      0      128                                                   *:22                                                                *:*                  
+LISTEN      0      128                                                [::]:22                                                             [::]:*                  
+LISTEN      0      128                                                [::]:9090  
+```
+
+配置文件
+
+```shell
+vim prometheus.yml
+global:
+	scrape_interval:     15s	#每隔15秒采集一次数据
+	evaluation_interval: 15s
+```
 
 
-## 部署
+
