@@ -251,57 +251,102 @@ http_request_total{status="200", method="GET"}@1434417560938 => 94355
 指标的名称(metric name)可以反映被监控样本的含义（比如，`http_request_total` - 表示当前系统接收到的HTTP请求总量）。
 标签(label)反映了当前样本的特征维度，通过这些维度Prometheus可以对样本数据进行过滤，聚合等。
 
-### 简介
+### PromQL
 
-promql是prometheus内置的数据查询语言，promql使用表达式来表述查询需求。
+PromQL是Prometheus内置的数据查询语言，其提供对时间序列数据丰富的查询，聚合以及逻辑运算能力的支持。
 
-时间序列由指标名称和标签来唯一标识，格式为<指标>{<标签>=<标签值>,...}
+#### 查询时间序列
 
-- 指标：用于描述系统上要测定的某个特征
+当我们直接使用监控指标名称查询时，可以查询该指标下的所有时间序列。如：
 
-  如http_requests_total表示接收到的http请求数
+```shell
+http_requests_total
+等同于
+http_requests_total{}
+```
 
-- 标签：键值型数据，让指标支持多纬度特征
+PromQL还支持用户根据时间序列的标签匹配模式来对时间序列进行过滤，目前主要支持两种匹配模式：完全匹配和正则匹配。
 
-  如http_requests_total{method=GET}和http_requests_total{method=POST}代表两个不同的时间序列
+```text
+匹配器用于定义标签过滤条件：
+=	等于
+!=	不等于
+=~	匹配
+!~	不匹配
+```
 
-### 时间序列选择器
+例如，如果我们只需要查询所有http_requests_total时间序列中满足标签instance为localhost:9090的时间序列:
 
-要在Prometheus中存储的大量时间序列中抽取过滤一部分，就要使用向量表达式（时间序列选择器）
+```shell
+http_requests_total{instance="localhost:9090"}
+```
 
-- **即使向量选择器**：返回相同时间戳的数据样本
+例如，如果想查询多个环节下的时间序列序列可以使用如下表达式：
 
-  需要将返回值绘制成图形时，仅支持即使向量选择器
+```shell
+http_requests_total{environment=~"staging|testing|development",method!="GET"}
+```
 
-  即使向量选择器由两部分组成：指标名称和匹配器
+#### 范围查询
 
-  ```text
-  匹配器用于定义标签过滤条件：
-  =	等于
-  !=	不等于
-  =~	匹配
-  !~	不匹配
-  node_cpu_seconds_total{nodename=~"monitor01", mode="idle"}
-  ```
+直接通过类似于PromQL表达式`http_requests_total`查询时间序列时，返回值中只会包含该时间序列中的最新的一个样本值，这样的返回结果我们称之为**瞬时向量**。而相应的这样的表达式称之为**瞬时向量表达式**。
 
-- **范围向量选择器**：返回相同时间范围内的数据样本 
+而如果我们想过去一段时间范围内的样本数据时，我们则需要使用**区间向量表达式**。时间范围通过时间范围选择器`[]`进行定义。
 
-  范围向量选择几乎总是结合速率类的函数rate一同使用
+通过以下表达式可以选择最近5分钟内的所有样本数据：
 
-  范围向量选择器组成：表达式后紧跟一个[]，如[5m]指过去5分钟内
+```shell
+http_requests_total{}[5m]
+```
 
-  ```text
-  必须使用整数时间，时间单位由大到小，如1h30m，但不能用1.5h
-  node_cpu_seconds_total{nodename=~"monitor01", mode="idle"}[1m]
-  ```
+除了使用m表示分钟以外，PromQL的时间范围选择器支持其它时间单位：
 
-- **偏移量修改器**
+- s - 秒
+- m - 分钟
+- h - 小时
+- d - 天
+- w - 周
+- y - 年
 
-  默认情况下向量选择器以当前时间为基准时间点，偏移量修改器能够修改该基准。
+#### 时间位移操作
 
-  在表达式后面使用offset
+在瞬时向量表达式或者区间向量表达式中，都是以当前时间为基准：
 
-  http_requests_total[5m] offset 1d表示获取此刻一天前的5分钟内的所有样本
+而如果我们想查询，5分钟前的瞬时样本数据，就可以使用位移操作，位移操作的关键字为**offset**
+
+使用offset时间位移操作：
+
+```shell
+http_request_total{} offset 5m
+http_request_total{}[1d] offset 1d
+```
+
+#### 使用聚合操作
+
+如果描述样本特征的标签(label)在并非唯一的情况下，通过PromQL查询数据，会返回多条满足这些特征维度的时间序列。而PromQL提供的聚合操作可以用来对这些时间序列进行处理，形成一条新的时间序列：
+
+```shell
+# 查询系统所有http请求的总量
+sum(http_request_total)
+
+# 按照mode计算主机CPU的平均使用时间
+avg(node_cpu) by (mode)
+
+# 按照主机查询各个主机的CPU使用率
+sum(sum(irate(node_cpu{mode!='idle'}[5m]))  / sum(irate(node_cpu[5m]))) by (instance)
+```
+
+#### 标量和字符串
+
+除了使用瞬时向量表达式和区间向量表达式以外，PromQL还直接支持用户使用标量(Scalar)和字符串(String)。
+
+标量（Scalar）：一个浮点型的数字值
+
+需要注意的是，当使用表达式count(http_requests_total)，返回的数据类型，依然是瞬时向量。用户可以通过内置函数scalar()将单个瞬时向量转换为标量。
+
+字符串（String）：一个简单的字符串值
+
+直接使用字符串，作为PromQL表达式，则会直接返回字符串。
 
 ### 指标类型
 
@@ -371,9 +416,180 @@ prometheus_tsdb_compaction_chunk_range_count 780
 
 与Summary类型的指标相似之处在于Histogram类型的样本同样会反应当前指标的记录的总数(以_count作为后缀)以及其值的总量（以_sum作为后缀）。不同在于Histogram指标直接反应了在不同区间内样本的个数，区间通过标签len进行定义。
 
-同时对于Histogram的指标，我们还可以通过histogram_quantile()函数计算出其值的分位数。不同在于Histogram通过histogram_quantile函数是在服务器端计算的分位数。 而Sumamry的分位数则是直接在客户端计算完成。因此对于分位数的计算而言，Summary在通过PromQL进行查询时有更好的性能表现，而Histogram则会消耗更多的资源。反之对于客户端而言Histogram消耗的资源更少。在选择这两种方式时用户应该按照自己的实际场景进行选择。
+同时对于Histogram的指标，我们还可以通过histogram_quantile()函数计算出其值的分位数。不同在于Histogram通过histogram_quantile函数是**在服务器端计算的分位数**。 而Sumamry的分位数则是**直接在客户端计算完成**。因此对于分位数的计算而言，Summary在通过PromQL进行查询时有更好的性能表现，而Histogram则会消耗更多的资源。反之对于客户端而言Histogram消耗的资源更少。在选择这两种方式时用户应该按照自己的实际场景进行选择。
 
-### 常用函数
+### PromQL操作符
+
+#### 数学运算
+
+例如，我们可以通过指标node_memory_free_bytes_total获取当前主机可用的内存空间大小，其样本单位为Bytes。这是如果客户端要求使用MB作为单位响应数据：
+
+```shell
+node_memory_free_bytes_total / (1024 * 1024)
+```
+
+在上一小节中我们称该表达式为瞬时向量表达式，而返回的结果成为瞬时向量。
+当瞬时向量与标量之间进行数学运算时，数学运算符会依次作用于瞬时向量中的每一个样本值，从而得到一组新的时间序列。
+
+如果是瞬时向量与瞬时向量之间进行数学运算时，过程会相对复杂一点。 例如，如果我们想根据node_disk_bytes_written和node_disk_bytes_read获取主机磁盘IO的总量：
+
+```shell
+node_disk_bytes_written + node_disk_bytes_read
+```
+
+那这个表达式是如何工作的呢？依次找到与左边向量元素匹配（标签完全一致）的右边向量元素进行运算，如果没找到匹配元素，则直接丢弃。同时新的时间序列将不会包含指标名称。 该表达式返回结果的示例如下所示：
+
+```shell
+{device="sda",instance="localhost:9100",job="node_exporter"}=>1634967552@1518146427.807 + 864551424@1518146427.807
+{device="sdb",instance="localhost:9100",job="node_exporter"}=>0@1518146427.807 + 1744384@1518146427.807
+```
+
+PromQL支持的所有数学运算符如下所示：
+
+- `+` (加法)
+- `-` (减法)
+- `*` (乘法)
+- `/` (除法)
+- `%` (求余)
+- `^` (幂运算)
+
+#### 使用布尔运算过滤时间序列
+
+布尔运算则支持用户根据时间序列中样本的值，对时间序列进行过滤。
+
+当前所有主机节点的内存使用率：
+
+```shell
+(node_memory_bytes_total - node_memory_free_bytes_total) / node_memory_bytes_total
+```
+
+而系统管理员在排查问题的时候可能只想知道当前内存使用率超过95%的主机呢？通过使用布尔运算符可以方便的获取到该结果：
+
+```shell
+(node_memory_bytes_total - node_memory_free_bytes_total) / node_memory_bytes_total > 0.95
+```
+
+瞬时向量与标量进行布尔运算时，PromQL依次比较向量中的所有时间序列样本的值，如果比较结果为true则保留，反之丢弃。
+
+瞬时向量与瞬时向量直接进行布尔运算时，同样遵循默认的匹配模式：依次找到与左边向量元素匹配（标签完全一致）的右边向量元素进行相应的操作，如果没找到匹配元素，则直接丢弃。
+
+目前，Prometheus支持以下布尔运算符如下：
+
+- `==` (相等)
+- `!=` (不相等)
+- `>` (大于)
+- `<` (小于)
+- `>=` (大于等于)
+- `<=` (小于等于)
+
+#### 使用bool修饰符改变布尔运算符的行为
+
+例如，只需要知道当前模块的HTTP请求量是否>=1000，如果大于等于1000则返回1（true）否则返回0（false）。这时可以使用bool修饰符改变布尔运算的默认行为。 例如：
+
+```shell
+http_requests_total > bool 1000
+```
+
+#### 使用集合运算符
+
+通过集合运算，可以在两个瞬时向量与瞬时向量之间进行相应的集合操作。目前，Prometheus支持以下集合运算符：
+
+- `and` (并且)
+- `or` (或者)
+- `unless` (排除)
+
+***vector1 and vector2*** 会产生一个由vector1的元素组成的新的向量。该向量包含vector1中完全匹配vector2中的元素组成。
+
+***vector1 or vector2*** 会产生一个新的向量，该向量包含vector1中所有的样本数据，以及vector2中没有与vector1匹配到的样本数据。
+
+***vector1 unless vector2*** 会产生一个新的向量，新向量中的元素由vector1中没有与vector2匹配的元素组成。
+
+#### 操作符优先级
+
+查询主机的CPU使用率，可以使用表达式：
+
+```shell
+100 * (1 - avg (irate(node_cpu{mode='idle'}[5m])) by(job) )
+```
+
+在PromQL操作符中优先级由高到低依次为：
+
+1. `^`
+2. `*, /, %`
+3. `+, -`
+4. `==, !=, <=, <, >=, >`
+5. `and, unless`
+6. `or`
+
+### PromQL聚合操作
+
+Prometheus还提供了下列内置的聚合操作符，这些操作符作用域瞬时向量。可以将瞬时表达式返回的样本数据进行聚合，形成一个新的时间序列。
+
+- `sum` (求和)
+- `min` (最小值)
+- `max` (最大值)
+- `avg` (平均值)
+- `stddev` (标准差)
+- `stdvar` (标准方差)
+- `count` (计数)
+- `count_values` (对value进行计数)
+- `bottomk` (后n条时序)
+- `topk` (前n条时序)
+- `quantile` (分位数)
+
+使用聚合操作的语法如下：
+
+```shell
+<aggr-op>([parameter,] <vector expression>) [without|by (<label list>)]
+```
+
+其中只有`count_values`, `quantile`, `topk`, `bottomk`支持参数(parameter)。
+
+without用于从计算结果中移除列举的标签，而保留其它标签。by则正好相反，结果向量中只保留列出的标签，其余标签则移除。通过without和by可以按照样本的问题对数据进行聚合。
+
+例如：
+
+```
+sum(http_requests_total) without (instance)
+```
+
+等价于
+
+```
+sum(http_requests_total) by (code,handler,job,method)
+```
+
+如果只需要计算整个应用的HTTP请求总量，可以直接使用表达式：
+
+```
+sum(http_requests_total)
+```
+
+count_values用于时间序列中每一个样本值出现的次数。count_values会为每一个唯一的样本值输出一个时间序列，并且每一个时间序列包含一个额外的标签。
+
+例如：
+
+```
+count_values("count", http_requests_total)
+```
+
+topk和bottomk则用于对样本值进行排序，返回当前样本值前n位，或者后n位的时间序列。
+
+获取HTTP请求数前5位的时序样本数据，可以使用表达式：
+
+```
+topk(5, http_requests_total)
+```
+
+quantile用于计算当前样本数据值的分布情况quantile(φ, express)其中0 ≤ φ ≤ 1。
+
+例如，当φ为0.5时，即表示找到当前样本数据中的中位数：
+
+```
+quantile(0.5, http_requests_total)
+```
+
+### 内置函数
 
 https://prometheus.io/docs/prometheus/latest/querying/functions/
 
@@ -424,5 +640,212 @@ topk(3,node_netstat_Tcp_CurrEstab)  
 predict_linear(node_filesystem_free_bytes{device="rootfs",nodename=~"monitor01",mountpoint="/"}[1d],2*86400)
 ```
 
+## Prometheus告警处理
 
+### 简介
 
+通过在Prometheus中定义AlertRule（告警规则），Prometheus会周期性的对告警规则进行计算，如果满足告警触发条件就会向Alertmanager发送告警信息。
+
+![image-20210301232909110](https://gitee.com/c_honghui/picture/raw/master/img/20210301232909.png)
+
+在Prometheus中一条告警规则主要由以下几部分组成：
+
+- 告警名称：用户需要为告警规则命名，当然对于命名而言，需要能够直接表达出该告警的主要内容
+- 告警规则：告警规则实际上主要由PromQL进行定义，其实际意义是当表达式（PromQL）查询结果持续多长时间（During）后出发告警
+
+Alertmanager作为一个独立的组件，负责接收并处理来自Prometheus Server(也可以是其它的客户端程序)的告警信息。Alertmanager可以对这些告警信息进行进一步的处理，比如当接收到大量重复告警时能够消除重复的告警信息，同时对告警信息进行分组并且路由到正确的通知方，Prometheus内置了对邮件，Slack等多种通知方式的支持，同时还支持与Webhook的集成，以支持更多定制化的场景。例如，目前Alertmanager还不支持钉钉，那用户完全可以通过Webhook与钉钉机器人进行集成，从而通过钉钉接收告警信息。同时AlertManager还提供了静默和告警抑制机制来对告警通知行为进行优化。
+
+**Alertmanager特性**
+
+**分组**
+
+分组机制可以将详细的告警信息合并成一个通知。
+
+例如，当集群中有数百个正在运行的服务实例，并且为每一个实例设置了告警规则。假如此时发生了网络故障，可能导致大量的服务实例无法连接到数据库，结果就会有数百个告警被发送到Alertmanager。
+
+而作为用户，可能只希望能够在一个通知中中就能查看哪些服务实例收到影响。这时可以按照服务所在集群或者告警名称对告警进行分组，而将这些告警内聚在一起成为一个通知。
+
+**抑制**
+
+抑制是指当某一告警发出后，可以停止重复发送由此告警引发的其它告警的机制。
+
+例如，当集群不可访问时触发了一次告警，通过配置Alertmanager可以忽略与该集群有关的其它所有告警。这样可以避免接收到大量与实际问题无关的告警通知。
+
+**静默**
+
+快速根据标签对告警进行静默处理。如果接收到的告警符合静默的配置，Alertmanager则不会发送告警通知。
+
+### 自定义Prometheus告警规则
+
+**定义告警规则**
+
+在告警规则文件中，我们可以将一组相关的规则设置定义在一个group下。在每一个group中我们可以定义多个告警规则(rule)。
+
+一条告警规则主要由以下几部分组成：
+
+- alert：告警规则的名称。
+- expr：基于PromQL表达式告警触发条件，用于计算是否有时间序列满足该条件。
+- for：评估等待时间，可选参数。用于表示只有当触发条件持续一段时间后才发送告警。在等待期间新产生告警的状态为pending。
+- labels：自定义标签，允许用户指定要附加到告警上的一组附加标签。
+- annotations：用于指定一组附加信息，比如用于描述告警详细信息的文字等，annotations的内容在告警产生时会一同作为参数发送到Alertmanager。
+
+为了能够让Prometheus能够启用定义的告警规则，我们需要在Prometheus全局配置文件中通过**rule_files**指定一组告警规则文件的访问路径，Prometheus启动后会自动扫描这些路径下规则文件中定义的内容，并且根据这些规则计算是否向外部发送通知：
+
+```
+rule_files:
+  [ - <filepath_glob> ... ]
+```
+
+默认情况下Prometheus会**每分钟**对这些告警规则进行计算，如果用户想定义自己的告警计算周期，则可以通过`evaluation_interval`来覆盖默认的计算周期：
+
+```
+global:
+  [ evaluation_interval: <duration> | default = 1m ]
+```
+
+**模板化**
+
+一般来说，在告警规则文件的annotations中使用`summary`描述告警的概要信息，`description`用于描述告警的详细信息。同时Alertmanager的UI也会根据这两个标签值，显示告警信息。为了让告警信息具有更好的可读性，Prometheus支持模板化label和annotations的中标签的值。
+
+通过`$labels.<labelname>`变量可以访问当前告警实例中指定标签的值。$value则可以获取当前PromQL表达式计算的样本值。
+
+```
+# To insert a firing element's label values:
+{{ $labels.<labelname> }}
+# To insert the numeric expression value of the firing element:
+{{ $value }}
+```
+
+例如，可以通过模板化优化summary以及description的内容的可读性：
+
+```yaml
+groups:
+- name: example
+  rules:
+
+  # Alert for any instance that is unreachable for >5 minutes.
+  - alert: InstanceDown
+    expr: up == 0
+    for: 5m
+    labels:
+      severity: page
+    annotations:
+      summary: "Instance {{ $labels.instance }} down"
+      description: "{{ $labels.instance }} of job {{ $labels.job }} has been down for more than 5 minutes."
+
+  # Alert for any instance that has a median request latency >1s.
+  - alert: APIHighRequestLatency
+    expr: api_http_request_latencies_second{quantile="0.5"} > 1
+    for: 10m
+    annotations:
+      summary: "High request latency on {{ $labels.instance }}"
+      description: "{{ $labels.instance }} has a median request latency above 1s (current value: {{ $value }}s)"
+```
+
+**查看告警状态**
+
+可以通过表达式，查询告警实例：
+
+```
+ALERTS{alertname="<alert name>", alertstate="pending|firing", <additional alert labels>}
+```
+
+样本值为1表示当前告警处于活动状态（pending或者firing），当告警从活动状态转换为非活动状态时，样本值则为0。
+
+**实例：定义主机监控告警**
+
+修改Prometheus配置文件prometheus.yml,添加以下配置：
+
+```yaml
+rule_files:
+  - /etc/prometheus/rules/*.rules
+```
+
+在目录/etc/prometheus/rules/下创建告警文件hoststats-alert.rules内容如下：
+
+```yaml
+groups:
+- name: hostStatsAlert
+  rules:
+  - alert: hostCpuUsageAlert
+    expr: sum(avg without (cpu)(irate(node_cpu{mode!='idle'}[5m]))) by (instance) > 0.85
+    for: 1m
+    labels:
+      severity: page
+    annotations:
+      summary: "Instance {{ $labels.instance }} CPU usgae high"
+      description: "{{ $labels.instance }} CPU usage above 85% (current value: {{ $value }})"
+  - alert: hostMemUsageAlert
+    expr: (node_memory_MemTotal - node_memory_MemAvailable)/node_memory_MemTotal > 0.85
+    for: 1m
+    labels:
+      severity: page
+    annotations:
+      summary: "Instance {{ $labels.instance }} MEM usgae high"
+      description: "{{ $labels.instance }} MEM usage above 85% (current value: {{ $value }})"
+```
+
+重启Prometheus后访问Prometheus UIhttp://127.0.0.1:9090/rules可以查看当前以加载的规则文件。
+
+切换到Alerts标签http://127.0.0.1:9090/alerts可以查看当前告警的活动状态。
+
+### 部署AlertManager
+
+获取并安装软件包
+
+```shell
+export VERSION=0.15.2
+curl -LO https://github.com/prometheus/alertmanager/releases/download/v$VERSION/alertmanager-$VERSION.darwin-amd64.tar.gz
+tar xvf alertmanager-$VERSION.darwin-amd64.tar.gz
+```
+
+创建alertmanager配置文件
+
+Alertmanager解压后会包含一个默认的alertmanager.yml配置文件，内容如下所示：
+
+```yaml
+global:
+  resolve_timeout: 5m
+
+route:
+  group_by: ['alertname']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h
+  receiver: 'web.hook'
+receivers:
+- name: 'web.hook'
+  webhook_configs:
+  - url: 'http://127.0.0.1:5001/'
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'dev', 'instance']
+```
+
+启动Alertmanager
+
+Alermanager会将数据保存到本地中，默认的存储路径为`data/`。因此，在启动Alertmanager之前需要创建相应的目录：
+
+```shell
+./alertmanager
+```
+
+查看运行状态
+
+Alertmanager启动后可以通过9093端口访问，http://192.168.33.10:9093
+
+**关联Prometheus与Alertmanager**
+
+编辑Prometheus配置文件prometheus.yml,并添加以下内容
+
+```yaml
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['localhost:9093']
+```
+
+重启Prometheus服务，成功后，可以从http://192.168.33.10:9090/config查看alerting配置是否生效。
