@@ -6,7 +6,7 @@ Prometheus是一个开源的系统监控和告警工具包，最初由SoundCloud
 
 ## 特点
 
-1、Prometheus存储数据的格式是  度量(metric)名称和键/值对标签(label)的时间序列。
+1、Prometheus存储数据的格式是  **指标(metric)名称**和**键/值对标签(label)**的**时间序列**。
 
 ```text
 时序数据是在一段时间通过重复测量而获得的观测数据的集合；将这些观测数据绘制于图形上，会有一个数据轴和时间轴
@@ -44,7 +44,9 @@ Prometheus是一个开源的系统监控和告警工具包，最初由SoundCloud
 
 ### 组件
 
-**Prometheus server**：收集和存储时间序列数据
+**Prometheus server**：
+
+Prometheus Server是Prometheus组件中的核心部分，负责实现**对监控数据的获取，存储以及查询**。 Prometheus Server可以通过静态配置管理监控目标，也可以配合使用Service Discovery的方式动态管理监控目标，并从这些监控目标中获取数据。其次Prometheus Server需要对采集到的监控数据进行存储，Prometheus Server本身就是一个时序数据库，将采集到的监控数据按照时间序列的方式存储在本地磁盘当中。最后Prometheus Server对外提供了自定义的PromQL语言，实现对数据的查询以及分析。
 
 ```text
 prometheus仅用于以“键值”形式存储时序式的聚合数据
@@ -54,11 +56,22 @@ prometheus仅用于以“键值”形式存储时序式的聚合数据
 
 ![image-20210218232158122](https://gitee.com/c_honghui/picture/raw/master/img/20210218232158.png)
 
-**Pushgateway**：接收通常由短期作业生成的指标数据的网关
+**Pushgateway**：
 
-**Exporters**：用于暴露现有应用程序或服务的指标给Prometheus server
+由于Prometheus数据采集基于Pull模型进行设计，因此在网络环境的配置上必须要让Prometheus Server能够直接与Exporter进行通信。 当这种网络需求无法直接满足时，就可以利用PushGateway来进行中转。可以通过PushGateway将内部网络的监控数据主动Push到Gateway当中。而Prometheus Server则可以采用同样Pull的方式从PushGateway中获取到监控数据。
 
-**Alertmanager**：从Prometheus server接收到告警通知后，通过去重、分组、路由等预处理后向用户发送告警
+**Exporters**：
+
+Exporter将监控数据采集的端点**通过HTTP服务的形式暴露**给Prometheus Server，Prometheus Server通过访问该Exporter提供的Endpoint端点，即可获取到需要采集的监控数据。
+
+一般来说可以将Exporter分为2类：
+
+- 直接采集：这一类Exporter直接**内置**了对Prometheus监控的支持，比如cAdvisor，Kubernetes，Etcd，Gokit等，都直接内置了用于向Prometheus暴露监控数据的端点。
+- 间接采集：间接采集，原有监控目标并**不直接支持**Prometheus，因此我们需要通过Prometheus提供的Client Library编写该监控目标的监控采集程序。例如： Mysql Exporter，JMX Exporter，Consul Exporter等。
+
+**Alertmanager**：
+
+在Prometheus Server中支持**基于PromQL创建告警规则**，如果满足PromQL定义的规则，则会产生一条告警，而告警的后续处理流程则由AlertManager进行管理。在AlertManager中我们可以与邮件，Slack等等内置的通知方式进行集成，也可以通过Webhook自定义告警处理方式。AlertManager即Prometheus体系中的告警处理中心。
 
 Data visualization：Grafana
 
@@ -134,6 +147,8 @@ global:
 
 ## 部署node export监控系统级指标
 
+Prometheus Server并不直接服务监控特定的目标，其主要任务负责数据的收集，存储并且对外提供数据查询支持。因此为了能够能够监控到某些东西，如主机的CPU使用率，我们需要使用到Exporter。Prometheus周期性的从Exporter暴露的HTTP服务地址（通常是/metrics）拉取监控样本数据。
+
 在被监控的服务器上下载安装node exporter
 
 ```shell
@@ -154,12 +169,18 @@ LISTEN      0      128                                                [::]:22   
 
 ```shell
 vim /usr/local/prometheus/prometheus.yml
+scrape_configs:
 ...
   - job_name: 'nodes'
     static_configs:
     - targets:
       - 10.1.96.3:9100
 ```
+
+当我们需要采集不同的监控指标(例如：主机、MySQL、Nginx)时，我们只需要运行相应的监控采集程序，并且让Prometheus Server知道这些Exporter实例的访问地址。
+
+在Prometheus中，每一个暴露监控样本数据的HTTP服务称为一个实例。例如在当前主机上运行的node exporter可以被称为一个**实例(Instance)**。
+而一组用于相同采集目的的实例，或者同一个采集进程的多个副本则通过一个一个**任务(Job)**进行管理。
 
 常用的node exporter指标
 
@@ -178,6 +199,57 @@ node_vmstat_pswpout：系统每秒从内存写到硬盘的字节数
 ```
 
 ## PromQL
+
+### 时间序列
+
+通过Node Exporter暴露的HTTP服务，Prometheus可以采集到当前主机所有监控指标的样本数据。例如：
+
+```shell
+# HELP node_cpu Seconds the cpus spent in each mode.
+# TYPE node_cpu counter
+node_cpu{cpu="cpu0",mode="idle"} 362812.7890625
+# HELP node_load1 1m load average.
+# TYPE node_load1 gauge
+node_load1 3.0703125
+```
+
+非#开头的每一行表示当前Node Exporter采集到的一个监控样本：node_cpu和node_load1表明了当前指标的名称、大括号中的标签则反映了当前样本的一些特征和维度、浮点数则是该监控样本的具体值。
+
+#### 样本
+
+Prometheus会将所有采集到的样本数据以时间序列（time-series）的方式保存在内存数据库中，并且定时保存到硬盘上。time-series是按照时间戳和值的序列顺序存放的，我们称之为向量(vector). 每条time-series通过指标名称(metrics name)和一组标签集(labelset)命名。如下所示，可以将time-series理解为一个以时间为Y轴的数字矩阵：
+
+```shell
+ ^
+  │   . . . . . . . . . . . . . . . . .   . .   node_cpu{cpu="cpu0",mode="idle"}
+  │     . . . . . . . . . . . . . . . . . . .   node_cpu{cpu="cpu0",mode="system"}
+  │     . . . . . . . . . .   . . . . . . . .   node_load1{}
+  │     . . . . . . . . . . . . . . . .   . .  
+  v
+    <------------------ 时间 ---------------->
+```
+
+在time-series中的**每一个点称为一个样本**（sample），样本由以下三部分组成：
+
+- **指标(metric)**：metric name和描述当前样本特征的labelsets;
+- **时间戳(timestamp)**：一个精确到毫秒的时间戳;
+- **样本值(value)**： 一个float64的浮点型数据表示当前样本的值。
+
+```shell
+<--------------- metric ---------------------><-timestamp -><-value->
+http_request_total{status="200", method="GET"}@1434417560938 => 94355
+```
+
+#### 指标
+
+指标格式:
+
+```shell
+<metric name>{<label name>=<label value>, ...}
+```
+
+指标的名称(metric name)可以反映被监控样本的含义（比如，`http_request_total` - 表示当前系统接收到的HTTP请求总量）。
+标签(label)反映了当前样本的特征维度，通过这些维度Prometheus可以对样本数据进行过滤，聚合等。
 
 ### 简介
 
@@ -235,23 +307,71 @@ promql是prometheus内置的数据查询语言，promql使用表达式来表述�
 
 Prometheus从exporter抓取的每一个指标均是有注释度量类型的，例如，我们来查看node_exporter的度量指标，curl http://xxx.xxx.xxx.xxx:9100/metrics
 4种类型的指标：
-counter：计数器，单调递增型的数据，不能为负数也不能减少，但可以重置为0（重启服务器或服务）
 
-```text
-通常counter的总数并没有直接作用，要借助rate、topk、increase和irate等函数来生成样本的变化状况
-rate(http_requests_total[2h]),获取2小时内，该指标下各时间序列上http总请求数的增长速率
-topk(3,http_requests_total),获取该指标下http请求总数排名前3的时间序列
-irate(http_requests_total[2h]),高灵敏度函数，计算指标的瞬时速率
+**counter：只增不减的计数器**
+
+只增不减（除非系统发生重置）。常见的监控指标，如http_requests_total，node_cpu都是Counter类型的监控指标。 一般在定义Counter类型指标的名称时推荐使用_total作为后缀。
+
+PromQL内置的聚合操作和函数可以让用户对这些数据进行进一步的分析：
+
+```shell
+rate(http_requests_total[2h]) #获取2小时内，该指标下各时间序列上http总请求数的增长速率
+topk(3,http_requests_total) #获取该指标下http请求总数排名前3的时间序列
+irate(http_requests_total[2h]) #高灵敏度函数，计算指标的瞬时速率
 ```
 
-gauge：仪表盘，可增可减的数据，如内存空闲大小
+**gauge：可增可减的仪表盘**
 
-```text
+Gauge类型的指标侧重于反应系统的当前状态。常见指标如：node_memory_MemFree（主机当前空闲的内容大小）、node_memory_MemAvailable（可用内存大小）
+
+```shell
 常用于求和、平均值、最小值、最大值等聚合计算，也常结合predict_linear和delta函数使用
+delta(cpu_temp_celsius{host="zeus"}[2h]) #计算CPU温度在两个小时内的差异
+predict_linear(node_filesystem_free{job="node"}[1h], 4 * 3600) #预测系统磁盘空间在4个小时之后的剩余情况
 ```
 
-histogram：直方图，Histogram是对数据进行采样的指标类型，用来展示数据集的频率分布。Histogram是表示数值分布的图形，它将数值分组到一个一个的bucket当中，然后计算每个bucket中值出现次数。在Histogram上，X轴表示表示数值的范围（例如人的身高/网站请求响应时间），Y轴表示对应数值出现的频次（对应身高/响应时间出现的次数）。在直方图上，对于各数值出现的次数，分布是否对称都显示的很清楚（对于这类数据如果只是简单的对数值取最小、最大或平均是没有多大意义的）。
-summary：类似histogram，但客户端会直接计算并上报分位数
+**使用Histogram和Summary分析数据分布情况**
+
+Histogram和Summary主用用于统计和分析样本的分布情况。
+如果大多数API请求都维持在100ms的响应时间范围内，而个别请求的响应时间需要5s，那么就会导致某些WEB页面的响应时间落到中位数的情况，而这种现象被称为长尾问题。
+为了区分是平均的慢还是长尾的慢，最简单的方式就是按照请求延迟的范围进行分组。例如，统计延迟在0~10ms之间的请求数有多少而10~20ms之间的请求数又有多少。通过这种方式可以快速分析系统慢的原因。
+
+例如，指标prometheus_tsdb_wal_fsync_duration_seconds的指标类型为Summary。 它记录了Prometheus Server中wal_fsync处理的处理时间，通过访问Prometheus Server的/metrics地址，可以获取到以下监控样本数据：
+
+```shell
+# HELP prometheus_tsdb_wal_fsync_duration_seconds Duration of WAL fsync.
+# TYPE prometheus_tsdb_wal_fsync_duration_seconds summary
+prometheus_tsdb_wal_fsync_duration_seconds{quantile="0.5"} 0.012352463
+prometheus_tsdb_wal_fsync_duration_seconds{quantile="0.9"} 0.014458005
+prometheus_tsdb_wal_fsync_duration_seconds{quantile="0.99"} 0.017316173
+prometheus_tsdb_wal_fsync_duration_seconds_sum 2.888716127000002
+prometheus_tsdb_wal_fsync_duration_seconds_count 216
+#当前Prometheus Server进行wal_fsync操作的总次数为216次，耗时2.888716127000002s。其中中位数（quantile=0.5）的耗时为0.012352463，9分位数（quantile=0.9）的耗时为0.014458005s。
+```
+
+我们还能找到类型为Histogram的监控指标prometheus_tsdb_compaction_chunk_range_bucket。
+
+```shell
+# HELP prometheus_tsdb_compaction_chunk_range Final time range of chunks on their first compaction
+# TYPE prometheus_tsdb_compaction_chunk_range histogram
+prometheus_tsdb_compaction_chunk_range_bucket{le="100"} 0
+prometheus_tsdb_compaction_chunk_range_bucket{le="400"} 0
+prometheus_tsdb_compaction_chunk_range_bucket{le="1600"} 0
+prometheus_tsdb_compaction_chunk_range_bucket{le="6400"} 0
+prometheus_tsdb_compaction_chunk_range_bucket{le="25600"} 0
+prometheus_tsdb_compaction_chunk_range_bucket{le="102400"} 0
+prometheus_tsdb_compaction_chunk_range_bucket{le="409600"} 0
+prometheus_tsdb_compaction_chunk_range_bucket{le="1.6384e+06"} 260
+prometheus_tsdb_compaction_chunk_range_bucket{le="6.5536e+06"} 780
+prometheus_tsdb_compaction_chunk_range_bucket{le="2.62144e+07"} 780
+prometheus_tsdb_compaction_chunk_range_bucket{le="+Inf"} 780
+prometheus_tsdb_compaction_chunk_range_sum 1.1540798e+09
+prometheus_tsdb_compaction_chunk_range_count 780
+```
+
+与Summary类型的指标相似之处在于Histogram类型的样本同样会反应当前指标的记录的总数(以_count作为后缀)以及其值的总量（以_sum作为后缀）。不同在于Histogram指标直接反应了在不同区间内样本的个数，区间通过标签len进行定义。
+
+同时对于Histogram的指标，我们还可以通过histogram_quantile()函数计算出其值的分位数。不同在于Histogram通过histogram_quantile函数是在服务器端计算的分位数。 而Sumamry的分位数则是直接在客户端计算完成。因此对于分位数的计算而言，Summary在通过PromQL进行查询时有更好的性能表现，而Histogram则会消耗更多的资源。反之对于客户端而言Histogram消耗的资源更少。在选择这两种方式时用户应该按照自己的实际场景进行选择。
 
 ### 常用函数
 
