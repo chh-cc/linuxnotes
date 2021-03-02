@@ -1,13 +1,15 @@
 # Nginx配置
 
-## 配置文件
+## 配置文件结构
 
 ```shell
 vim nginx.conf
+#全局参数
 ...
 events {
 	...
 }
+# http 服务相关设置
 http {
 	...
 	一些优化参数;
@@ -39,18 +41,20 @@ server {
 
 ```shell
 vim nginx.conf
+#全局参数
 user	www www;	#worker进程的管理用户和用户组
-
+error_log  logs/error.log;    # 指定错误日志 
 worker_processes	8;	#通常设置成和 cpu 核数相等（top然后按1或more /proc/cpuinfo可查看核数，生产环境一般不超过8个，进程太多并不好） 
 worker_cpu_affinity	00000001 00000010 00000100 00001000 00010000 00100000 01000000 10000000;	#将8个进程分配到8个cpu，最大化利用cpu资源
 worker_rlimit_nofile	10240;	#每个进程的最大文件打开数
 
 events {
-use epoll;
+use epoll;	# 事件驱动类型
 worker_connections	4096;	#单个 worker process 进程可以同时接收多少访问请求
 multi_accept	on;	#尽可能多的接受请求. 
 }
 
+# http 服务相关设置
 http { 
 include	mime.types;
 default_type	application/octet-stream;
@@ -72,6 +76,7 @@ large_client_header_buffer_size    4 32k;
 client_max_body_size        300m;	#允许客户端请求的最大单文件字节数（上传文件大小）,根据业务调整
 client_body_buffer_size     512k;	#缓冲区代理缓冲用户端请求的最大字节数
 
+#代理配置
 proxy_connect_timeout	10;	#nginx跟后端服务器连接超时时间(代理连接超时，单位秒)。不要设置的太小，否则会报504错误。
 proxy_send_timeout	10;	#后端服务器数据回传时间(代理发送超时，单位秒)
 proxy_read_timeout	10;	#连接成功后，后端服务器响应时间(代理接收超时) 
@@ -101,8 +106,9 @@ servert_info    off;
 server_tokens    off;
 
 log_format	main  '$remote_addr - $remote_user [$time_local] "$request" '
-                                         '$status $body_bytes_sent "$http_referer" '
-                                         '"$http_user_agent" "$http_x_forwarded_for"';
+                  '$status $body_bytes_sent "$http_referer" '
+                  '"$http_user_agent" "$http_x_forwarded_for"';
+access_log  /var/log/nginx/access.log  main;    #设置访问日志的位置和格式 
 upstream bbs {
 server    10.1.96.3:80 weight=1 max_fails=2 fail_timeout=30s;
 server    10.1.96.4:80 weight=1 max_fails=2 fail_timeout=30s;
@@ -115,6 +121,7 @@ include	/domains/*.conf	#加载一个配置文件，作为虚拟主机
 
 ```shell
 vim domains/chenhh.xyz_80.conf
+# 虚拟服务器的相关设置
 server {
     listen      104.207.128.168:80;
     server_name blog.chenhh.xyz chenhh.xyz;
@@ -126,11 +133,24 @@ server {
     ....
     
     location / {
-        proxy_pass http://bbs;#反向代理
+        #代理配置
+        proxy_pass http://bbs;	#代理的后端服务器URL
         proxy_redirect off;
-        proxy_set_header Host $http_host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        # 要使用 nginx 代理后台获取真实的 IP 需在 nginx.conf 配置中加入配置信息
+        proxy_set_header Host $http_host;	# 包含客户端真实的域名和端口号；
+        proxy_set_header X-Real-IP $remote_addr;	 # 表示客户端真实的IP；	
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;	#在多层代理时会包含真实客户端及中间每个代理服务器的IP
+		proxy_set_header X-Forwarded-Proto $scheme;	# 表示客户端真实的协议（http还是https）；
+		proxy_set_header X-NginX-Proxy true;
+		
+		proxy_connect_timeout 30;
+		proxy_send_timeout 60;
+		proxy_read_timeout 60;
+		proxy_buffering on;	#缓冲开关，nignx会把后端返回的内容先放到缓冲区当中，然后再返回给客户端（边收边传，不是全部接收完再传给客户端）
+		proxy_buffer_size 32k;	#缓冲区大小
+		proxy_buffers 4 128k;	#缓冲区数量
+		proxy_busy_buffers_size 256k;	#忙碌的缓冲区大小控制同时传递给客户端的buffer数量
+		proxy_max_temp_file_size 256k;
     }
     #动静分离
     location ~ .*\.(gif|jpg|jpeg|svg|bmp|png|ico|txt|js|css|html)$ {
