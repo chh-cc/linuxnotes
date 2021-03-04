@@ -36,19 +36,18 @@ Docker将应用程序与该程序的依赖，打包在一个文件里面。运�
 
  10）不要依赖IP地址 – 每个容器都有自己的内部IP地址，如果你启动并停止它地址可能会变化。如果你的应用或微服务需要与其他容器通讯，使用任何命名与（或者）环境变量来从一个容器传递合适信息到另一个。
 
-## 架构
+## 架构和原理
 
 ### **镜像（Image）**
 
-Image是docker的基石，是一个可运行的基本单元。image是只读的，包括container运行所需要的数据，主要用来创建container。实际上image是由一层层的文件系统组成的，这种层级的文件系统称为UnionFS。Docker image来源：
+镜像是一个**只读**的文件和文件夹组合。它包含了容器运行时所需要的所有基础文件和配置信息，是容器启动的基础。实际上image是由一层层的文件系统组成的，这种层级的文件系统称为UnionFS。
+
+Docker image来源：
 
 ```text
 （1）可以基于Dockerfile从无到有的构建；
-
 （2）也可以基于Dockerfile从已有的image创建新的image；
-
 （3）也可以基于容器生成新的image；
-
 （4）甚至也可以直接下载别人的image。
 ```
 
@@ -86,11 +85,11 @@ Image是docker的基石，是一个可运行的基本单元。image是只读的�
 
 ### **容器（Container）**
 
-⼀个Docker容器包含了所有的**某个应⽤运⾏所需要的环境**。每⼀个Docker 容器都是从 Docker 镜像创建的。
+![image-20210304112100778](https://gitee.com/c_honghui/picture/raw/master/img/20210304112100.png)
+
+容器是镜像的运行实体。镜像是静态的只读文件，而容器带有运行时需要的可写文件层，并且容器中的进程属于运行状态。即**容器运行着真正的应用进程。容器有初建、运行、停止、暂停和删除五种状态。**
 
 容器的实质是进程，但与直接在宿主执行的进程不同，容器进程运行于**属于自己的独立的 命名空间**。因此容器可以拥有自己的 root 文件系统、自己的网络配置、自己的进程空间，甚至自己的用户 ID 空间。容器内的进程是运行在一个隔离的环境里，使用起来，就好像是在一个独立于宿主的系统下操作一样。
-
-**容器有两个状态**：运行（running）和退出（exited）
 
 我们可以⽤同⼀个镜像启动多个Docker容器，这些容器启动后都是活动的，彼此还是相互隔离的。我们
 对其中⼀个容器所做的变更只会局限于那个容器本身。
@@ -102,7 +101,7 @@ Image是docker的基石，是一个可运行的基本单元。image是只读的�
 
 ### **仓库（Repository）**
 
-如百度网盘一样，我们需要一个仓库来存放镜像，Docker官方提供了公共的镜像仓库；从安全和效率的角度考虑我们也可以部署私有环境的Registry或者是Harbor。
+我们需要一个仓库来存放镜像，Docker官方提供了公共的镜像仓库；从安全和效率的角度考虑我们也可以部署私有环境的Registry或者是Harbor。
 
 ----------------------------------------
 
@@ -116,13 +115,77 @@ docker swarm: docker公司推出的容器调度平台。
 
 kubernetes: google主导的容器调度平台。
 
+### 架构
+
+![image-20210304103656232](https://gitee.com/c_honghui/picture/raw/master/img/20210304103702.png)
+
+Docker 整体架构采用 C/S（客户端 / 服务器）模式，主要由客户端和服务端两大部分组成。客户端负责发送操作指令，服务端负责接收和处理指令。客户端和服务端通信有多种方式，既可以在同一台机器上通过`UNIX`套接字通信，也可以通过网络连接远程通信。
+
+1. Docker 相关的组件：
+
+   docker
+
+   ```text
+   docker客户端，负责发送docker请求
+   ```
+
+   dockerd
+
+   ```text
+   Docker 服务端入口，负责接收客户端请求并返回请求结果
+   ```
+
+   docker-init 
+
+   ```shell
+   在执行 docker run 启动容器时可以添加 --init 参数，此时 Docker 会使用 docker-init 作为1号进程，帮你管理容器内子进程，例如回收僵尸进程等
+   $ docker run -it --init busybox sh
+   / # ps aux
+   PID   USER     TIME  COMMAND
+       1 root      0:00 /sbin/docker-init -- sh
+       6 root      0:00 sh
+       7 root      0:00 ps aux
+   ```
+
+   docker-proxy
+
+   ```text
+   用来做docker的网络实现，通过设置iptables规则使得访问主机的流量可以被转发到容器中
+   ```
+
+2. containerd 相关的组件：
+
+   containerd
+
+   ```text
+   containerd 包含一个后台常驻进程，默认的 socket 路径为 /run/containerd/containerd.sock，dockerd 通过 UNIX 套接字向 containerd 发送请求，containerd 接收到请求后负责执行相关的动作并把执行结果返回给 dockerd。
+   ```
+
+   containerd-shim
+
+   ```text
+   containerd-shim 的主要作用是将 containerd 和真正的容器进程解耦，使用 containerd-shim 作为容器进程的父进程，从而实现重启 containerd 不影响已经启动的容器进程。
+   ```
+
+   ctr
+
+   ```text
+   containerd 的客户端，主要用来开发和调试，向 containerd 守护进程发送操作容器的请求。
+   ```
+
+3. 容器运行时相关的组件：runc
+
+   ```text
+   通过调用namespace、cgroups等系统接口，实现容器的创建和销毁
+   ```
+
 ### 核心底层技术
 
 Docker使用的核心底层技术：Namespace、Control Groups和Union FS。
 
 **Namespaces**
 
-每个docker主机上可以起很多container，这些container之间是相互隔离，互不影响的。Docker正是借助Linux kernel namespace(命名空间)来实现这一点。具体包括pid、net、ipc、mnt、uts、user等namespace将container的进程、网络、消息、文件系统、UTS("UNIX Time-sharing System")和用户空间隔离开。
+简单来说，Namespace 是 Linux 内核的一个特性，该特性可以实现在同一主机系统中，对进程 ID、主机名、用户 ID、文件名、网络和进程间通信等资源的隔离。Docker 利用 Linux 内核的 Namespace 特性，实现了每个容器的**资源相互隔离**，从而保证容器内部只能访问到自己 Namespace 的资源。
 
 **Control groups**
 
@@ -147,10 +210,29 @@ AUFS的特性, 使得每一个对Readonly层文件/目录的修改都只会存�
 ## 安装
 
 ```shell
+#先执行以下命令卸载旧版 Docker
+$ sudo yum remove docker \
+                  docker-client \
+                  docker-client-latest \
+                  docker-common \
+                  docker-latest \
+                  docker-latest-logrotate \
+                  docker-logrotate \
+                  docker-engine
+#添加 Docker 安装源
 wget https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo -O /etc/yum.repos.d/docker-ce.repo
-yum install docker-ce -y
-#指定版本安装
-#yum -y install docker-ce-18.06.1.ce-3.el7
+#正常情况下，直接安装最新版本的 Docker 即可
+$ sudo yum install docker-ce docker-ce-cli containerd.io
+#如果你想要安装指定版本的 Docker
+$ sudo yum list docker-ce --showduplicates | sort -r
+docker-ce.x86_64            18.06.1.ce-3.el7                   docker-ce-stable
+docker-ce.x86_64            18.06.0.ce-3.el7                   docker-ce-stable
+docker-ce.x86_64            18.03.1.ce-1.el7.centos            docker-ce-stable
+docker-ce.x86_64            18.03.0.ce-1.el7.centos            docker-ce-stable
+docker-ce.x86_64            17.12.1.ce-1.el7.centos            docker-ce-stable
+docker-ce.x86_64            17.12.0.ce-1.el7.centos            docker-ce-stable
+docker-ce.x86_64            17.09.1.ce-1.el7.centos            docker-ce-stable
+$ sudo yum install docker-ce-<VERSION_STRING> docker-ce-cli-<VERSION_STRING> containerd.io
 #配置镜像加速
 mkdir /etc/docker
 vim /etc/docker/daemon.json
@@ -161,9 +243,23 @@ systemctl enable docker && systemctl start docker
 docker version
 ```
 
+这里有一个国际惯例，安装完成后，我们需要使用以下命令启动一个 hello world 的容器
+
+```shell
+$ sudo docker run hello-world
+Unable to find image 'hello-world:latest' locally
+latest: Pulling from library/hello-world
+0e03bdcc26d7: Pull complete
+Digest: sha256:7f0a9f93b4aa3022c3a4c147a449bf11e0941a1fd0bf4a8e6c9408b2600777c5
+Status: Downloaded newer image for hello-world:latest
+Hello from Docker!
+```
+
 ## 命令
 
 ### 镜像
+
+![image-20210304105957479](https://gitee.com/c_honghui/picture/raw/master/img/20210304105957.png)
 
 搜索镜像：docker search
 
@@ -171,7 +267,7 @@ docker version
 [root@localhost ~]# docker search centos
 ```
 
-获取镜像：docker pull [选项] [Docker Registry 地址[:端口]/]仓库名[:标签]
+获取镜像：docker pull [选项] [Docker Registry 地址[:端口]]/仓库名/[image]:[tag]
 
 ```text
 Docker 镜像仓库地址：地址的格式一般是 <域名/IP>[:端口号]，默认地址是 Docker Hub。
@@ -184,19 +280,21 @@ Docker 镜像仓库地址：地址的格式一般是 <域名/IP>[:端口号]，�
 
 ```shell
 [root@localhost ~]# docker pull centos
-#该命令相当于docker pull registry.docker-cn.com/library/ centos:latest命令，即从默认的注册服务器Docker Hub Registry中的centos仓库来下载标记为latest的镜像。
+#该命令相当于docker pull registry.docker-cn.com/library/centos:latest命令，即从默认的注册服务器Docker Hub Registry中的centos仓库来下载标记为latest的镜像。
 [root@localhost ~]# docker pull ubuntu:14.04
 #镜像可以发布为不同的版本，这种机制我们称之为标签（Tag）。
 ```
 
 上传镜像：docker  push  [OPTIONS]  NAME[:TAG]
 
-列出本地所有镜像：docker images [OPTIONS]  [REPOSITORY[:TAG]]
+列出本地所有镜像：docker images
 
 ```text
 仓库名称，标签，镜像 ID、创建时间，镜像大小。镜像ID是唯一标识
 dockerhub显示的镜像大小是压缩的
 ```
+
+查询指定镜像：docker image ls 镜像名 或 docker images | grep 镜像名
 
 查看镜像层次：docker history
 
@@ -236,10 +334,11 @@ dockerhub显示的镜像大小是压缩的
 [root@qfedu.com ~]# docker image inspect 镜像id
 ```
 
-给镜像打tag：
+重命名镜像：
 
 ```shell
 [root@qfedu.com ~]# docker tag daocloud.io/ubuntu daocloud.io/ubuntu:v1
+#这两个镜像id一样，指向同一个镜像文件，只是别名不同
 ```
 
 打包镜像：
@@ -250,6 +349,8 @@ dockerhub显示的镜像大小是压缩的
 ```
 
 ### 容器
+
+![image-20210304112246217](https://gitee.com/c_honghui/picture/raw/master/img/20210304112246.png)
 
 #### 创建、运行
 
@@ -389,6 +490,22 @@ events实时输出docker服务器端的事件，包括容器的创建启动关�
 #拷贝mysql容器的文件到本地的/root
 ```
 
+#### 导入导出容器
+
+导出命令
+
+```shell
+docker export busybox > busybox.tar
+```
+
+导入上一步导出的容器
+
+```shell
+docker import busybox.tar busybox:test
+```
+
+此时，busybox.tar 被导入成为新的镜像，镜像名称为 busybox:test ，然后用docker run启动容器，就实现了容器的迁移
+
 ### 其他
 
 查看docker信息：docker info
@@ -402,6 +519,12 @@ events实时输出docker服务器端的事件，包括容器的创建启动关�
 ## 通过dockerfile创建镜像
 
 Dockerfile 是一个文本文件，其内包含了一条条的指令(Instruction)，每一条指令构建一层，因此每一条指令的内容，就是描述该层应当如何构建。
+
+**生产实践中一定优先使用 Dockerfile 的方式构建镜像。** 因为使用 Dockerfile 构建镜像可以带来很多好处：
+
+- 易于版本化管理，Dockerfile 本身是一个文本文件，方便存放在代码仓库做版本管理，可以很方便地找到各个版本之间的变更历史；
+- 过程可追溯，Dockerfile 的每一行指令代表一个镜像层，根据 Dockerfile 的内容即可很明确地查看镜像的完整构建过程；
+- 屏蔽构建环境异构，使用 Dockerfile 构建镜像无须考虑构建环境，基于相同 Dockerfile 无论在哪里运行，构建结果都一致。
 
 ### docker build语法
 
@@ -483,6 +606,8 @@ CMD command param1 param2 在/bin/sh中执行，提供给需要交互的应用�
 每个Dockerfile只能有一条CMD命令
 如果用户启动容器时手动指定了运行的命令（作为 run 的参数），则会覆盖掉CMD指定的命令。
 ```
+
+exec 可以保证我们的业务进程就是 1 号进程，这对于需要处理 SIGTERM 信号量实现优雅终止十分重要。
 
 LABEL
 
@@ -648,43 +773,92 @@ docker run -itd -p 88:80  -v /home/anhao1226/:/usr/local/nginx/html nginx:202010
 
 ## 网络
 
-网络四种模式：
+容器的网络标准便分为两大阵营，一个是以 Docker 公司为代表的 **CNM**，另一个便是以 Google、Kubernetes、CoreOS 为代表的 **CNI** 网络标准。
+
+CNM 抽象了容器的网络接口 ，使得只要满足 CNM 接口的网络方案都可以接入到 Docker 容器网络，更好地满足了用户网络模型多样化的需求。
+
+为了更好地构建容器网络标准，Docker 团队把网络功能从 Docker 中剥离出来，成为独立的项目 libnetwork，它通过插件的形式为 Docker 提供网络功能。
+
+Libnetwork 比较典型的网络模式主要有四种，这四种网络模式基本满足了我们单机容器的所有场景。：
 
 ```text
-bridge模式：使用–net=bridge指定，默认设置；
-host模式：使用–net=host指定；
-none模式：使用–net=none指定；
-container模式：使用–net=container:NAMEorID指定。
+null 空网络模式：可以帮助我们构建一个没有网络接入的容器环境，以保障数据安全。
+bridge 桥接模式：可以打通容器与容器间网络通信的需求。
+host 主机网络模式：可以让容器内的进程共享主机网络，从而监听或修改主机网络。
+container 网络模式：可以将两个容器放在同一个网络命名空间内，让两个业务通过 localhost 即可实现访问。
 ```
 
-**bridge模式（docker默认的网络模式）**
+#### （1）null 空网络模式
 
-```text
-在默认情况下，docker 会在 host 机器上新创建一个 docker0 的 bridge：可以把它想象成一个虚拟的交换机，所有的容器都是连到这台交换机上面的。docker 会从私有网络中选择一段地址来管理容器，比如 172.17.0.1/16，这个地址根据你之前的网络情况而有所不同。
-```
+使用 Docker 创建 null 空网络模式的容器时，容器拥有自己独立的 Net Namespace，但是此时的容器并没有任何网络配置。在这种模式下，Docker 除了为容器创建了 Net Namespace 外，没有创建任何网卡接口、IP 地址、路由等网络配置。
 
-**host模式（共享主机的网络模式）**
-
-```text
-host网络意味着容器与宿主机共用一套网络，也就是说容器使用的网络就是宿主机的网络。使用--network=host指定使用host网络。在实际微服务的环境中不建议使用这种。
-```
-
-**none模式（空网络模式）**
-
-```text
-none网络意味着没有网络，所创建的容器只有lo，没有其他的网卡。容器创建时可以使用--network=none指定使用none网络。
-```
-
-**container 模式（容器之间的共享模式，学习k8s这个很重要）**
-
-```text
-一个容器直接使用另外一个已经存在容器的网络配置：ip 信息和网络端口等所有网络相关的信息都是共享的。需要注意的是：这两个容器的计算和存储资源还是隔离的。
-```
+添加 --net=none 参数启动一个空网络模式的容器
 
 ```shell
-#容器mysql5共享mysql1的network namespace
-docker run -itd --name mysql5 --network=container:mysql1 mysql /bin/bash
-#docker exec mysql5进入的是容器mysql1内部。
+$ docker run --net=none -it busybox
+/ #
+```
+
+查看一下容器内网络配置信息
+
+```shell
+/ # ifconfig
+lo        Link encap:Local Loopback
+          inet addr:127.0.0.1  Mask:255.0.0.0
+          UP LOOPBACK RUNNING  MTU:65536  Metric:1
+          RX packets:0 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:0 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000
+          RX bytes:0 (0.0 B)  TX bytes:0 (0.0 B)
+/ # route -n
+Kernel IP routing table
+Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
+```
+
+#### （2）bridge 桥接模式（docker默认的网络模式）
+
+实现容器与容器的互通，主机与容器的互通
+
+Docker 启动时，libnetwork 会在主机上创建 docker0 网桥，docker0 网桥就相当于图 1 中的交换机，而 Docker 创建出的 brige 模式的容器则都会连接 docker0 上，从而实现网络互通。
+
+![image-20210304163014916](https://gitee.com/c_honghui/picture/raw/master/img/20210304163015.png)
+
+
+
+#### （3）host 主机网络模式（共享主机的网络模式）
+
+- libnetwork 不会为容器创建新的网络配置和 Net Namespace。
+- Docker 容器中的进程直接共享主机的网络配置，可以直接使用主机的网络信息，此时，在容器内监听的端口，也将直接占用到主机的端口。
+- 除了网络共享主机的网络外，其他的包括进程、文件系统、主机名等都是与主机隔离的。
+
+```shell
+$ docker run -it --net=host busybox
+/ #
+```
+
+#### （4）container 网络模式（容器之间的共享模式，学习k8s这个很重要）
+
+container 网络模式允许一个容器共享另一个容器的网络命名空间。当两个容器需要共享网络，但其他资源仍然需要隔离时就可以使用 container 网络模式
+
+```shell
+$ docker exec -it busybox1 sh
+/ # ifconfig
+eth0 Link encap:Ethernet HWaddr 02:42:AC:11:00:02
+inet addr:172.17.0.2 Bcast:172.17.255.255 Mask:255.255.0.0
+UP BROADCAST RUNNING MULTICAST MTU:1500 Metric:1
+RX packets:11 errors:0 dropped:0 overruns:0 frame:0
+TX packets:0 errors:0 dropped:0 overruns:0 carrier:0
+collisions:0 txqueuelen:0
+RX bytes:906 (906.0 B) TX bytes:0 (0.0 B)
+$ docker run -it --net=container:busybox1 --name=busybox2 busybox sh
+/ # ifconfig
+eth0 Link encap:Ethernet HWaddr 02:42:AC:11:00:02
+inet addr:172.17.0.2 Bcast:172.17.255.255 Mask:255.255.0.0
+UP BROADCAST RUNNING MULTICAST MTU:1500 Metric:1
+RX packets:14 errors:0 dropped:0 overruns:0 frame:0
+TX packets:0 errors:0 dropped:0 overruns:0 carrier:0
+collisions:0 txqueuelen:0
+RX bytes:1116 (1.0 KiB) TX bytes:0 (0.0 B)
 ```
 
 container模式存在如下特点：
@@ -727,12 +901,6 @@ docker network rm my_bridge
 
 docker run指定容器ip启动时仅适用于自定义网络。
 
-**容器与外部网络连接**
-
-容器访问外部网络
-
-外部网络访问容器
-
 ## 数据卷管理
 
 默认情况下，容器内创建的所有文件都存储在可写容器层上。
@@ -747,11 +915,20 @@ docker run指定容器ip启动时仅适用于自定义网络。
 注意：数据卷 的使用，类似于 Linux 下对目录或文件进行 mount，镜像中的被指定为挂载点的目录中的文件会隐藏掉，能显示和看的是挂载的 数据卷，而不是被作为挂载点儿的目录中原来的内容。
 ```
 
-操作：
+卷作为一种统一封装，不仅可以支持本地目录，也可以支持 NFS 等网络文件系统。如果你的需求仅仅需要本地目录，使用 -v 挂载也完全可以的。
 
-Docker启动的时候可以通过-v选项添加数据卷，实现**将主机上的目录或者文件挂载到容器中**
+**创建数据卷**
 
-```text
+```shell
+$ docker volume create myvolume
+```
+
+在这里要说明下，默认情况下 ，Docker 创建的数据卷为 local 模式，仅能提供本主机的容器访问。如果想要实现远程访问，需要借助网络存储来实现。Docker 的 local 存储模式并未提供配额管理，因此在生产环境中需要手动维护磁盘存储空间。
+
+还可以在 Docker 启动时使用 -v 的方式指定容器内需要被持久化的路径，Docker 会自动为我们创建卷，并且绑定到容器中:
+
+```shell
+$ docker run -d --name=nginx-volume -v /usr/share/nginx/html nginx
 -v host-dir:container-dir:[rw|wo]
 -v container-dir:[rw|wo]
 -v volume-name:container-dir:[rw|wo]
@@ -761,97 +938,75 @@ volume-name：表示卷名，如果该卷不存在，docker将自动创建。
 rw|ro：用于控制volume的读写权限。
 ```
 
-（1）
-
-创建一个容器
+查看下主机上的卷：
 
 ```shell
-在docker run 命令中使用-v选项可以在容器中创建数据卷。多次使用-v选项可以创建多个数据卷
-[root@docker01 ~]# docker run -itd -P -v /test:/data --name myhttp httpd
+$ docker volume ls
+DRIVER              VOLUME NAME
+local               myvolume
 ```
 
-进入容器
+查看某个数据卷的详细信息:
 
 ```shell
-[root@docker01 ~]# docker exec -it myhttp /bin/bash
-[root@28d56ec39d28 /]# df -h
+$ docker volume inspect myvolume
+[
+    {
+        "CreatedAt": "2020-09-08T09:10:50Z",
+        "Driver": "local",
+        "Labels": {},
+        "Mountpoint": "/var/lib/docker/volumes/myvolume/_data",
+        "Name": "myvolume",
+        "Options": {},
+        "Scope": "local"
+    }
+]
 ```
 
-在宿主机/text目录创建文件，观察容器内/data目录下内容变化
+**使用数据卷**
 
-查看容器挂载的数据卷
+使用上一步创建的卷来启动一个 nginx 容器，并将 /usr/share/nginx/html 目录与卷关联:
 
 ```shell
-[root@docker01 ~]# docker inspect myhttp
+$ docker run -d --name=nginx --mount source=myvolume,target=/usr/share/nginx/html nginx
 ```
 
-删除容器，宿主机/text目录下未发生变化
+**删除数据卷**
 
-（2）
+这里需要注意，正在被使用中的数据卷无法删除，如果你想要删除正在使用中的数据卷，需要先删除所有关联的容器。
 
 ```shell
-docker run -itd -P -v /data --name myhttp httpd
-docker exec -it myhttp /bin/bash
-df -h
+$ docker volume rm myvolume
 ```
 
-看到容器内出现了/data,使用docker volume ls查询，发现多了一个本地卷：
+**容器与容器之间数据共享**
 
-f343bc68303155c111bea58a907131d9fe1751bc8ef6528cc53d5b7dce292dee
-
-使用docker volume inspect查询到如下的挂下点目录：
-
-/var/lib/docker/volumes/f343bc68303155c111bea58a907131d9fe1751bc8ef6528cc53d5b7dce292dee/_data
-
-当在上述目录下创建test.txt文件后，容器内也查询到该新增文件。
-
-删除容器后，宿主机上的目录及内容也未发生任何变化。
-
-(3)
+有时候，两个容器之间会有共享数据的需求，很典型的一个场景就是容器内产生的日志需要一个专门的日志采集程序去采集日志内容
 
 ```shell
-docker run -itd -P -v my_volume:/data --name myhttp httpd
-docker exec -it myhttp /bin/bash
-ll -a /data
+$ docker volume create log-vol
+$ docker run --mount source=log-vol,target=/tmp/log --name=log-producer -it busybox
+docker run -it --name consumer --volumes-from log-producer  busybox
 ```
 
-docker自动创建了卷：my_volume，并且这个卷对应的宿主机的挂载点是：
+**主机与容器之间数据共享**
 
-/var/lib/docker/volumes/my_volume/_data
+Docker 卷的目录默认在 /var/lib/docker 下，当我们想把主机的其他目录映射到容器内时，就需要用到主机与容器之间数据共享的方式了，例如我想把 MySQL 容器中的 /var/lib/mysql 目录映射到主机的 /var/lib/mysql 目录中，我们就可以使用主机与容器之间数据共享的方式来实现。
+
+挂载主机的 /data 目录到容器中的 /usr/local/data 中，可以使用以下命令来启动容器:
 
 ```shell
-docker volume ls
-docker volume inspect my_volume
-docker inspect myhttp查看mount参数
+$ docker run -v /data:/usr/local/data -it busybox
 ```
 
-（4）
+容器启动后，便可以在容器内的 /usr/local/data 访问到主机 /data 目录的内容了，并且容器重启后，/data 目录下的数据也不会丢失。
 
-在dockerfile指定数据卷
+**在dockerfile指定数据卷**
 
 ```shell
 FROM debian:wheezy
 VOLUME  /data
 ```
 
-删除一个数据卷
 
-```shell
-[root@localhost ~]# docker volume rm yangge_vol
-```
 
-对于docker数据卷的总结：
-
-（1） 以上几种方式都可以将宿主机目录或者文件挂载到容器。
-
-（2） Docker提供了docker volume命令专门对volume进行管理。对于第一种方式Type为bind，是无法使用docker volume进行管理的。我们也可以使用docker volume create命令创建volume。
-
-（3） 删除容器是如果使用docker rm container将不会删除对应的Volume。如果想要删除可以使用docker rm -v container。另外也可以单独使用docker volume rm volume_name删除volume。
-
-（4） 对于已运行的数据卷容器，不能动态的调整其卷的挂载。Docker官方提供的方法是先删除容器，然后启动时重新挂载。
-
-## 卷数据备份
-
-## 卷数据恢复或迁移
-
-## docker compose
