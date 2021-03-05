@@ -325,3 +325,227 @@ COMMAND 为 docker-compose 支持的命令。支持的命令如下：
   version            打印版本信息并退出
 ```
 
+## Docker Swarm
+
+Docker Compose，它能够在单一节点上管理和编排多个容器，当我们的服务和容器数量较小时可以使用 Docker Compose 来管理容器。
+
+Docker Swarm ，我们可以用它来管理规模更大的容器集群。
+
+### Swarm 的架构
+
+Swarm 的架构整体分为管理节点（Manager Nodes）和工作节点（Worker Nodes）
+
+![image-20210305102719573](https://gitee.com/c_honghui/picture/raw/master/img/20210305102725.png)
+
+管理节点： 管理节点负责接受用户的请求，用户的请求中包含用户定义的容器运行状态描述，然后 Swarm 负责调度和管理容器，并且努力达到用户所期望的状态。
+
+工作节点： 工作节点运行执行器（Executor）负责执行具体的容器管理任务（Task），例如容器的启动、停止、删除等操作。
+
+### Swarm 核心概念
+
+**Swarm 集群**
+Swarm 集群是一组被 Swarm 统一管理和调度的节点，被 Swarm纳管的节点可以是物理机或者虚拟机。其中一部分节点作为管理节点，负责集群状态的管理和协调，另一部分作为工作节点，负责执行具体的任务来管理容器，实现用户服务的启停等功能。
+
+**节点**
+Swarm 集群中的每一台物理机或者虚拟机称为节点。节点按照工作职责分为管理节点和工作节点，管理节点由于需要使用 Raft 协议来协商节点状态，生产环境中通常建议将管理节点的数量设置为奇数个，一般为 3 个、5 个或 7 个。
+
+**服务**
+服务是为了支持容器编排所提出的概念，它是一系列复杂容器环境互相协作的统称。一个服务的声明通常包含容器的启动方式、启动的副本数、环境变量、存储、配置、网络等一系列配置，用户通过声明一个服务，将它交给 Swarm，Swarm 负责将用户声明的服务实现。
+
+服务分为全局服务（global services）和副本服务（replicated services）。
+
+全局服务：每个工作节点上都会运行一个任务，类似于 Kubernetes 中的 Daemonset。
+
+副本服务：按照指定的副本数在整个集群中调度运行。
+
+**任务**
+任务是集群中的最小调度单位，它包含一个真正运行中的 Docker 容器。当管理节点根据服务中声明的副本数将任务调度到节点时，任务则开始在该节点启动和运行，当节点出现异常时，任务会运行失败。此时调度器会把失败的任务重新调度到其他正常的节点上正常运行，以确保运行中的容器副本数满足用户所期望的副本数。
+
+**服务外部访问**
+由于容器的 IP 只能在集群内部访问到，而且容器又是用后马上销毁，这样容器的 IP 也会动态变化，因此容器集群内部的服务想要被集群外部的用户访问到，服务必须要映射到主机上的固定端口。Swarm 使用入口负载均衡（ingress load balancing）的模式将服务暴露在主机上，该模式下，每一个服务会被分配一个公开端口（PublishedPort），你可以指定使用某个未被占用的公开端口，也可以让 Swarm 自动分配一个。
+
+Swarm 集群的公开端口可以从集群内的任意节点上访问到，当请求达到集群中的一个节点时，如果该节点没有要请求的服务，则会将请求转发到实际运行该服务的节点上，从而响应用户的请求。公有云的云负载均衡器（cloud load balancers）可以利用这一特性将流量导入到集群中的一个或多个节点，从而实现利用公有云的云负载均衡器将流量导入到集群中的服务。
+
+### 搭建 Swarm 集群
+
+要求：
+
+Docker 版本大于 1.12，推荐使用最新稳定版 Docker；
+
+主机需要开放一些端口（TCP：2377 UDP:4789 TCP 和 UDP:7946）。
+
+环境：
+
+| 节点名        | 节点IP         | 角色    |
+| ------------- | -------------- | ------- |
+| swarm-manager | 192.168.31.100 | manager |
+| swarm-node1   | 192.168.31.101 | node    |
+| swarm-node2   | 192.168.31.102 | node    |
+| swarm-node3   | 192.168.31.103 | node    |
+
+生产环境中推荐使用至少三个 manager 作为管理节点。
+
+1. 初始化集群
+
+Docker 1.12 版本后， Swarm 已经默认集成到了 Docker 中，因此我们可以直接使用 Docker 命令来初始化 Swarm
+
+```shell
+docker swarm init --advertise-addr <YOUR-IP>
+#advertise-addr 一般用于主机有多块网卡的情况，如果你的主机只有一块网卡，可以忽略此参数。
+```
+
+在管理节点上，通过以下命令初始化集群：
+
+```shell
+$ docker swarm init
+Swarm initialized: current node (1ehtnlcf3emncktgjzpoux5ga) is now a manager.
+
+To add a worker to this swarm, run the following command:
+
+    docker swarm join --token SWMTKN-1-1kal5b1iozbfmnnhx3kjfd3y6yqcjjjpcftrlg69pm2g8hw5vx-8j4l0t2is9ok9jwwc3tovtxbp 192.168.31.100:2377
+
+To add a manager to this swarm, run 'docker swarm join-token manager' and follow the instructions.
+```
+
+集群初始化后， Swarm 会提示我们当前节点已经作为一个管理节点了，并且提示了如何把一台主机加入集群成为工作节点。
+
+2. 加入工作节点
+
+按照第一步集群初始化后输出的提示，只需要复制其中的命令即可，然后在剩余的三台工作节点上分别执行如下命令：
+
+```shell
+$ docker swarm join --token SWMTKN-1-1kal5b1iozbfmnnhx3kjfd3y6yqcjjjpcftrlg69pm2g8hw5vx-8j4l0t2is9ok9jwwc3tovtxbp 192.168.31.100:2377
+This node joined a swarm as a worker.
+```
+
+默认加入的节点为工作节点，如果是生产环境，我们可以使用`docker swarm join-token manager`命令来查看如何加入管理节点：
+
+```shell
+$ docker swarm join-token manager
+To add a manager to this swarm, run the following command:
+
+    docker swarm join --token SWMTKN-1-1kal5b1iozbfmnnhx3kjfd3y6yqcjjjpcftrlg69pm2g8hw5vx-8fq89jxo2axwggryvom5a337t 192.168.31.100:2377
+```
+
+3. 节点查看
+
+节点添加完成后，我们使用以下命令可以查看当前节点的状态：
+
+```shell
+$ ]# docker node ls
+ID                            HOSTNAME            STATUS              AVAILABILITY        MANAGER STATUS      ENGINE VERSION
+
+1ehtnlcf3emncktgjzpoux5ga *   swarm-manager       Ready               Active              Leader              19.03.12
+
+pn7gdm847sfzydqhcv3vma97y *   swarm-node1         Ready               Active                                        19.03.12
+
+4dtc9pw5quyjs5yf25ccgr8uh *   swarm-node2         Ready               Active                                        19.03.12
+
+est7ww3gngna4u7td22g9m2k5 *   swarm-node3         Ready               Active                                        19.03.12
+```
+
+到此，一个包含 1 个管理节点，3 个工作节点的 Swarm 集群已经搭建完成。
+
+### 使用 Swarm
+
+Swarm 集群中常用的服务部署方式有以下两种。
+
+#### （1）通过 docker service 命令创建服务
+
+创建服务:
+
+```shell
+$ docker service create --replicas 1 --name hello-world nginx
+
+24f9ng83m9sq4ml3e92k4g5by
+overall progress: 1 out of 1 tasks
+1/1: running   [==================================================>]
+verify: Service converged
+```
+
+查看已经启动的服务:
+
+```shell
+$ docker service ls
+
+ID                  NAME                  MODE                REPLICAS            IMAGE               PORTS
+24f9ng83m9sq        hello-world           replicated          1/1                 nginx:latest
+```
+
+删除服务：
+
+```shell
+$ docker service rm hello-world
+
+hello-world
+```
+
+生产环境中，我们推荐使用 docker-compose 模板文件来部署服务，这样服务的管理会更加方便并且可追踪，而且可以同时创建和管理多个服务，更加适合生产环境中依赖关系较复杂的部署模式。
+
+#### （2）通过 docker stack 命令创建服务
+
+
+
+```yaml
+version: '3'
+
+services:
+   mysql:
+     image: mysql:5.7
+     volumes:
+       - mysql_data:/var/lib/mysql
+     restart: always
+     environment:
+       MYSQL_ROOT_PASSWORD: root
+       MYSQL_DATABASE: mywordpress
+       MYSQL_USER: mywordpress
+       MYSQL_PASSWORD: mywordpress
+
+   wordpress:
+     depends_on:
+       - mysql
+     image: wordpress:php7.4
+     deploy:
+       mode: replicated
+       replicas: 2
+     ports:
+       - "8080:80"
+     restart: always
+     environment:
+       WORDPRESS_DB_HOST: mysql:3306
+       WORDPRESS_DB_USER: mywordpress
+       WORDPRESS_DB_PASSWORD: mywordpress
+       WORDPRESS_DB_NAME: mywordpress
+
+volumes:
+    mysql_data: {}
+```
+
+我在服务模板文件中添加了 deploy 指令，并且指定使用副本服务（replicated）的方式启动两个 WordPress 实例。
+
+启动服务：
+
+```shell
+$ docker stack deploy -c docker-compose.yml wordpress
+
+Ignoring unsupported options: restart
+
+Creating network wordpress_default
+Creating service wordpress_mysql
+Creating service wordpress_wordpress
+```
+
+执行完以上命令后，我们成功启动了两个服务：
+
+1. MySQL 服务，默认启动了一个副本。
+2. WordPress 服务，根据我们 docker-compose 模板的定义启动了两个副本。
+
+```shell
+$ docker service ls
+
+ID                  NAME                  MODE                REPLICAS            IMAGE               PORTS
+v8i0pzb4e3tc        wordpress_mysql       replicated          1/1                 mysql:5.7
+96m8xfyeqzr5        wordpress_wordpress   replicated          2/2                 wordpress:php7.4    *:8080->80/tcp
+```
+
+Swarm 已经为我们成功启动了一个 MySQL 服务，并且启动了两个 WordPress 实例。WordPress 实例通过 8080 端口暴露在了主机上，我们通过访问集群中的任意节点的 IP 加 8080 端口即可访问到 WordPress 服务。例如，我们访问[http://192.168.31.101:8080](http://192.168.31.101:8080/)即可成功访问到我们搭建的 WordPress 服务。
