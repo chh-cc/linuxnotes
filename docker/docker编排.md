@@ -39,7 +39,7 @@ Docker Compose 文件主要分为三部分： services（服务）、networks（
 
 #### 编写 Service 配置
 
-services 下，首先需要定义服务名称，例如你这个服务是 nginx 服务
+services 下，首先需**要定义服务名称**，例如你这个服务是 nginx 服务
 
 ```yaml
 version: "3.8"
@@ -49,7 +49,7 @@ services:
 
 常用的 16 种 service 配置如下
 
-**build：** 用于构建 Docker 镜像，类似于`docker build`命令，build 可以指定 Dockerfile 文件路径，然后根据 Dockerfile 命令来构建文件。
+build： 用于构建 Docker 镜像，类似于`docker build`命令，build 可以指定 Dockerfile 文件路径，然后根据 Dockerfile 命令来构建文件。
 
 ```yaml
 build:
@@ -59,7 +59,7 @@ build:
   dockerfile: Dockerfile-name
 ```
 
-**cap_add、cap_drop：** 指定容器可以使用到哪些内核能力（capabilities）。
+cap_add、cap_drop： 指定容器可以使用到哪些内核能力（capabilities）。
 
 ```yaml
 cap_add:
@@ -82,7 +82,7 @@ command: ["sleep", "3000"]
 container_name: nginx
 ```
 
-**depends_on：** 用于指定服务间的依赖关系，这样可以先启动被依赖的服务。例如，我们的服务依赖数据库服务 db，可以指定 depends_on 为 db。
+**depends_on：** 用于指定服务间的依赖关系，这样可以**先启动被依赖的服务**。例如，我们的服务依赖数据库服务 db，可以指定 depends_on 为 db。
 
 ```yaml
 version: "3.8"
@@ -95,14 +95,14 @@ services:
     image: mysql
 ```
 
-**devices：** 挂载主机的设备到容器中。
+devices： 挂载主机的设备到容器中。
 
 ```yaml
 devices:
   - "/dev/sba:/dev/sda"
 ```
 
-**dns：** 自定义容器中的 dns 配置。
+dns： 自定义容器中的 dns 配置。
 
 ```yaml
 dns:
@@ -110,7 +110,7 @@ dns:
   - 114.114.114.114
 ```
 
-**dns_search：** 配置 dns 的搜索域。
+dns_search： 配置 dns 的搜索域。
 
 ```yaml
 dns_search:
@@ -118,7 +118,7 @@ dns_search:
   - svc1.cluster.com
 ```
 
-**entrypoint：** 覆盖容器的 entrypoint 命令。
+entrypoint： 覆盖容器的 entrypoint 命令。
 
 ```yaml
 entrypoint: sleep 3000
@@ -126,7 +126,7 @@ entrypoint: sleep 3000
 entrypoint: ["sleep", "3000"]
 ```
 
-**env_file：** 指定容器的环境变量文件，启动时会把该文件中的环境变量值注入容器中。
+env_file： 指定容器的环境变量文件，启动时会把该文件中的环境变量值注入容器中。
 
 ```yaml
 env_file:
@@ -152,7 +152,7 @@ environment:
 image: busybox:latest
 ```
 
-**pid：** 共享主机的进程命名空间，像在主机上直接启动进程一样，可以看到主机的进程信息。
+pid： 共享主机的进程命名空间，像在主机上直接启动进程一样，可以看到主机的进程信息。
 
 ```yaml
 pid: "host"
@@ -172,7 +172,7 @@ ports:
   - "6789:6789/udp"
 ```
 
-**networks：** 这是服务要使用的网络名称，对应顶级的 networks 中的配置。
+networks： 这是服务要使用的网络名称，对应顶级的 networks 中的配置。
 
 ```yaml
 services:
@@ -251,6 +251,8 @@ networks:
 
 ```shell
 docker-compose [-f <arg>...] [options] [--] [COMMAND] [ARGS...]
+
+docker-compose up -d
 ```
 
 参数：
