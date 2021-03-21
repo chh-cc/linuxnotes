@@ -287,6 +287,11 @@ Docker 镜像仓库地址：地址的格式一般是 <域名/IP>[:端口号]，�
 
 上传镜像：docker  push  [OPTIONS]  NAME[:TAG]
 
+```shell
+docker tag docker.io/nginx:last 10.1.100.11:5000/nginx:1.15
+docker push 10.1.100.11:5000/nginx:1.15
+```
+
 列出本地所有镜像：docker images
 
 ```text
@@ -552,7 +557,7 @@ Dockerfile 是一个文本文件，其内包含了一条条的指令(Instruction
 Dockerfile 由一行行命令语句组成，并且支持以#开头的注释行。
 一般而言，Dockerfile分为四部分：基础镜像信息、维护者信息、镜像操作指令和容器启动时执行指令。
 
-FROM
+**FROM**
 
 ```text
 指定所创建镜像的基础镜像，如果本地不存在，则默认会去 Docker Hub下载指定镜像
@@ -583,7 +588,7 @@ ENV <key> <value>
 ENV <key>=<value> ...
 ```
 
-RUN
+**RUN**
 
 ```text
 指令指定将要运行并捕获到新容器映像中的命令。 这些命令包括安装软件、创建文件和目录，以及创建环境配置等。基本就是shell脚本。
@@ -618,7 +623,7 @@ LABEL version="1.0"
 LABEL maintainer="394498036@qq.com"
 ```
 
-EXPOSE
+**EXPOSE**
 
 ```text
 声明镜像内服务所监听的端口
@@ -627,7 +632,7 @@ EXPOSE 22 80 8443
 注意，该指令只是起到声明作用，并不会自动完成端口映射。
 ```
 
-ADD
+**ADD**
 
 ```text
 将复制指定的 <src>路径下的内容到容器中的<dest>路径下，<src>可以是dockerfile所在目录的相对路径、一个URL、还可以是tar文件（会自动解压）
@@ -635,7 +640,7 @@ ADD [--chown=<user>:<group>] <src>... <dest>
 ADD [--chown=<user>:<group>] ["<src>",... "<dest>"] (this form is required for paths containing whitespace)
 ```
 
-COPY
+**COPY**
 
 ```text
 复制本地主机的<src>（为 Dockerfile 所在目录的相对路径、文件或目录）下的内容到镜像中的 <dest> 下。目标路径不存在时，会自动创建。
@@ -644,7 +649,7 @@ COPY [--chown=<user>:<group>] <src>... <dest>
 COPY [--chown=<user>:<group>] ["<src>",... "<dest>"] (this form is required for paths containing whitespace)
 ```
 
-ENTRYPOINT
+**ENTRYPOINT**
 
 ```text
 配置容器启动后执行的命令，并且不可被docker run提供的参数覆盖。每个Dockerfile中只能有一个ENTRYPOINT

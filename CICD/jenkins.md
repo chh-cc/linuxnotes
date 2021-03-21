@@ -4,6 +4,10 @@
 
 ## 安装
 
+## 必备插件
+
+![image-20210320212837022](https://gitee.com/c_honghui/picture/raw/master/img/20210320212844.png)
+
 ## 用户管理
 
 针对开发、运维、测试针对不同角色进行不同权限划分

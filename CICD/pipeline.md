@@ -2,97 +2,52 @@
 
 ## 声明式pipeline
 
-### 核心概念
+### 基础结构
 
 1.pipeline :声明其内容为一个声明式的pipeline脚本
 
-2.agent:执行节点（job运行的slave或者master节点）
+2.agent:指定流水线的执行节点（job运行的slave或者master节点）
 
-3.stages:阶段集合，包裹所有的阶段（例如：打包，部署等各个阶段）
+3.stage:阶段，每个阶段都必须要有名称
 
-4.stage:阶段，被stages包裹，一个stages可以有多个stage
+4.stages:流水线中多个stage的容器
 
-5.steps:步骤,为每个阶段的最小执行单元,被stage包裹
+5.steps:阶段中的一个或多个具体步骤（step）的容器
 
-6.post:执行构建后的操作，根据构建结果来执行对应的操作
+6.post（可选）:执行构建后的操作，根据构建结果来执行对应的操作，post分成多种条件块
 
-#### 1.pipeline
-
-> 作用域：应用于全局最外层，表明该脚本为声明式pipeline
-> 是否必须：必须
-> 参数：无
-
-#### 2.agent
-
-> 作用域：可用在全局与stage内
-> 是否必须：是，
-> 参数：any,none, label, node,docker,dockerfile
+- always：无论当前完成状态时什么，都执行
+- changed：当前完成状态于上一次不同就执行
+- fixed：上一次完成状态为失败或不稳定，当前状态为成功时执行
+- regression：上一次完成状态为成功，当前完成状态为失败、不稳定或中止时执行
+- aborted：当前执行结果是中止状态时执行
+- failure：当前完成状态为失败时执行
+- success：当前完成状态为成功时执行
+- unstable：当前完成状态为不稳定时执行
+- cleanup：清理条件块
 
 ```yaml
-//运行在任意的可用节点上
-agent any
-//全局不指定运行节点，由各自stage来决定
-agent none
-//运行在指定标签的机器上,具体标签名称由agent配置决定
-agent { label 'master' }
-//node参数可以扩展节点信息
-agent { 
-     node {
-         label 'master'
-         customWorkspace 'xxx'
-    } 
-}
-//使用指定运行的容器
-agent { docker 'python'  }
-```
-
-#### 3.stages
-
-> 作用域：全局或者stage阶段内，每个作用域内只能使用一次
->
-> 是否必须：全局必须
->
-> 参数：无
-
-#### 4.stage
-
-> 作用域：被stages包裹，作用在自己的stage包裹范围内
->
-> 是否必须：必须
->
-> 参数：需要一个string参数，表示此阶段的工作内容
->
-> 备注：stage内部可以嵌套stages，内部可单独制定运行的agent
-
-#### 5.steps
-
-作用域：被stage包裹，作用在stage内部
-是否必须：必须
-参数：无
-
-```yaml
-stages{
-    stage("Pull Code"){
-        steps{
-            echo "开始拉取代码"
-        }
-    }
-    stage("Build"){
-        steps{
-            echo "开始构建代码"
+pipeline {
+    agent any
+    stages {
+        stage('build') {
+            steps {
+                echo "hello world"
+            }
         }
     }
 }
 ```
 
-#### 6.post
 
-作用域：作用在pipeline结束后者stage结束后
-条件：always、changed、failure、success、unstable、aborted
 
 ### 指令
 
-#### 1.environment：声明一个全局变量或者步骤内部的局部变量
+基础结构满足不了多变的需求，所以还通过指令来丰富。
+
+#### 1.environment
+
+设置环境变量，可定义在pipeline或stage部分
 
 ```shell
 environment {
@@ -100,10 +55,20 @@ environment {
     }
 ```
 
-#### 2.options:options指令能够提供给脚本更多的选项
+#### 2.tools
 
-- buildDiscarder:指定build history与console的保存数量
-  用法：options { buildDiscarder(logRotator(numToKeepStr: ‘1’)) }
+可定义在pipeline后stage部分，自动下载并安装指定的工具，并将其加入PATH变量中
+
+#### 3.input
+
+定义在stage部分，会暂停pipeline，提示你输入内容
+
+#### 4.options
+
+options指令能够提供给脚本更多的选项
+
+- buildDiscarder:保存最近历史构建记录的数量
+  用法：options { buildDiscarder(logRotator(numToKeepStr: ‘10’)) }
 - disableConcurrentBuilds：设置job不能够同时运行
   用法：options { disableConcurrentBuilds() }
 - skipDefaultCheckout：跳过默认设置的代码check out
@@ -112,16 +77,18 @@ environment {
   用法：options { skipStagesAfterUnstable() }
 - checkoutToSubdirectory:在工作空间的子目录进行check out
   用法：options { checkoutToSubdirectory(‘children_path’) }
-- timeout:设置jenkins运行的超时时间，超过超时时间，job会自动被终止
-  用法：options { timeout(time: 1, unit: ‘MINUTES’) }
-- retry :设置retry作用域范围的重试次数
+- timeout:设置jenkins执行的超时时间，超过超时时间，job会自动被终止
+  用法：options { timeout(time: 10, unit: ‘MINUTES’) }
+- retry :当发生失败时进行重试
   用法：options { retry(3) }
 - timestamps:为控制台输出增加时间戳
   用法：options { timestamps() }
 
 备注：当options作用在stage内部的时候，可选的只能是跟stage相关的选项（skipDefaultCheckout、timeout、retry、timestamps)
 
-#### 3.parameters：提供pipeline运行的参数
+#### 3.parameters
+
+执行pipeline前传入的一些参数
 
 - 作用域：被最外层pipeline所包裹，并且只能出现一次，参数可被全局使用
 - 好处：使用parameters好处是能够使参数也变成code,达到pipeline as code，pipeline中设置的参数会自动在job构建的时候生成，形成参数化构建
@@ -133,7 +100,9 @@ parameters {
     }
 ```
 
-#### 4.when：根据when指令的判断结果来决定是否执行后面的阶段
+#### 4.when
+
+满足when定义的条件时，阶段才执行
 
 可选条件
 
@@ -150,9 +119,11 @@ parameters {
 - anyOf：判断是否有一个条件为真
   用法：when { anyOf { branch ‘master’; branch ‘staging’ } }
 
-#### 5. 脚本
+### 脚本
 
-> 在声明式的pipeline中默认无法使用脚本语法，但是pipeline提供了一个脚本环境入口：script{},通过使用script来包裹脚本语句，即可使用脚本语法
+在声明式pipeline中不能直接在steps块中写Groovy代码
+
+可以在script步骤中写Groovy代码
 
 
 
