@@ -8,15 +8,25 @@
 
 master主要包含以下组件：
 
-- 运维开发通过API Server（核心服务）创建资源，API Server通过Scheduler调度Node节点
-- Controller保证每个Pod高可用，只要它挂了就立马起个新的
-- etcd相当于kubernetes的数据库，所有状态信息都持久存储在etcd（etc是独立的服务组件，并不隶属于kubernetes集群）
+- API Server（核心服务）:集群资源访问控制入口,提供restAPI及安全访问控制
+- Scheduler:调度器,负责把业务容器调度到最合适的node节点
+- Controller Manager:控制器管理,确保集群资源按照期望的方式运行
+  - rc
+  - nc
+  - 
+- etcd:分布式高性能键值数据库,存储整个集群的所有元数据
 
 node组件：
 
-- kubelet直接接受API Server的调度，API Server控制kubelet创建容器，Kubelet控制docker创建容器，K8S的容器叫Pod，Kube-Proxy给Pod做端口映射给用户访问
+- kubelet:直接接受API Server的调度，API Server控制kubelet创建容器，Kubelet控制docker创建容器，K8S的容器叫Pod，Kube-Proxy给Pod做端口映射给用户访问
 - K8S集群通过cAdvisor监控，cAdvisor集成在Kubelet
 - 容器需要跨主机通信，这时候需要网络插件Flannel
+
+
+
+工作流程:
+
+
 
 核心组件：
 

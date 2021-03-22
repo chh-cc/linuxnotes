@@ -350,7 +350,12 @@ dockerhub显示的镜像大小是压缩的
 
 ```shell
 [root@node1 ~]# docker save centos > /opt/centos.tar.gz    #导出镜像
+或
+[root@node1 ~]# docker save -o /opt/centos.tar.gz centos
+
 [root@node1 ~]# docker load < /opt/centos.tar.gz           #导入镜像
+或
+[root@node1 ~]# docker load -i /opt/centos.tar.gz
 ```
 
 ### 容器
@@ -379,6 +384,21 @@ docker run [参数] 镜像名
 ```shell
 [root@localhost ~]# docker run -d -p 88:80 --name web -v /src/webapp:/opt/webapp training/webapp python app.py
 ```
+
+容器的第一个进程（初始命令）必须一直处于前台运行的状态（夯住），否则这个容器就会处于退出状态
+
+业务在容器中运行：夯住，启动服务
+
+```shell
+#容器秒停止
+docker run -d nginx:last /bin/bash
+#容器能保持运行
+docker run -d nginx:last
+```
+
+
+
+
 
 某些时候，执行docker run会出错，因为命令无法正常执行容器会直接退出，此时可以查看退出的错误代码。默认情况下，常见错误代码包括：
 
@@ -601,7 +621,7 @@ RUN yum update && yum install -y vim \
 2.每一层构建的最后一定要清理掉无关文件。
 ```
 
-CMD
+CMD（容易被替换）
 
 ```text
 用来指定启动容器时默认执行的命令。它支持三种格式：
@@ -649,7 +669,7 @@ COPY [--chown=<user>:<group>] <src>... <dest>
 COPY [--chown=<user>:<group>] ["<src>",... "<dest>"] (this form is required for paths containing whitespace)
 ```
 
-**ENTRYPOINT**
+**ENTRYPOINT**（无法被替换）
 
 ```text
 配置容器启动后执行的命令，并且不可被docker run提供的参数覆盖。每个Dockerfile中只能有一个ENTRYPOINT
@@ -839,7 +859,29 @@ Docker 启动时，libnetwork 会在主机上创建 docker0 网桥，docker0 网
 ```shell
 $ docker run -it --net=host busybox
 / #
+
+/ # ip a
+1: lo: <LOOPBACK,UP,LOWER\_UP> mtu 65536 qdisc noqueue qlen 1000
+link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+inet 127.0.0.1/8 scope host lo
+valid\_lft forever preferred\_lft forever
+inet6 ::1/128 scope host
+valid\_lft forever preferred\_lft forever
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER\_UP> mtu 1500 qdisc pfifo\_fast qlen 1000
+link/ether 02:11:b0:14:01:0c brd ff:ff:ff:ff:ff:ff
+inet 172.20.1.11/24 brd 172.20.1.255 scope global dynamic eth0
+valid\_lft 85785286sec preferred\_lft 85785286sec
+inet6 fe80::11:b0ff:fe14:10c/64 scope link
+valid\_lft forever preferred\_lft forever
+3: docker0: \<NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc noqueue
+link/ether 02:42:82:8d:a0:df brd ff:ff:ff:ff:ff:ff
+inet 172.17.0.1/16 scope global docker0
+valid\_lft forever preferred\_lft forever
+inet6 fe80::42:82ff:fe8d:a0df/64 scope link
+valid\_lft forever preferred\_lft forever
 ```
+
+可以看到容器内的网络环境与主机完全一致。
 
 #### （4）container 网络模式（容器之间的共享模式，学习k8s这个很重要）
 
@@ -920,9 +962,9 @@ docker run指定容器ip启动时仅适用于自定义网络。
 注意：数据卷 的使用，类似于 Linux 下对目录或文件进行 mount，镜像中的被指定为挂载点的目录中的文件会隐藏掉，能显示和看的是挂载的 数据卷，而不是被作为挂载点儿的目录中原来的内容。
 ```
 
-**卷作为一种统一封装，不仅可以支持本地目录，也可以支持 NFS 等网络文件系统。如果你的需求仅仅需要本地目录，使用 -v 挂载也完全可以的。**
 
-**创建数据卷**
+
+**创建一个名为myvolume的数据卷**
 
 ```shell
 $ docker volume create myvolume
@@ -948,7 +990,7 @@ rw|ro：用于控制volume的读写权限。
 ```shell
 $ docker volume ls
 DRIVER              VOLUME NAME
-local               myvolume
+local               eaa8a223eb61a2091bf5cd5247c1b28ac287450a086d6eee9632d9d1b9f69171
 ```
 
 查看某个数据卷的详细信息:
@@ -995,6 +1037,8 @@ docker run -it --name consumer --volumes-from log-producer  busybox
 ```
 
 **主机与容器之间数据共享**
+
+卷作为一种统一封装，不仅可以支持本地目录，也可以支持 NFS 等网络文件系统。如果你的需求仅仅需要本地目录，使用 `-v 宿主机目录:容器`目录挂载也完全可以的。
 
 Docker 卷的目录默认在 **/var/lib/docker** 下，当我们想把主机的其他目录映射到容器内时，就需要用到主机与容器之间数据共享的方式了，例如我想把 MySQL 容器中的 /var/lib/mysql 目录映射到主机的 /var/lib/mysql 目录中，我们就可以使用主机与容器之间数据共享的方式来实现。
 
