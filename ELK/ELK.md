@@ -34,7 +34,7 @@ kibana 是一个开源和免费的工具，它可以为 Logstash 和 ElasticSear
 
 ### 1、Elasticsearch  
 
-是⼀个基于Lucene的**搜索服务器**。提供搜集、分析、存储数据 三⼤功能。它提供了⼀个分布式多⽤户能⼒的全⽂搜索引擎，基于 RESTful web接⼝。Elasticsearch是⽤Java开发的，并作为Apache许可 条款下的开放源码发布，是当前流⾏的**企业级搜索引擎**。设计⽤于云计 算中，能够达到实时搜索，稳定，可靠，快速，安装使⽤⽅便。
+是一个基于Lucene的**搜索服务器**。提供搜集、分析、存储数据 三个功能。Elasticsearch是Java开发的，并作为Apache许可 条款下的开放源码发布，是当前流行的**企业级搜索引擎**。
 
 **9200端口：客户端连接该端口发送和接收数据**
 
@@ -125,7 +125,13 @@ action.destructive_requires_name: true
 
 ###  2、Logstash  
 
-主要是⽤来**⽇志的搜集、分析、过滤⽇志的⼯具**。⽤于管理⽇志 和事件的⼯具，你可以⽤它去收集⽇志、转换⽇志、解析⽇志并将他们 作为数据提供给其它模块调⽤，例如搜索、存储等。
+主要是用来日志的搜集、分析、过滤日志的工具。用于管理日志 和事件的工具，你可以用它去收集日志、转换日志、解析日志并将他们 作为数据提供给其它模块调用，例如搜索、存储等。
+
+原理和组件：
+
+![image-20210325102556762](https://gitee.com/c_honghui/picture/raw/master/img/20210325102602.png)
+
+logstash内部主要分为三个组件，输入（input），过滤器（filter），输出（output）
 
 配置文件logstash.conf
 该文件定义了**logstash从哪里获取输入，然后输出到哪里**
@@ -146,6 +152,23 @@ output {
     index => "%{[@metadata][beat]}-%{[@metadata][version]}-%{+YYYY.MM.dd}"
   }
 }
+
+#从ELK收集日志输出到Elasticsearch
+input{
+  file{
+    path => "/usr/local/logs/*.log"
+  }
+}
+
+output{
+  elasticsearch{
+    hosts=>["127.0.0.1:9200"]
+    index => "es-message-%{+YYYY.MM.dd}" #要输入的elasticsearch的索引，没有会自建
+  }
+  #并打印到控制台
+  stdout{codec => rubydebug}
+}
+
 #从kafka输入，以json格式输出到Elasticsearch
 input {
   kafka {
@@ -168,7 +191,7 @@ output {
 
 ###  3、Kibana  
 
-是⼀个优秀的**前端⽇志展示框架**，它可以⾮常详细的将⽇志转化 为各种图表，为⽤户提供强⼤的数据可视化⽀持,它能够搜索、展示存 储在 Elasticsearch 中索引数据。使⽤它可以很⽅便的⽤图表、表格、 地图展示和分析数据。 
+是一个优秀的**前端日志展示框架**，它可以非常详细的将日志转化 为各种图表,它能够搜索、展示存储Elasticsearch 中索引数据。 
 
 **监听端口：5601**
 
@@ -259,16 +282,50 @@ ops.interval: 5000
 i18n.locale: "en"
 ```
 
+
+
+检查kibana状态：http://localhost:5601/status
+
+![img](https://gitee.com/c_honghui/picture/raw/master/img/20210325104028.png)
+
+ 在你开始用Kibana之前，你需要告诉Kibana你想探索哪个Elasticsearch索引。第一次访问Kibana是，系统会提示你定义一个索引模式以匹配一个或多个索引的名字。
+
+1. 访问http://127.0.0.1:5601 查看kibana
+
+2. 指定一个索引模式来匹配一个或多个你的Elasticsearch索引。当你指定了你的索引模式以后，任何匹配到的索引都将被展示出来。
+
+   （画外音：*匹配0个或多个字符； 指定索引默认是为了匹配索引，确切的说是匹配索引名字）
+
+3. 点击“**Next Step**”以选择你想要用来执行基于时间比较的包含timestamp字段的索引。如果你的索引没有基于时间的数据，那么选择“**I don’t want to use the Time Filter**”选项。
+
+4. 点击“**Create index pattern**”按钮来添加索引模式。第一个索引模式自动配置为默认的索引默认，以后当你有多个索引模式的时候，你就可以选择将哪一个设为默认。（提示：Management > Index Patterns）
+
+#### Discover
+
+你可以从Discover页面交互式的探索你的数据。你可以访问与所选择的索引默认匹配的每个索引中的每个文档。你可以提交查询请求，过滤搜索结构，并查看文档数据。你也可以看到匹配查询请求的文档数量，以及字段值统计信息。如果你选择的索引模式配置了time字段，则文档随时间的分布将显示在页面顶部的直方图中。
+
+![img](https://gitee.com/c_honghui/picture/raw/master/img/20210325105429.png)
+
+#### 设置时间过滤
+
+<img src="https://gitee.com/c_honghui/picture/raw/master/img/20210325105649.png" alt="img" style="zoom:67%;" />
+
+<img src="https://gitee.com/c_honghui/picture/raw/master/img/20210325105727.png" alt="img" style="zoom:67%;" />
+
+<img src="https://gitee.com/c_honghui/picture/raw/master/img/20210325105742.png" alt="img" style="zoom:67%;" />
+
+
+
 ### 4、Kafka
 
-**数据缓冲队列**。作为消息队列解耦了处理过程，同时提⾼了可扩展 性。具有峰值处理能⼒，使⽤消息队列能够使关键组件顶住突发的访问 压⼒，⽽不会因为突发的超负荷的请求⽽完全崩溃。
+**数据缓冲队列**。作为消息队列解耦了处理过程，同时提供了可扩展 性。具有峰值处理能力，使用消息队列能够使关键组件顶住突发的访问 压力，不会因为突发的超负荷的请求完全崩溃。
 1.发布和订阅记录流，类似于消息队列或企业消息传递系统。
-2.以容错持久的⽅式存储记录流。
+2.以容错持久的分式存储记录流。
 3.处理记录发⽣的流。
 
 ### 5、Filebeat
 
-⾪属于Beats,**轻量级数据收集引擎**。基于原先 Logstash-fowarder 的源码改造出来。换句话说：Filebeat就是新版的 Logstashfowarder，也会是 ELK Stack 在 Agent 的第⼀选择。
+隶属于Beats,**轻量级数据收集引擎**。基于原先 Logstash-fowarder 的源码改造出来。换句话说：Filebeat就是新版的 Logstashfowarder，也会是 ELK Stack 在 Agent 的第⼀选择。
 
 配置文件：
 

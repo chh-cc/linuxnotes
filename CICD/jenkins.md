@@ -1,12 +1,20 @@
 # jenkins
 
+架构:
+
 ![image-20210312173405619](https://gitee.com/c_honghui/picture/raw/master/img/20210312173405.png)
+
+自动构建过程 JOB，JOB 的功能主要是：获取 SVN/GIT 源码、自动编译、自动打包、部署分发和自动测试等；
+
+源代码存储库，开发编写代码需上传至 SVN、GIT 代码库中，供 Jenkins 来获取；
+
+Jenkins 持续集成服务器，用于部署 Jenkins UI、存放 JOB 工程、各种插件、编译打包的数据等。
 
 ## 安装
 
 ## 必备插件
 
-![image-20210320212837022](https://gitee.com/c_honghui/picture/raw/master/img/20210320212844.png)
+<img src="https://gitee.com/c_honghui/picture/raw/master/img/20210320212844.png" alt="image-20210320212837022" style="zoom:67%;" />
 
 ## 用户管理
 
