@@ -2,7 +2,7 @@
 
 官方文档：<https://redis.io/topics/sentinel>
 
-sentinel，中文名是哨兵。哨兵是 Redis 集群架构中非常重要的一个组件，主要有以下功能：
+sentinel，中文名是哨兵。**2.8版本**正式提供高可用实现sentinel,主要有以下功能：
 
 - 集群监控：负责监控 Redis master 和 slave 进程是否正常工作。
 - 消息通知：如果某个 Redis 实例有故障，那么哨兵负责发送消息作为报警通知给管理员。

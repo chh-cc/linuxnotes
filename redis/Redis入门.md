@@ -12,6 +12,18 @@ Redis在奇数版本为非稳定版本，例如2.7，3.1。如果为**偶数则�
 - 中文网站1：[http://redis.cn](http://redis.cn/)
 - 中文网站2：[http://www.redis.net.cn](http://www.redis.net.cn/)
 
+### 应用场景
+
+缓存
+
+排行榜系统
+
+计数器应用
+
+社交网络
+
+消息队列
+
 ### 项目中缓存如何使用
 
 ### 为什么要用缓存
@@ -53,7 +65,18 @@ mysql这么重要的数据库，不是让你玩高并发的，单机支撑到200
 
 ### redis线程模型
 
-单线程
+单线程和I/O多路复用模型来实现高性能
+
+## 信息
+
+- **默认端口**：TCP`6379`
+- 编写语言：c
+- 启动redis：`redis-server`
+- redis客户端：`redis-cli`
+- redis基准测试工具：`redis-benchmark`
+- AOF文件检测和修复工具：`redis-check-aof`
+- ADB文件检测和修复工具：`redis-check-dump`
+- 启动哨兵：`redis-sentinel`
 
 ## Redis 基本部署
 
@@ -130,6 +153,18 @@ mysql这么重要的数据库，不是让你玩高并发的，单机支撑到200
 redis-cli 5.0.5
 [root@qfedu.com  src]# ./redis-server --version
 Redis server v=5.0.5 sha=00000000:0 malloc=libc bits=64 build=4db47e2324dd3c5
+```
+
+如果用6380作为端口启动:
+
+```shell
+redis-server --port 6380
+```
+
+指定配置文件启动:
+
+```shell
+redis-server /opt/redis/redis.conf
 ```
 
 ### 3、配置启动数据库
@@ -249,68 +284,24 @@ done
 
 ####  4、连接 redis
 
+交互方式：
+
 ```shell
 [root@qfedu.com redis]# redis-cli -h 192.168.152.161 -p 6379
-192.168.152.161:6379>
+192.168.152.161:6379> set hello world
+OK
+192.168.152.161:6379> get hello
+"world"
 ```
 
-### 6、Redis.conf 配置说明
+非交互方式：
 
-1、是否后台运行
-
-```
-daemonize no/yes
-```
-
-2、默认端口
-
-```
-port 6379
+```shell
+redis-cli -h 127.0.0.1 -p 6379 get hello
+"world"
 ```
 
-3、AOF 日志开关是否打开
-
-```
-appendonly no/yes
-```
-
-4、日志文件位置
-
-```
-logfile /var/log/redis.log
-```
-
-5、RDB 持久化数据文件
-
-```
-dbfilename dump.rdb
-```
-
-6、指定IP进行监听
-
-```
-bind 10.0.0.51 ip2 ip3 ip4
-```
-
-7、禁止protected-mode
-
-```
-protected-mode yes/no （保护模式，是否只允许本地访问）
-```
-
-8、增加requirepass {password}
-
-```
-requirepass root
-```
-
-9、在redis-cli中使用
-
-```
-auth {password} 进行认证
-```
-
-### 7、在线变更配置
+### 6、在线变更配置
 
 1、获取当前配置
 
@@ -376,27 +367,50 @@ I/O多路复用机制
 
 ## Redis数据类型
 
+<img src="https://gitee.com/c_honghui/picture/raw/master/img/20210326143138.png" alt="image-20210326143019276" style="zoom:67%;" />
+
 **string:**
 
 信息缓存、计数器、分布式锁等
 
 ```shell
-set college szu
+set key value [ex seconds] [px milliseconds] [nx|xx]
+ex seconds:为键设置秒级过期时间
+px milliseconds：为键设置毫秒级过期时间
+nx：键必须不存在才能设置
+xx：键必须存在才能设置
+
+mset key value [key value ...]
+
+mget key [key ...]
+#返回nil为空
+
+#计数
+incr key
+值不是整数，返回错误
+值是整数返回自增后结果
+键不存在按照0自增，返回1
 ```
 
-场景1：缓存频繁读取但不常修改，如用户信息
+场景1：缓存功能，如用户信息
 
 方案：先从redis读取，没有值就从mysql读取，并写一份到redis作缓存，要设置过期时间
 
 键值设计：直接将用户一条mysql记录做序列化(通常序列化为json)作为值，userInfo:userid 作为key，键名如：userInfo:123，value存储对应用户信息的json串。如 key为："user:id :name:1", value为"{"name":"leijia","age":18}"。
 
-场景2：分布式session
+场景2：计数
+
+场景3：分布式session
 
 如果你的应用做了负载均衡，将网站的项目放在多个服务器上，当用户在服务器A上进行登陆，session文件会写在A服务器；当用户跳转页面时，请求被分配到B服务器上的时候，就找不到这个session文件，用户就要重新登陆。
 
 可以将session存放在redis中，redis可以独立于所有负载均衡服务器，也可以放在其中一台负载均衡服务器上；但是所有应用所在的服务器连接的都是同一个redis服务器。
 
+场景4：短信验证码限速
+
 **hash：**
+
+键值本身就是一个键值对结构
 
 场景：以购物车为例子，用户id设置为key，那么购物车里所有的商品就是用户key对应的值了，每个商品有id和购买数量，对应hash的结构就是商品id为field，商品数量为value。
 
@@ -415,7 +429,25 @@ hget person name
 
 **list：**
 
-列表本质是一个有序的，元素可重复的列表。
+列表用来存储多个有序的可重复的字符串。
+
+```shell
+从左到右获取列表所有元素
+lrange listkey 0 -1
+获取第2到第4个元素
+lrange listkey 1 3
+获取当前列表最后一个元素
+lindex listkey -1
+获取列表长度
+llen key
+
+从右边插入元素
+rpush key value [value ...]
+从左边插入元素
+lpush key value [value ...]
+在元素b前插入java
+linsert listkey before b java
+```
 
 场景：定时排行榜，不支持实时排行榜
 
@@ -423,21 +455,25 @@ hget person name
 
 集合的特点是无序和去重
 
+```shell
+添加元素
+sadd key element [element ...]
+计算元素个数（不会遍历集合所有元素，是直接用内部变量）
+scard key
+判断元素是否在集合中（在则返回1，反之为0）
+sismember key element
+```
+
 场景：收藏夹；每一个用户做一个收藏的集合，每个收藏的集合存放用户收藏过的歌曲id，key为用户id，value为歌曲id的集合。
 
 **sorted set：**
 
 有序集合的特点是有序，无重复值。
 
+```shell
+zadd key score member [score member ...]
+成员个数
+zcard key
+```
+
 场景：实时排行；QQ音乐中有多种实时榜单，比如飙升榜、热歌榜、新歌榜，可以用redis key存储榜单类型，score为点击量，value为歌曲id，用户每点击一首歌曲会更新redis数据，sorted set会依据score即点击量将歌曲id排序。
-
-## 信息
-
-- 默认端口：TCP`6379`
-- 编写语言：c
-- 启动redis：`redis-server`
-- redis客户端：`redis-cli`
-- redis基准测试工具：`redis-benchmark`
-- AOF文件检测和修复工具：`redis-check-aof`
-- ADB文件检测和修复工具：`redis-check-dump`
-- 启动哨兵：`redis-sentinel`
