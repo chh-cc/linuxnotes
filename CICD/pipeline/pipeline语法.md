@@ -1,8 +1,9 @@
-# pipeline
+# pipeline语法
 
 ## 什么是Pipeline 
 
-Jenkins 2.0的精髓是Pipeline as Code，是帮助Jenkins实现CI到CD转变的重要角色。什么是Pipeline，简单来说，就是一套运行于Jenkins上的工作流框架，将原本独立运行于单个或者多个节点的任务连接起来，实现单个任务难以完成的复杂发布流程。Pipeline的实现方式是一套Groovy DSL，任何发布流程都可以表述为一段Groovy脚本，并且Jenkins支持从代码库直接读取脚本，从而实现了Pipeline as Code的理念。
+Jenkins 2.0的精髓是Pipeline as Code。
+什么是Pipeline，简单来说，就是一套运行于Jenkins上的工作流框架，将原本独立运行于单个或者多个节点的任务连接起来，实现单个任务难以完成的复杂发布流程。Pipeline的实现方式是一套Groovy DSL，任何发布流程都可以表述为一段Groovy脚本，并且Jenkins支持从代码库直接读取脚本，从而实现了Pipeline as Code的理念。
 
 Pipeline的几个基本概念：
 Stage: 阶段，一个Pipeline可以划分为若干个Stage，每个Stage代表一组操作。注意，Stage是一个逻辑分组的概念，可以跨多个Node。
@@ -14,6 +15,8 @@ Pipeline脚本是用Groovy写的。
 pipeline script：直接在Web UI的script输入框里面输入pipeline script语句即可，参考说明可以点击输入框下边的Pipeline Syntax，里面有很多示例操作说明，非常好用。
 pipeline script from SCM：需要配置SCM代码存储Git地址或SVN地址，指定script文件Jenkinsfile所在路径，每次构建job会自动去指定的目录执行script文件
 以上两种方法定义Pipeline的语法都是一样的。
+
+Jenkinsfile使用两种语法进行编写，分别是声明式和脚本式。
 
 ## Declarative Pipeline（声明式pipeline）
 
@@ -174,19 +177,19 @@ pipeline {
 
 **failure**
 
-只有当前Pipeline处于“失败”状态时才运行，通常用红色指示的Web UI表示。
+只有当前Pipeline处于“**失败**”状态时才运行，通常用红色指示的Web UI表示。
 
 **success**
 
-只有当前Pipeline具有“成功”状态时才运行，通常用蓝色或绿色指示的Web UI表示。
+只有当前Pipeline具有“**成功**”状态时才运行，通常用蓝色或绿色指示的Web UI表示。
 
 **unstable**
 
-只有当前Pipeline具有“不稳定”状态，一般由测试失败，代码违例等引起，才能运行。通常用黄色指示的Web UI表示。
+只有当前Pipeline具有“**不稳定**”状态，一般由测试失败，代码违例等引起，才能运行。通常用黄色指示的Web UI表示。
 
 **aborted**
 
-只有当前Pipeline处于“中止”状态时，才会运行，通常是由于Pipeline被手动中止。通常用灰色指示的Web UI表示。
+只有当前Pipeline处于“**中止**”状态时，才会运行，通常是由于Pipeline被手动中止。通常用灰色指示的Web UI表示。
 
 ##### 样例
 
