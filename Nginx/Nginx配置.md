@@ -26,6 +26,7 @@ vim domains/*.conf
 server {
 	...
 	location / {
+		proxy_pass http://static_pools
 		...
 	}
 	location ~ .*\.(gif|jpg|jpeg|bmp|png|ico|txt|js|css)$ {
@@ -116,8 +117,9 @@ location / {
         proxy_redirect off;
         # 要使用 nginx 代理后台获取真实的 IP 需在 nginx.conf 配置中加入配置信息
         proxy_set_header Host $http_host;	# 包含客户端真实的域名和端口号；
-        proxy_set_header X-Real-IP $remote_addr;	 # 表示客户端真实的IP；	
-        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;	#在多层代理时会包含真实客户端及中间每个代理服务器的IP
+        proxy_set_header X-Real-IP $remote_addr;	 # 表示客户端真实的IP（remote_addr 是一个 Nginx 的内置变量，它获取到的是 Nginx 层前端的用户 IP 地址，这个地址是一个 4 层的 IP 地址）；
+        （相对于下面的方式而言更加准确，因为 remote_addr 是直接获取第一层代理的用户 IP 地址，如果直接把这个地址传递给 X-Real，这样就会更加准确。但是它有什么劣势呢？如果是多级代理的话，用户如果不是直接请求到最终的代理层，而是在中间通过了 n 层带来转发过来的话，此时 remote_addr 可能获取的不是用户的信息，而是 Nginx 最近一层代理过来的 IP 地址，此时同样没有获取到真实的用户 IP 地址信息。）
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;	#在多层代理时会包含真实客户端及中间每个代理服务器的IP（加了一个转发到后端的标准 head 信息，把用户的 IP 信息通过 X-Forwarded-For  方式传递过去）
 		proxy_set_header X-Forwarded-Proto $scheme;	# 表示客户端真实的协议（http还是https）；
 		proxy_set_header X-NginX-Proxy true;
 		
@@ -175,7 +177,7 @@ server_names_hash_bucket_size    128;	#如果定义了大量名字，或者定�
 sendfile        on;
 tcp_nopush     on;	#防止网络阻塞
 tcp_nodelay    on;	#防止网络阻塞,包含了keepalive参数才有效
-keepalive_timeout  60;	#客户端连接保持会话的超时时间。超过这个时间，服务器会关闭该连接
+keepalive_timeout  60;	#客户端连接保持会话的超时时间。超过这个时间，服务器会关闭该连接（如果我们把它设置为 0，则表示把长连接关闭，服务端只能支持短连接，如果我们把 keepalive 设置一个较长的时间周期（比如写成 keepalive_timeout 120s），它表示支持两分钟的长连接。）
 #client_header_timeout 15;	#客户端请求头读取超时时间．如超过这个时间，客户端还没有发送任何数据，Nginx将返回“Request timeout(408)＂错误，默认值是60。
 #client_body_timeout 15;	#客户端请求主体读取超时时间。如超过这个时间，客户端还没有发送任何数据，Nginx将返回“Request timeout(408)错误，默认值是60
 #send_timeout 15;	#指定响应客户端的超时时间。这个超时仅限于两个连接活动之间的时间，如果超过这个时间，客户端没有任何活动，Nginx将会关闭连接。

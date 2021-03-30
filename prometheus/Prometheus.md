@@ -164,5 +164,32 @@ EOF
 # systemctl start prometheus.service 
 ```
 
+## prometheus+grafana
 
+安装好 Prometheus 以后，接下来需要安装的就是 Grafana，它是一个 Web 界面化的监控数据的展示平台
 
+完成安装以后，同样可以在浏览器里访问 {ip}:3000 的端口，就可以访问到 Grafana 控制台的界面，它有一个默认的用户密码，用户是 admin，密码也是 admin，我们登录进去以后，就完成了 Grafana 的安装。
+
+接下来需要配置的就是 Grafana 的采集数据源要从哪个地方采集，所以我们需要把 Grafana 的数据源配置成从 Prometheus 去采集，我们在登录到 Grafana 界面以后，在浏览器里面点击 Data Source 这个按钮：
+
+<img src="https://gitee.com/c_honghui/picture/raw/master/img/20210331000513.png" alt="image-20210331000513090" style="zoom:67%;" />
+
+然后点击 add data source，它里面有一个默认的配置模板，我们可以点击 Prometheus：
+
+<img src="https://gitee.com/c_honghui/picture/raw/master/img/20210331000537.png" alt="image-20210331000537932" style="zoom:67%;" />
+
+然后我们就可以进入 Grafana 的控制台，针对 Prometheus 这样的一个数据源，它的具体的配置界面。这里需要配置的有如下几大块配置：
+
+<img src="https://gitee.com/c_honghui/picture/raw/master/img/20210331000621.png" alt="image-20210331000620930" style="zoom:67%;" />
+
+一个是 HTTP，也就是 Prometheus 对外服务的接口的地址，我们填写的是 Prometheus 的服务地址和它对应的服务端口，并且设置它的权限是浏览的权限。另外Scrape interval 配置的是采集间隔，也就是每 15 秒去做一次采集。HTTP Method 代表是以 GET 的方式去请求 Prometheus 服务。这里就完成了整个对于 Prometheus 数据源的采集。
+
+导入 Grafna 对于普罗修斯所默认携带的面板插件：
+
+登录到我的浏览器打开grafana后台，然后点击 Dashboards 按钮，下面有一个 manager，然后点击 import，这里我搜索一个关键词 “405“，然后回车一下。这个时候我们点击完 load ，界面中有 Prometheus Metric 的插件，然后我们点击 input，这样就完成了面板插件导入。
+
+<img src="https://gitee.com/c_honghui/picture/raw/master/img/20210331001015.png" alt="image-20210331001015461" style="zoom:80%;" />
+
+最后我们点击主界面，这个时候我们在 Dashboard 的下面会看到一个新的 Dashboard 按钮（Node Exporter Server Metrics），我们点击进去，就会看到对应节点的 IP 地址和端口信息：
+
+![image-20210331001206327](https://gitee.com/c_honghui/picture/raw/master/img/20210331001206.png)
