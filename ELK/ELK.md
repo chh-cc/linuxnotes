@@ -466,3 +466,114 @@ proxy_url:
 proxy_use_local_resolver: false
 ```
 
+#### 配置（发送Logstash）
+
+```yaml
+filebeat.prospectors:
+# system log
+- input_type: log
+  paths:
+    - /var/log/messages
+  fields:
+    type: systemlog
+  fields_under_root: true
+
+  exclude_lines: ["^$"]
+  exclude_files: [".gz$"]
+
+# system login log
+- input_type: log
+  paths:         
+    - /var/log/lastlog
+  fields:        
+    type: lastlog
+  fields_under_root: true
+
+  exclude_lines: ["^$"]
+  exclude_files: [".gz$"]
+
+# nginx all access log
+- input_type: log
+  paths:         
+    - /usr/local/nginx/logs/*_access.log
+  fields:        
+    type: nginx-accesslog
+  fields_under_root: true
+
+  exclude_lines: ["^$"]
+  exclude_files: [".gz$"]
+
+# nginx error log
+- input_type: log
+  paths:         
+    - /usr/local/nginx/logs/error.log
+  fields:        
+    type: nginx-errorlog
+  fields_under_root: true
+
+  exclude_lines: ["^$"]
+  exclude_files: [".gz$"]
+
+# tomcat access log 
+- input_type: log
+  paths:         
+    - /usr/local/tomcat1/logs/ding_access.*.log
+  fields:        
+    type: tomcat-accesslog
+  fields_under_root: true
+
+  exclude_lines: ["^$"]
+  exclude_files: [".gz$"]
+
+# catalina log
+- input_type: log
+  paths:         
+    - /usr/local/tomcat1/logs/catalina.out
+  fields:        
+    type: tomcat-catalina
+  fields_under_root: true
+
+  exclude_lines: ["^$"]
+  exclude_files: [".gz$"]
+
+  # multiline config
+  multiline.pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
+  multiline.negate: true
+  multiline.match: after
+
+
+# ding info log
+- input_type: log
+  paths:         
+    - /usr/local/tomcat1/logs/ding_Info.log
+  fields:        
+    type: tomcat-ding-info
+  fields_under_root: true
+
+  exclude_lines: ["^$"]
+  exclude_files: [".gz$"]
+
+  # multiline config
+  multiline.pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
+  multiline.negate: true
+  multiline.match: after
+
+# ding error log
+- input_type: log
+  paths:         
+    - /usr/local/tomcat1/logs/ding_Error.log
+  fields:        
+    type: tomcat-ding-error
+  fields_under_root: true
+
+  exclude_lines: ["^$"]
+  exclude_files: [".gz$"]
+
+  # multiline config
+  multiline.pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
+  multiline.negate: true
+  multiline.match: after
+
+output.logstash:
+    hosts: ["192.168.0.230:5044"]
+```

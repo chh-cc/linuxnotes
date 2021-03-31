@@ -252,10 +252,18 @@ networks:
 ```shell
 docker-compose [-f <arg>...] [options] [--] [COMMAND] [ARGS...]
 
-docker-compose up -d [service1] [service2] ...
+# 启动容器（不看日志）
+docker-compose [-f /opt/docker-compose.yml] up -d [service1] [service2] ...
 
 如果拉取镜像出现以下错误，可能需要登录dockerhub
 ERROR: error pulling image configuration: Get https://d2iks1dkcwqcbx.cloudfront.net/docker/registry/v2/blobs/sha256/8a/8a5a7863221ad86b3dc8d6f7068f0b2c2f28597766e9285ecca5921eee7166d1/data?Expires=1617175007&Signature=B7bEQef-2X0U6OYtuazMOpg0lLqt8IiVIQ4XEwM8q0VpPQiSSSzZbtP4X355Yt6RltKRQMRY~qUcdV932HBeDolssKtjzwf3~eF-m-AQjx0-UfEzKUx5Ul3P9zDZjPgfdV7MmC7SdufyvlLaWEl7UDuThkeQZKEo8rVZ7MMS2WuCkzFSBOoKXtFiBmy2xHGmRDAlD3poWYV88RfO3cA9YkQdfSxLjwqF8PoHW-KJkE~wZ84mFP~g7fxCXwymgUEhlCmlIyZipX3fC9Lt0-LBah2cmgWuzlLvePQrGqNJvpXyoRVcxl2uf0FmkGS~HrBluM3ELxJcwxeQ6-EufFZu5A__&Key-Pair-Id=APKAIVAVKHB6SNHJAJQQ: read tcp 192.168.71.131:36856->13.225.100.166:443: read: connection reset by peer
+
+# 查看当前启动容器
+docker-compose ps
+# 查看docker-compose中的容器和使用镜像
+docker-compose images
+# 销毁所有容器和网络
+docker-compose down
 ```
 
 

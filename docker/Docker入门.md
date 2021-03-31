@@ -189,9 +189,16 @@ Docker使用的核心底层技术：Namespace、Control Groups和Union FS。
 
 **Control groups**
 
-Control groups（Cgroups）中文称为控制组。Docker利用Cgroups实现了对资源的配额和度量。Cgroups可以限制CPU、内存、磁盘读写速率、网络带宽等系统资源。
+Control groups（Cgroups）中文称为控制组。Docker利用Cgroups实现了对**资源的配额**和度量。Cgroups可以限制CPU、内存、磁盘读写速率、网络带宽等系统资源。
 
-**Union file systems**（联合文件系统，UnionFS）
+```shell
+docker run -d --name mysql --memory="500m" --memory-swap="600M" --oom-kill-disabel mysql01
+# 限制CPU
+docker run -d --name mysql --cpus=".5"
+docker run -d --name mysql --cpus="1.5
+```
+
+**Union file systems**（联合文件系统，**Contaner和image的分层**）
 
 Docker目前支持的UnionFS种类包括AUFS,btrfs,vfs和 DeviceMapper。
 
@@ -591,6 +598,8 @@ MAINTAINER
 
 ```text
 LABEL maintainer="SvenDowideit@home.org.au"
+LABEL version=0.1
+LABEL deacription="Dev Basic PHP 5.3/5.6/7.2"
 ```
 
 USER
@@ -674,6 +683,8 @@ COPY [--chown=<user>:<group>] ["<src>",... "<dest>"] (this form is required for 
 ```text
 配置容器启动后执行的命令，并且不可被docker run提供的参数覆盖。每个Dockerfile中只能有一个ENTRYPOINT
 ENTRYPOINT ["executable", "param1", "param2"] (exec form, preferred)
+例：ENTRYPOINT ["/bin/echo", "hello Ding"]
+   ENTRYPOINT ["/bin/sh/", "-c", "/bin/echo hello $name" ]
 ENTRYPOINT command param1 param2 (shell form)
 ```
 
