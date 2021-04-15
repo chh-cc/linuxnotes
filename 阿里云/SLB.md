@@ -10,6 +10,8 @@
 
 ## CLB
 
+![img](https://gitee.com/c_honghui/picture/raw/master/img/20210415221546.png)
+
 随着**应用型负载均衡ALB（Application Load Balancer）**的引入，原**负载均衡SLB（Server Load Balancer）**现称为**传统型负载均衡CLB（Classic Load Balancer）**，**负载均衡SLB**为负载均衡产品家族的总称。
 
 组成：
@@ -114,6 +116,10 @@ net.ipv4.conf.eth0.rp_filter = 0
 
 ### 健康检查
 
+<img src="https://gitee.com/c_honghui/picture/raw/master/img/20210415224331.png" alt="img" style="zoom:67%;" />
+
+<img src="https://gitee.com/c_honghui/picture/raw/master/img/20210415224350.png" alt="img" style="zoom:67%;" />
+
 #### 配置健康检查
 
 1. 单击负载均衡实例的ID。
@@ -162,6 +168,22 @@ net.ipv4.conf.eth0.rp_filter = 0
   - 设置规则名称，在**域名**操作列输入www.example2.com，选择test2虚拟服务器组，单击**添加转发策略**。
 
 3. 添加扩展域名
+
+#### 将http重定向到https
+
+前提：已经创建https监听
+
+操作：
+
+1. 在**协议&监听**页签下，负载均衡协议选择**HTTP**， 监听端口输入**80**。
+2. 单击**高级配置**后的**修改**。
+3. 开启**监听转发**，选择目的监听为**HTTPS:443**。
+
+<img src="https://gitee.com/c_honghui/picture/raw/master/img/20210415212616.png" alt="img" style="zoom:67%;" />
+
+#### 相同域名不同路径的流量转发
+
+<img src="https://gitee.com/c_honghui/picture/raw/master/img/20210415215424.png" alt="img" style="zoom:67%;" />
 
 ## ALB
 
