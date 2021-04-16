@@ -10,6 +10,8 @@
 
 ## CLB
 
+![img](https://gitee.com/c_honghui/picture/raw/master/img/20210415221546.png)
+
 随着**应用型负载均衡ALB（Application Load Balancer）**的引入，原**负载均衡SLB（Server Load Balancer）**现称为**传统型负载均衡CLB（Classic Load Balancer）**，**负载均衡SLB**为负载均衡产品家族的总称。
 
 组成：
@@ -114,6 +116,10 @@ net.ipv4.conf.eth0.rp_filter = 0
 
 ### 健康检查
 
+<img src="https://gitee.com/c_honghui/picture/raw/master/img/20210415224331.png" alt="img" style="zoom:67%;" />
+
+<img src="https://gitee.com/c_honghui/picture/raw/master/img/20210415224350.png" alt="img" style="zoom:67%;" />
+
 #### 配置健康检查
 
 1. 单击负载均衡实例的ID。
@@ -163,6 +169,7 @@ net.ipv4.conf.eth0.rp_filter = 0
 
 3. 添加扩展域名
 
+<<<<<<< HEAD
 #### 将http访问重定向到https
 
 前提:已创建https监听
@@ -233,6 +240,23 @@ Apache ab在大量并发场景下存在3s、6s、9s阶梯式停顿的现象。Ap
 建议使用阿里云[PTS](https://pts.aliyun.com/)。
 
 可以设置足够高的并发，PTS会分配来自全国各地的公网IP，压力来源足够分散，并且可以在PTS中集成云监控，实时查看端到端的全部性能数据。
+=======
+#### 将http重定向到https
+
+前提：已经创建https监听
+
+操作：
+
+1. 在**协议&监听**页签下，负载均衡协议选择**HTTP**， 监听端口输入**80**。
+2. 单击**高级配置**后的**修改**。
+3. 开启**监听转发**，选择目的监听为**HTTPS:443**。
+
+<img src="https://gitee.com/c_honghui/picture/raw/master/img/20210415212616.png" alt="img" style="zoom:67%;" />
+
+#### 相同域名不同路径的流量转发
+
+<img src="https://gitee.com/c_honghui/picture/raw/master/img/20210415215424.png" alt="img" style="zoom:67%;" />
+>>>>>>> 85a892c984ed3ec2b6bcc71fe1dbaedd7466d5c6
 
 ## ALB
 
