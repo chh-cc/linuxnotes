@@ -11,13 +11,12 @@ pid /run/nginx.pid;#pid文件位置
 error_log /var/log/nginx/error.log notice;#全局日志输出位置,notice是日志级别
 worker_processes auto;#开启的工作进程数量,和cpu核心数量相等
 worker_rlimit_nofile 65535;#一个nginx 进程打开的最多文件描述符数目，理论值应该是最多打开文件数（ulimit -n）一样
-worker_connections 65535;#每个work进程可以建立的最大的连接数,并发限定总数是 worker_processes 和 worker_connections 的乘积;在设置了反向代理的情况下，max_clients = worker_processes * worker_connections / 2  因为作为反向代理服务器，每个并发会建立与客户端的连接和与后端服务的连接，会占用两个连接。
 
 #events块
 events {
 	(配置影响nginx服务器或与用户的网络连接。有每个进程的最大连接数，选取哪种事件驱动模型处理连接请求，是否允许同时接受多个网路连接，开启多个网络连接序列化等。)
 	use epoll;
-	worker_connections	4096;#单个 worker process 进程可以同时接收多少访问请求
+	worker_connections	4096;#每个work进程可以建立的最大的连接数,并发限定总数是 worker_processes 和 worker_connections 的乘积;在设置了反向代理的情况下，max_clients = worker_processes * worker_connections / 2  因为作为反向代理服务器，每个并发会建立与客户端的连接和与后端服务的连接，会占用两个连接。
 }
 
 # http 服务相关设置
@@ -161,11 +160,11 @@ server {
 		proxy_pass http://static_pools
 		proxy_redirect off;
         # 要使用 nginx 代理后台获取真实的 IP 需在 nginx.conf 配置中加入配置信息
-        proxy_set_header Host $http_host;	# 包含客户端真实的域名和端口号；
-        proxy_set_header X-Real-IP $remote_addr;	 # 表示客户端真实的IP（remote_addr 是一个 Nginx 的内置变量，它获取到的是 Nginx 层前端的用户 IP 地址，这个地址是一个 4 层的 IP 地址）；
+        proxy_set_header Host	$http_host;	# 包含客户端真实的域名和端口号；
+        proxy_set_header X-Real-IP	$remote_addr;	 # 表示客户端真实的IP（remote_addr 是一个 Nginx 的内置变量，它获取到的是 Nginx 层前端的用户 IP 地址，这个地址是一个 4 层的 IP 地址）；
         （相对于下面的方式而言更加准确，因为 remote_addr 是直接获取第一层代理的用户 IP 地址，如果直接把这个地址传递给 X-Real，这样就会更加准确。但是它有什么劣势呢？如果是多级代理的话，用户如果不是直接请求到最终的代理层，而是在中间通过了 n 层带来转发过来的话，此时 remote_addr 可能获取的不是用户的信息，而是 Nginx 最近一层代理过来的 IP 地址，此时同样没有获取到真实的用户 IP 地址信息。）
         proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;	#在多层代理时会包含真实客户端及中间每个代理服务器的IP（加了一个转发到后端的标准 head 信息，把用户的 IP 信息通过 X-Forwarded-For  方式传递过去）
-		proxy_set_header X-Forwarded-Proto $scheme;	# 表示客户端真实的协议（http还是https）；
+		proxy_set_header X-Forwarded-Proto	$scheme;	# 表示客户端真实的协议（http还是https）；
 		proxy_set_header X-NginX-Proxy true;
 		
 		proxy_connect_timeout 30; #nginx 跟后端服务器连接超时时间
@@ -183,12 +182,19 @@ server {
 	location ~ .*\.(gif|jpg|jpeg|svg|bmp|png|ico|txt|js|css|html)$ {
         root    tomcat_static;
         expires 1d;
-        #防盗链
+        #防盗链（即防止别人盗用网站的资源）
         valid_referers none blocked     chenhh.xyz *.chenhh.xyz;
         if ($invalid_referer) {
             return 404;
         }
     }
+    
+    #配置nginx监测状态页面
+    location /status {
+		stub_status on;         #开启状态页监测
+		allow 192.168.0.0/16;	#只允许192.168.0.0/16网段访问
+		deny all;				#其余网段禁止访问
+	}
     
 	location ~ .*\.(gif|jpg|jpeg|bmp|png|ico|txt|js|css)$ {
 		if () {

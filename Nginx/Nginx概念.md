@@ -1,5 +1,9 @@
 # Nginx概念
 
+nginx：全称engine X；
+		发行版本：
+			Tengine：淘宝二次开发版本；
+
 ## 应用场景
 
 作为 Web 服务器
