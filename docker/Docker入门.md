@@ -2,9 +2,15 @@
 
 ## 简介
 
-不同的应用程序可能会有不同的应用环境，比如.net开发的网站和java开发的网站依赖的软件就不一样，如果把他们依赖的软件都安装在一个服务器上就要调试很久，而且很麻烦，还会造成一些冲突。比如IIS和tomcat访问端口冲突。这个时候你就要隔离.net开发的网站和tomcat开发的网站。常规来讲，我们可以在服务器上创建不同的虚拟机在不同的虚拟机上放置不同的应用，但是虚拟机开销比较高。**docker可以实现虚拟机隔离应用环境的功能，并且开销比虚拟机小**，小就意味着省钱了。
+**docker可以实现虚拟机隔离应用环境的功能，并且开销比虚拟机小**，小就意味着省钱了。
 
 Docker将应用程序与该程序的依赖，打包在一个文件里面。运行这个文件，就会生成一个虚拟容器。程序在这个虚拟容器里运行，就好像在真实的物理机上运行一样。有了 Docker，就不用担心环境问题。
+
+docker容器镜像官网：dockerhub.com
+					download.docker.com
+docker国内加速镜像站：
+	阿里云
+	清华大学镜像站：mirrors.tuna.tsinghua.edu.cn
 
 ### 用途
 
@@ -187,10 +193,27 @@ Docker使用的核心底层技术：Namespace、Control Groups和Union FS。
 
 简单来说，Namespace 是 Linux 内核的一个特性，该特性可以实现在同一主机系统中，对进程 ID、主机名、用户 ID、文件名、网络和进程间通信等资源的隔离。Docker 利用 Linux 内核的 Namespace 特性，实现了每个容器的**资源相互隔离**，从而保证容器内部只能访问到自己 Namespace 的资源。
 
+namespace         系统调用参数            隔离内容                  内核版本
+	（1）UTS              CLONE_NEWUTS	       主机名和域名                  2.6.19
+	（2）IPC               CLONE_NEWIPC         信息量，消息队列和共享内存    2.6.19
+	（3）PID               CLONE_NEWPID	       进程编号                      2.6.24
+	（4）Network      CLONE_NEWNET	       网络设备、网络栈、端口等      2.6.29
+	（5）Mount         CLONE_NEWNS	       挂载点（文件系统）            2.4.19
+	（6）User             CLONE_NEWUSER	       用户和用户组                  3.8
+
 **Control groups**
 
 Control groups（Cgroups）中文称为控制组。Docker利用Cgroups实现了对**资源的配额**和度量。Cgroups可以限制CPU、内存、磁盘读写速率、网络带宽等系统资源。
 
+	blkio：块设备IO；
+	cpu：CPU；
+	cpuacct：CPU资源使用报告；
+	cpuset：多处理器平台上的CPU集合；
+	devices：设备访问；
+	freezer：挂起或恢复任务；
+	memory：内存用量及报告；
+	perf_event：对cgroup中的任务进行统一性能测试；
+	net_cls：cgroup中的任务创建的数据报文的类别标识符；
 ```shell
 docker run -d --name mysql --memory="500m" --memory-swap="600M" --oom-kill-disabel mysql01
 # 限制CPU
@@ -202,11 +225,11 @@ docker run -d --name mysql --cpus="1.5
 
 Docker目前支持的UnionFS种类包括AUFS,btrfs,vfs和 DeviceMapper。
 
-AUFS是一种 Union FS, 简单来说就是“支持将不同目录挂载到同一个虚拟文件系统下的文件系统”, AUFS支持为每一个成员目录设定只读(Rreadonly)、读写(Readwrite)和写(Whiteout-able)权限。
-
-Linux在启动后，首先将rootfs置为 Readonly，进行一系列检查后将其切换为Readwrite供用户使用。在Docker中，也是利用该技术，然后利用Union Mount在Readonly的rootfs文件系统之上挂载Readwrite文件系统。并且向上叠加, 使得一组Readonly和一个Readwrite的结构构成一个容器的运行目录、每一个被称作一个文件系统Layer。
-
-AUFS的特性, 使得每一个对Readonly层文件/目录的修改都只会存在于上层的Writeable层中。这样使得多个容器可以共享Readonly文件系统层。在Docker中，将**Readonly的层称作image**，将**Writeable层称作container**。对于容器整体而言，整个rootfs变得是read-write的，但事实上所有的修改都写入最上层的container中，image不保存用户状态，可以用于模板、重建和复制。
+采用分层构建机制，最底层是bootfs，其之为rootfs；
+		bootfs：用于系统引导的文件系统，包括bootloader和kernel，容器启动完成后会被卸载以节约内存资源；
+		rootfs：位于bootfs之上，表现为docker容器的根文件系统；
+		传统模式中，系统启动之时，内核挂载rootfs时会首先将其挂载为"只读"模式，完整性自检完成后将其重新挂载为读写模式；
+		docker中，rootfs由内核挂载为"只读"模式，而后通过"联合挂载"技术额外挂载一个"可写"层
 
 ![img](https://gitee.com/c_honghui/picture/raw/master/img/20210217232523.webp)
 
@@ -540,7 +563,9 @@ docker import busybox.tar busybox:test
 
 ### 其他
 
-查看docker信息：docker info
+查看docker版本:docker version
+
+查看docker详细信息：docker info
 
 查看 docker 的硬盘空间使用情况：docker system df
 

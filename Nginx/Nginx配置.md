@@ -16,7 +16,7 @@ worker_rlimit_nofile 65535;#一个nginx 进程打开的最多文件描述符数�
 events {
 	(配置影响nginx服务器或与用户的网络连接。有每个进程的最大连接数，选取哪种事件驱动模型处理连接请求，是否允许同时接受多个网路连接，开启多个网络连接序列化等。)
 	use epoll;
-	worker_connections	4096;#每个work进程可以建立的最大的连接数,并发限定总数是 worker_processes 和 worker_connections 的乘积;在设置了反向代理的情况下，max_clients = worker_processes * worker_connections / 2  因为作为反向代理服务器，每个并发会建立与客户端的连接和与后端服务的连接，会占用两个连接。
+	worker_connections	51200;#每个work进程可以建立的最大的连接数,并发限定总数是 worker_processes 和 worker_connections 的乘积;在设置了反向代理的情况下，max_clients = worker_processes * worker_connections / 2  因为作为反向代理服务器，每个并发会建立与客户端的连接和与后端服务的连接，会占用两个连接。
 }
 
 # http 服务相关设置
@@ -74,18 +74,18 @@ http {
     reset_timedout_connection on;
 	
 	#server_name控制
-	#保存服务器名字(server_name www.xx.com这种)的hash表，如果名字太长，就需要将如下值变大为64
+	#对虚拟主机服务器名字(server_name www.xx.com这种)在内存中做hash，如果名字太长，就需要将如下值变大为64
     server_names_hash_bucket_size 64;
     #存储服务器名字的值大小，默认512kb，如果一个server对应多个域名，就要加大此值
-    server_names_hash_max_size 512;
+    server_names_hash_max_size 256;
     
     #提交缓存
     #nginx 会将整个请求头都放在一个 buffer 里面，如果用户的请求头太大，这个 buffer 装不下，那 nginx 就会重新分配一个新的更大的 buffer来装请求头，这个大 buffer 可以通过 large_client_header_buffers 来设置，比如配置 4 8k，就是表示有四个 8k 大小的buffer 可以用。
-    client_header_buffer_size 32k;
+    client_header_buffer_size 256k;
     #此指令规定了用于读取大型客户端请求头的缓冲区的最大数量和大小。 这些缓冲区仅在缺省缓冲区不足时按需分配。 当处理请求或连接转换到保持活动状态时，释放缓冲区。如下例子：
     large_client_header_buffers 4 32k;
     #此指令设置NGINX能处理的最大请求主体大小。 如果请求大于指定的大小，则NGINX发回HTTP 413（Request Entity too large）错误。如果在上传大文件，可以将此值设置大一些
-    client_max_body_size 8m;
+    client_max_body_size 20m;
     #这个将为打开文件指定缓存，默认是没有启用的，max指定缓存数量，建议和打开文件数一致，inactive 是指经过多长时间文件没被请求后删除缓存。
     open_file_cache max=100000 inactive=20s;
     #这个是指多长时间检查一次缓存的有效信息。
@@ -99,9 +99,9 @@ http {
     #开启页面压缩
     gzip  on;
     #gzip压缩是要申请临时内存空间的，假设前提是压缩后大小是小于等于压缩前的。例如，如果原始文件大小为10K，那么它超过了8K，所以分配的内存是8 * 2 = 16K;再例如，原始文件大小为18K，很明显16K也是不够的，那么按照 8 * 2 * 2 = 32K的大小申请内存。如果没有设置，默认值是申请跟原始数据相同大小的内存空间去存储gzip压缩结果。
-    gzip_buffers 2 8k;
+    gzip_buffers 16 8k;
     #进行压缩的原始文件的最小大小值，也就是说如果原始文件小于1K，那么就不会进行压缩了
-    gzip_min_length 1K;
+    gzip_min_length 1024K;
     # 默认值: gzip_http_version 1.1(就是说对HTTP/1.1协议的请求才会进行gzip压缩)
 # 识别http的协议版本。由于早期的一些浏览器或者http客户端，可能不支持gzip自解压，用户就会看到乱码，所以做一些判断还是有必要的。 
 # 注：99.99%的浏览器基本上都支持gzip解压了，所以可以不用设这个值,保持系统默认即可。
@@ -109,7 +109,7 @@ http {
     gzip_http_version 1.1;
     # 默认值：1(建议选择为4)
     # gzip压缩比/压缩级别，压缩级别 1-9，级别越高压缩率越大，当然压缩时间也就越长（传输快但比较消耗cpu）。
-    gzip_comp_level 5;
+    gzip_comp_level 6;
     #需要进行gzip压缩的Content-Type的Header的类型。建议js、text、css、xml、json都要进行压缩；图片就没必要了，gif、jpge文件已经压缩得很好了，就算再压，效果也不好，而且还耗费cpu。
     gzip_types text/HTML text/plain application/x-javascript text/css application/xml;
     # 禁用IE6的gzip压缩，又是因为杯具的IE6。当然，IE6目前依然广泛的存在，所以这里你也可以设置为“MSIE [1-5].”
@@ -151,13 +151,15 @@ http {
 vim domains/*.conf
 server {
 	(配置虚拟主机的相关参数)
-	listen       104.207.128.168:80;#监听端口
+	listen       80;#监听端口
 	server_name  www.zjswdlt.cn;#域名
-	
+	root         /data/webapps/htdocs;
+	access.log   /var/logs/webapps_access.log main
 	#配置代理
 	location / {
 	    #代理的后端服务器
 		proxy_pass http://static_pools
+		#关闭proxy重定向
 		proxy_redirect off;
         # 要使用 nginx 代理后台获取真实的 IP 需在 nginx.conf 配置中加入配置信息
         proxy_set_header Host	$http_host;	# 包含客户端真实的域名和端口号；
@@ -167,13 +169,13 @@ server {
 		proxy_set_header X-Forwarded-Proto	$scheme;	# 表示客户端真实的协议（http还是https）；
 		proxy_set_header X-NginX-Proxy true;
 		
-		proxy_connect_timeout 30; #nginx 跟后端服务器连接超时时间
-		proxy_send_timeout 60; #后端服务器数据回传时间
-		proxy_read_timeout 60; #连接成功后，后端服务器响应时间
+		proxy_connect_timeout 90; #nginx 跟后端服务器连接超时时间
+		proxy_send_timeout 90; #nginx向后端发送请求报文的超时时间
+		proxy_read_timeout 90; #nginx读取后端响应内容的超时时间
 		
 		proxy_buffering on;	#缓冲开关，nignx会把后端返回的内容先放到缓冲区当中，然后再返回给客户端（边收边传，不是全部接收完再传给客户端）
-		proxy_buffer_size 32k;	#缓冲区大小
-		proxy_buffers 4 128k;	#缓冲区数量
+		proxy_buffer_size 128k;	#缓冲区大小
+		proxy_buffers 4 64k;	#缓冲区数量及每个buffer被分配的内存大小
 		proxy_busy_buffers_size 256k;	#忙碌的缓冲区大小控制同时传递给客户端的buffer数量
 		proxy_max_temp_file_size 256k;
 	}
@@ -191,6 +193,7 @@ server {
     
     #配置nginx监测状态页面
     location /status {
+        access_log  off;        #关闭访问日志
 		stub_status on;         #开启状态页监测
 		allow 192.168.0.0/16;	#只允许192.168.0.0/16网段访问
 		deny all;				#其余网段禁止访问
