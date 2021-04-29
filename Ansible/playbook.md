@@ -2,9 +2,9 @@
 
 ## playbook简介
 
-AD-HOC 每次只能在被管理节 点上执⾏简单的命令。Ansible引进了 PLAYBOOK 来帮忙我们解决这样复 杂问题。
+AD-HOC 每次只能在被管理节 点上执行简单的命令。Ansible引进了 PLAYBOOK 来帮忙我们解决这样复 杂问题。
 
-Playbook 也通常被⼤家翻译成剧本。
+Playbook 也通常被翻译成剧本。
 
 PlayBook遵循YAML 的语法格式。
 
@@ -15,10 +15,10 @@ PlayBook遵循YAML 的语法格式。
 - 以 # 为注释符 
 - 以 .yml 或者.yaml 结尾 
 - 以 --- 开始 , 以 ... 结束, 但开始和结束标志都是可选的
-- ⼤⼩写敏感 
+- 大小写敏感 
 - 使⽤缩进表示层级关系 
-- 缩进时是使⽤Tab键还是使⽤空格⼀定要达到统⼀，建议使⽤ 空格。 
-- 相同层级的元素必须左侧对⻬即可
+- 缩进时是使用Tab键还是使用空格一定要达到统一，建议使用 空格。 
+- 相同层级的元素必须左侧对齐即可
 
 #### 数据结构
 
@@ -26,12 +26,11 @@ PlayBook遵循YAML 的语法格式。
 
 ```yaml
 ---
-# YAML 中的字符串可以不使⽤引号，即使⾥⾯存在空格的时候，当然
-了使⽤单引号和双引号也没有错。
+# YAML 中的字符串可以不使用引号，即使中间存在空格的时候，当然了使用单引号和双引号也没有错。
 this is a string
 'this is a string'
 "this is a string"
-# YAML 中若⼀⾏写不完你要表述的内容的时候，可以进⾏折⾏。写法
+# YAML 中若一行写不完你要表述的内容的时候，可以进⾏折⾏。写法
 如下:
 long_line: |
  Example 1
@@ -78,11 +77,9 @@ code: D1234
 
 ### Play 的定义
 
-1、每⼀个Play 都是以短横杠开始的 
+1、每个Play 都是以短横杠开始的 
 
-2、每 ⼀个Play 都是⼀个YAML 字典格式
-
-一个假想的 Play 应该是如下的样⼦
+2、每 个Play 都是一个YAML 字典格式
 
 ```yaml
 ---
@@ -95,7 +92,7 @@ code: D1234
 多个play
 
 ```yaml
-# ⼀个含有3个Play 的伪PlayBook构成
+# 含有3个Play 的伪PlayBook构成
 - key1: value1
  key2: value2
  key3: value3
@@ -110,18 +107,18 @@ code: D1234
 
 ### Play 属性
 
-Play中的每⼀个key，⽐如 key1, key2 等；这些key在PlayBook中被定义为Play的属性。
+Play中的每个key，如 key1, key2 等；这些key在PlayBook中被定义为Play的属性。
 
-常⽤属性:
+常用属性:
 
 - name 属性， 每个play的名字 
 - hosts 属性, 每个play 涉及的被管理服务器，同ad-hoc 中的资 产选择器 
 - tasks 属性, 每个play 中具体要完成的任务，以列表的形式表达 
 - become 属性，如果需要提权，则加上become 相关属性 
-- become_user 属性, 若提权的话，提权到哪个⽤户上 
-- remote_user属性，指定连接到远程节点的⽤户，就是在**远程服务器上执⾏具体操作的⽤户**。若不指定，则默认使⽤当前执⾏ ansible Playbook 的⽤户
+- become_user 属性, 若提权的话，提权到哪个用户上 
+- remote_user属性，指定连接到远程节点的用户，就是在**远程服务器上执行具体操作的用户**。若不指定，则默认使用当前执行 ansible Playbook 的用户
 
-### ⼀个完整剧本
+### 一个完整剧本
 
 ```yaml
 ---
@@ -143,7 +140,7 @@ dest=/etc/nginx/nginx.conf
 
 ### Playbook校验
 
-只能校验PlayBook是否正确，⽽不能校验YAML ⽂件是否语法正确。
+只能校验PlayBook是否正确，不能校验YAML 文件是否语法正确。
 
 ```shell
 # ansible-playbook -i hosts myplaybook.yml --syntaxcheck
@@ -155,7 +152,7 @@ dest=/etc/nginx/nginx.conf
 # python -c 'import yaml,sys; print yaml.safe_load(sys.stdin)' < myplaybook.yml
 ```
 
-### 运⾏PlayBook
+### 运行PlayBook
 
 ```shell
 # ansible-playbook -i hosts myplaybook.yml
@@ -164,17 +161,17 @@ dest=/etc/nginx/nginx.conf
 ### 单步跟从调试PlayBook
 
 ```shell
-// 执⾏Task中的任务，需要⼿动确认是否往下执⾏。
+// 执行Task中的任务，需要⼿动确认是否往下执⾏。
 # ansible-playbook -i hosts myplaybook.yml --step
 ```
 
-### 测试运⾏PlayBook
+### 测试运行PlayBook
 
-会执⾏完整个PlayBook ,但是所有Task中的⾏为都不 会在远程服务器上执⾏，所有执⾏都是模拟⾏为。
+会执行完整个PlayBook ,但是所有Task中的行为都不 会在远程服务器上执行，所有执行都是模拟行为。
 
 ```shell
 # ansible-playbook -i hosts myplaybook.yml -C
-// -C 为⼤写的字⺟ C
+// -C 为大写的字母 C
 ```
 
 ## Ansible-变量
@@ -220,7 +217,7 @@ viewvalues, zfill
 
 #### 全局变量
 
-使⽤ansible 或使⽤ansible-playbook 时，**⼿动通过 -e 参数**传递给Ansible 的变量。
+使用ansible 或使用ansible-playbook 时，**动通过 -e 参数**传递给Ansible 的变量。
 
 传递普通的key=value 的形式：
 
@@ -257,7 +254,7 @@ type: school
 通过PLAY 属性 vars_files 定义:
 
 ```yaml
-# 当通过vars属性定义的变量很多时，这个Play就会感觉特别臃肿。此时我们可以将变量单独从Play中抽离出来，形成单独的YAML ⽂件。
+# 当通过vars属性定义的变量很多时，这个Play就会感觉特别臃肿。此时我们可以将变量单独从Play中抽离出来，形成单独的YAML 文件。
 ---
 - name: test play vars
  hosts: all
@@ -271,7 +268,7 @@ home: /home/lilei
 
 使用变量：
 
-在playbook中使⽤ {{ 变量名 }} 来使⽤变量
+在playbook中使用 {{ 变量名 }} 来使⽤变量
 
 ```yaml
 ---
@@ -310,11 +307,11 @@ home: /home/lilei
 home="/home/lilei"
 ```
 
-主机变量 user 的优先级更⾼。
+主机变量 user 的优先级更高。
 
 Inventory 内置变量
 
-内置变量⼏乎都是以 ansible_ 为前缀
+内置变量几乎都是以 ansible_ 为前缀
 
 ```text
 ansible_ssh_host
