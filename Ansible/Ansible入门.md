@@ -75,7 +75,7 @@ u'/usr/share/ansible/plugins/modules']
 #### 自定义资产
 
 ```shell
-# cat inventory.ini
+# cat /ect/ansible/hosts
 1.1.1.1
 2.2.2.2
 3.3.3.[1:15]
@@ -109,7 +109,7 @@ web_servers
 列举出所有资产
 
 ```shell
-# ansible all -i inventory.ini --list-hosts
+# ansible all [-i inventory.ini] --list-hosts
  hosts (29):
  1.1.1.1
  2.2.2.2
@@ -326,7 +326,7 @@ Centos6 之前的版本使⽤ service 模块。
 
 常⽤参数： 
 
-- name 必须的参数， 指定⽤户名 
+- **name** 必须的参数， 指定⽤户名 
 - password 设置⽤户的密码，这⾥接受的是⼀个加密的值，因 为会直接存到 shadow, 默认不设置密码 
 - update_password 假如设置的密码不同于原密码，则会更新 密码. 在 1.3 中被加⼊ 
 - home 指定⽤户的家⽬录 
@@ -340,7 +340,7 @@ Centos6 之前的版本使⽤ service 模块。
 - expires 设置⽤户的过期时间，值为时间戳,会转为为天数后， 放在 shadow 的第 8 个字段⾥ 
 - generate_ssh_key 设置为 yes 将会为⽤户⽣成密钥，这不会 覆盖原来的密钥 
 - ssh_key_type 指定⽤户的密钥类型， 默认 rsa, 具体的类型取 决于被管理节点 
-- state 删除或添加⽤户, present 为添加，absent 为删除； 默认值 present 
+- **state** 删除或添加⽤户, present 为添加，absent 为删除； 默认值 present 
 - remove 当与 state=absent ⼀起使⽤，删除⼀个⽤户及关联的 ⽬录， ⽐如家⽬录，邮箱⽬录。可选的值为: yes/no
 
  **file 模块**

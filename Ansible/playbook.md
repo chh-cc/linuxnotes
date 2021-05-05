@@ -77,7 +77,7 @@ code: D1234
 
 ### Play 的定义
 
-1、每个Play 都是以短横杠开始的 
+1、**每个Play 都是以短横杠开始的** 
 
 2、每 个Play 都是一个YAML 字典格式
 
@@ -109,7 +109,7 @@ code: D1234
 
 Play中的每个key，如 key1, key2 等；这些key在PlayBook中被定义为Play的属性。
 
-常用属性:
+**常用属性:**
 
 - name 属性， 每个play的名字 
 - hosts 属性, 每个play 涉及的被管理服务器，同ad-hoc 中的资 产选择器 
@@ -129,8 +129,7 @@ Play中的每个key，如 key1, key2 等；这些key在PlayBook中被定义为Pl
   - name: install nginx package
     yum: name=nginx state=present
   - name: copy nginx.conf to remote server
-    copy: src=nginx.conf
-dest=/etc/nginx/nginx.conf
+    copy: src=nginx.conf dest=/etc/nginx/nginx.conf
   - name: start nginx server
     service:
       name: nginx
@@ -378,7 +377,7 @@ Nginx 语法校验
   shell: /usr/sbin/nginx -t
 ```
 
-如何将Nginx语法检查的TASK同Nginx启动的TASK关联起来:
+**如何将Nginx语法检查的TASK同Nginx启动的TASK关联起来:**
 
 获取Task任务结果
 
@@ -410,7 +409,7 @@ Nginx 语法校验
   when: nginxsyntax.rc == 0
 ```
 
-另外 when ⽀持如下运算符:
+**另外 when ⽀持如下运算符:**
 
 ```text
 ==

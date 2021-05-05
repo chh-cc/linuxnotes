@@ -26,7 +26,7 @@ webservers/
     └── main.yml
 ```
 
-示例中，roles的名字叫webservers，使用时，每个目录必须包含一个main.yml文件，这个文件应该包含如下对应目录名称对应的内容：
+示例中，roles的名字叫webservers，使用时，**每个目录必须包含一个main.yml文件**，这个文件应该包含如下对应目录名称对应的内容：
 
 - task -包含角色要执行的任务的主要列表
 - handlers -包含处理程序
