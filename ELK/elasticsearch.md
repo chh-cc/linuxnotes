@@ -84,16 +84,16 @@ vim elasticsearch.yml
 cluster.name: my-application
 # ------------------------------------ Node ------------------------------------
 #该节点名称，自定义或者默认
-node.name: node-1
+node.name: ${HOSTNAME}
 #该节点是否可以成为一个master节点
 node.master: true 
 #该节点是否存储数据，即是否是一个数据节点，默认true
-node.data: true
+#node.data: true
 #节点的通用属性，用于后期集群进行碎片分配时的过滤
-node.attr.rack: r1
+#node.attr.rack: r1
 
-index.number_of_shard: 5   【修改每个索引默认shard的数量】
-index.number_of_replica: 1   【修改每个shard的副本有几个】
+#index.number_of_shard: 5   【修改每个索引默认shard的数量】
+#index.number_of_replica: 1   【修改每个shard的副本有几个】
 # ----------------------------------- Paths ------------------------------------
 #配置文件路径，默认es安装目录下的config
 path.conf: /path/to/conf
@@ -110,6 +110,22 @@ path.plugins: /path/to/plugins
 #当JVM开始写入交换空间时（swapping）ElasticSearch性能会低下
 #设置为true来锁住内存,同时也要允许elasticsearch的进程可以锁住内存,linux下可以通过 `ulimit -l unlimited` 命令 
 bootstrap.memory_lock: true
+
+processors: 32
+# 一般是当前cpu的2倍
+thread_pool:
+    write:
+        size: 32
+        # 默认是available processors，由17调整到32，一般是当前cpu的2倍
+        queue_size: 1000000
+        # 由4000调整大小为1000000
+    search:
+        size: 128
+        queue_size: 5000
+        min_queue_size: 1000
+        max_queue_size: 10000
+        auto_queue_frame_size: 2000
+        target_response_time: 1s
 # ---------------------------------- Network -----------------------------------
 #该节点绑定的地址，即对外服务的地址，可以是IP，主机名
 network.host: 0.0.0.0
@@ -145,7 +161,15 @@ gateway.recover_after_time: 5m
 #设置这个集群中期望有多少个节点，一旦这N个节点启动，立即开始恢复过程
 gateway.expected_nodes: 2
 # ---------------------------------- Various -----------------------------------
+http.cors.enabled: true
+http.cors.allow-origin: "*"
 #删除索引时需要显式名称
 action.destructive_requires_name: true
+action.auto_create_index:  "*"
+xpack.security.enabled: false
+xpack.monitoring.enabled: true
+xpack.graph.enabled: false
+xpack.watcher.enabled: false
+xpack.ml.enabled: false
 ```
 
