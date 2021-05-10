@@ -6,6 +6,14 @@
 
 ## Docker Compose
 
+单机编排工具,用于定义和运行多容器的工具.
+
+使用compose步骤:
+
+- 定义的dockerfile
+- 定义应用程序启动配置文件docker-compose.yml
+- docker-compose启动并管理整个应用程序生命周期
+
 ### 安装 Docker Compose
 
 （1）使用 curl 命令（一种发送 http 请求的命令行工具）下载 Docker Compose 的安装包：
@@ -49,7 +57,7 @@ services:
 
 常用的 16 种 service 配置如下
 
-build： 用于构建 Docker 镜像，类似于`docker build`命令，build 可以指定 Dockerfile 文件路径，然后根据 Dockerfile 命令来构建文件。
+**build：** 用于构建 Docker 镜像，类似于`docker build`命令，build 可以指定 Dockerfile 文件路径，然后根据 Dockerfile 命令来构建文件。
 
 ```yaml
 build:
@@ -59,16 +67,7 @@ build:
   dockerfile: Dockerfile-name
 ```
 
-cap_add、cap_drop： 指定容器可以使用到哪些内核能力（capabilities）。
-
-```yaml
-cap_add:
-  - NET_ADMIN
-cap_drop:
-  - SYS_ADMIN
-```
-
-**command：** 用于覆盖容器默认的启动命令，它和 Dockerfile 中的 CMD 用法类似，也有两种使用方式：
+**command：** 容器中执行命令,用于覆盖容器默认的启动命令
 
 ```yaml
 command: sleep 3000
@@ -85,7 +84,7 @@ container_name: nginx
 **depends_on：** 用于指定服务间的依赖关系，这样可以**先启动被依赖的服务**。例如，我们的服务依赖数据库服务 db，可以指定 depends_on 为 db。
 
 ```yaml
-version: "3.8"
+version: "3"
 services:
   my-web:
     build: .
@@ -152,12 +151,6 @@ environment:
 image: busybox:latest
 ```
 
-pid： 共享主机的进程命名空间，像在主机上直接启动进程一样，可以看到主机的进程信息。
-
-```yaml
-pid: "host"
-```
-
 **ports：** 暴露端口信息，使用格式为 HOST:CONTAINER，前面填写要映射到主机上的端口，后面填写对应的容器内的端口。
 
 ```yaml
@@ -201,6 +194,14 @@ services:
     volumes:
       - /var/lib/mysql:/var/lib/mysql
 ```
+
+restart: 重启策略,默认no
+
+```yaml
+restart: always
+```
+
+
 
 #### 编写 Volume 配置
 
@@ -250,7 +251,15 @@ networks:
 可以使用`docker-compose -h`命令来查看 docker-compose 的用法
 
 ```shell
-docker-compose [-f <arg>...] [options] [--] [COMMAND] [ARGS...]
+常用选项:
+-f 指定docker-compose.yml文件
+-p 指定项目名称
+-v 输出当前版本
+
+命令:
+build 重新构建服务
+up 创建和启动容器
+stop/start/restart 停止/启动/重启服务
 
 # 启动容器（不看日志）
 docker-compose [-f /opt/docker-compose.yml] up -d [service1] [service2] ...
@@ -264,80 +273,6 @@ docker-compose ps
 docker-compose images
 # 销毁所有容器和网络
 docker-compose down
-```
-
-
-
-参数：
-
-```shell
-  -f, --file FILE             指定 docker-compose 文件，默认为 docker-compose.yml
-  -p, --project-name NAME     指定项目名称，默认使用当前目录名称作为项目名称
-  --verbose                   输出调试信息
-  --log-level LEVEL           日志级别 (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-  -v, --version               输出当前版本并退出
-  -H, --host HOST             指定要连接的 Docker 地址
-  --tls                       启用 TLS 认证
-  --tlscacert CA_PATH         TLS CA 证书路径
-  --tlscert CLIENT_CERT_PATH  TLS 公钥证书问价
-  --tlskey TLS_KEY_PATH       TLS 私钥证书文件
-  --tlsverify                 使用 TLS 校验对端
-  --skip-hostname-check       不校验主机名
-  --project-directory PATH    指定工作目录，默认是 Compose 文件所在路径。
-```
-
-COMMAND 为 docker-compose 支持的命令。支持的命令如下：
-
-```shell
-  build              构建服务
-
-  config             校验和查看 Compose 文件
-
-  create             创建服务
-
-  down               停止服务，并且删除相关资源
-
-  events             实时监控容器的时间信息
-
-  exec               在一个运行的容器中运行指定命令
-
-  help               获取帮助
-
-  images             列出镜像
-
-  kill               杀死容器
-
-  logs               查看容器输出
-
-  pause              暂停容器
-
-  port               打印容器端口所映射出的公共端口
-
-  ps                 列出项目中的容器列表
-
-  pull               拉取服务中的所有镜像
-
-  push               推送服务中的所有镜像
-
-  restart            重启服务
-
-  rm                 删除项目中已经停止的容器
-
-  run                在指定服务上运行一个命令
-
-  scale              设置服务运行的容器个数
-
-  start              启动服务
-
-  stop               停止服务
-
-  top                限制服务中正在运行中的进程信息
-
-  unpause            恢复暂停的容器
-
-  up                 创建并且启动服务
-
-  version            打印版本信息并退出
 ```
 
 ## Docker Swarm

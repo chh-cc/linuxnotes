@@ -2,25 +2,29 @@
 
 ## 安装
 
-## 配置
+服务器要求:建议2c4g起步
 
-开启https
+rpm安装：
 
 ```shell
-external_url 'https://gitlab.example.com'
-nginx['enable'] = true
-nginx['redirect_http_to_https'] = true    # http重定向到https
-nginx['redirect_http_to_https_port'] = 80
+yum install https://mirrors.tuna.tsinghua.edu.cn/gitlab-ce/yum/el7/gitlab-ce-13.2.3-
+ce.0.el7.x86_64.rpm  
 ```
 
-申请Let's Encrypt证书并手动添加证书
+docker安装：
 
 ```shell
-# /mnt/gitlab-docker/config 是挂载宿主机目录
-
-$ mkdir -p /mnt/gitlab-docker/config/ssl
-$ chmod 700 /mnt/gitlab-docker/config/ssl
-$ cp gitlab.example.com.key gitlab.example.com.crt /mnt/gitlab-docker/config/ssl
+mkdir /opt/gitlab
+GITLAB_HOME=/opt/gitlab # 数据持久化目录
+docker run --detach \
+--hostname gitlab.ctnrs.com \
+--publish 443:443 --publish 80:80 --publish 2222:22 \
+--name gitlab \
+--restart always \
+--volume $GITLAB_HOME/config:/etc/gitlab \
+--volume $GITLAB_HOME/logs:/var/log/gitlab \
+--volume $GITLAB_HOME/data:/var/opt/gitlab \
+gitlab/gitlab-ce:latest  
 ```
 
 gitlab-ce docker-compose 完整配置
@@ -78,6 +82,31 @@ services:
       - '/etc/localtime:/etc/localtime'
 ```
 
+## 配置
+
+开启https
+
+```shell
+external_url 'https://gitlab.example.com'
+nginx['enable'] = true
+nginx['redirect_http_to_https'] = true    # http重定向到https
+nginx['redirect_http_to_https_port'] = 80
+```
+
+申请Let's Encrypt证书并手动添加证书
+
+```shell
+# /mnt/gitlab-docker/config 是挂载宿主机目录
+
+$ mkdir -p /mnt/gitlab-docker/config/ssl
+$ chmod 700 /mnt/gitlab-docker/config/ssl
+$ cp gitlab.example.com.key gitlab.example.com.crt /mnt/gitlab-docker/config/ssl
+```
+
+重新加载配置：
+gitlab-ctl reconfigure
+如果使用docker部署，直接docker restart gitlab即可。  
+
 ## 权限
 
 ### 概念
@@ -126,6 +155,12 @@ Gitlab中的组和项目有三种访问权限：Private、Internal、Public
 
 <img src="https://gitee.com/c_honghui/picture/raw/master/img/20210312105643.png" alt="img" style="zoom: 67%;" />
 
+群组三种权限：
+
+- private：只有组成员才能访问，企业内部一般用这个
+- internal：只要登陆的用户就能看到
+- public：不用登陆也能看到
+
 检查:
 
 ![img](https://gitee.com/c_honghui/picture/raw/master/img/20210312105829.png)
@@ -168,6 +203,14 @@ dev组添加用户:
 
 <img src="https://gitee.com/c_honghui/picture/raw/master/img/20210312112054.png" alt="img" style="zoom: 50%;" />
 
+用户在群组中有五种权限：
+
+- guest：可创建issue、发表评论、不能读写版本库
+- reporter：可克隆代码、不能提交，QA、PM可赋予该权限
+- developer：可克隆代码、开发、提交、push，开发可赋予该权限
+- maintainer：可创建项目、添加tag、保护分支、添加项目成员、编辑项目，核心负责人可赋予该权限
+- owner：可设置项目访问权限，开发组leader可赋予该权限
+
 检查
 
 ![image-20210312112139706](https://gitee.com/c_honghui/picture/raw/master/img/20210312112139.png)
@@ -175,3 +218,46 @@ dev组添加用户:
 取消用户注册
 
 ![img](https://gitee.com/c_honghui/picture/raw/master/img/20210312112216.png)
+
+## 备份和恢复
+
+• 手动备份
+备份数据： gitlab-rake gitlab:backup:create
+备份配置文件： gitlab-ctl backup-etc
+• 自动备份
+\# crontab -l
+\* * * * * docker exec -it gitlab gitlab-rake gitlab:backup:create
+\* * * * * docker exec -it gitlab gitlab-ctl backup-etc
+策略建议：本地保留7天，异地备份永久保存  
+
+• 自动清理
+\# vim /etc/gitlab/gitlab.rb
+gitlab_rails['manage_backup_path'] = true
+gitlab_rails['backup_path'] = "/var/opt/gitlab/backups"
+gitlab_rails['backup_keep_time'] = 604800  
+
+第1步：准备新环境
+docker rm -f gitlab
+mv /opt/gitlab /opt/gitlab.bak
+第2步：拷贝备份文件
+\# 宿主机
+cd /opt cp
+gitlab.bak/data/backups/1602317042_2020_10_10_13.3.5_gitlab_backup.tar
+gitlab/data/backups/
+第3步：停写库服务
+\# 容器
+chown git.git /etc/gitlab/config_backup
+gitlab-ctl stop unicorn
+gitlab-ctl stop puma
+gitlab-ctl stop sidekiq
+第4步：恢复数据
+gitlab-rake gitlab:backup:restore BACKUP=1602317042_2020_10_10_13.3.5
+第5步：恢复配置文件
+\# 宿主机
+cd /opt
+cp gitlab.bak/config/config_backup gitlab/config/ -rf
+\# 容器
+cd /etc/gitlab/config_backup/
+tar xvf gitlab_config_1602317163_2020_10_10.tar
+cp -rf etc/gitlab/* /etc/gitlab/
+第6步：访问验证  
