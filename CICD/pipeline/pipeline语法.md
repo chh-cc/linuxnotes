@@ -1,20 +1,15 @@
 # pipeline语法
 
-## 什么是Pipeline 
+一条流水线通过jenkinsfile描述
 
-Jenkins 2.0的精髓是Pipeline as Code。
-什么是Pipeline，简单来说，就是一套运行于Jenkins上的工作流框架，将原本独立运行于单个或者多个节点的任务连接起来，实现单个任务难以完成的复杂发布流程。Pipeline的实现方式是一套Groovy DSL，任何发布流程都可以表述为一段Groovy脚本，并且Jenkins支持从代码库直接读取脚本，从而实现了Pipeline as Code的理念。
+安装声明式插件Pipeline:Declarative
 
-Pipeline的几个基本概念：
-Stage: 阶段，一个Pipeline可以划分为若干个Stage，每个Stage代表一组操作。注意，Stage是一个逻辑分组的概念，可以跨多个Node。
-Node: 节点，一个Node就是一个Jenkins节点，或者是Master，或者是Agent，是执行Step的具体运行期环境。
-Step: 步骤，Step是最基本的操作单元，小到创建一个目录，大到构建一个Docker镜像，由各类Jenkins Plugin提供。
+jenkinsfile组成:
 
-Pipeline脚本是用Groovy写的。
-可以通过以下任一方式创建基本Pipeline：
-pipeline script：直接在Web UI的script输入框里面输入pipeline script语句即可，参考说明可以点击输入框下边的Pipeline Syntax，里面有很多示例操作说明，非常好用。
-pipeline script from SCM：需要配置SCM代码存储Git地址或SVN地址，指定script文件Jenkinsfile所在路径，每次构建job会自动去指定的目录执行script文件
-以上两种方法定义Pipeline的语法都是一样的。
+- 指定node节点/workspace
+- 指定运行选项
+- 指定stages阶段
+- 指定构建后的操作
 
 Jenkinsfile使用两种语法进行编写，分别是声明式和脚本式。
 
@@ -39,6 +34,21 @@ agent指定**整个Pipeline或特定stage在Jenkins环境中执行的位置**。
 | -------- | ----------------------------------------- |
 | **参数** | 见参数说明                                |
 | **允许** | 在pipeline顶层代码块或每个stage级代码块中 |
+
+```
+agent {
+    node {
+        label "master" //指定运行的节点标签或名称
+        customWorkspace "${workspace}" //指定运行工作目录（可选）
+    }
+}
+options {
+    timestamps() //日志会有时间
+    skipDefaultCheckout() //删除隐式checkout scm语句
+    disableCoucurrentBuilds() //禁止并行
+    timeout(time:1, unit:'HOURS') //流水线超时设置1小时
+}
+```
 
 ##### 参数列表
 
@@ -74,6 +84,7 @@ agent {
         label 'my-defined-label'
         args  '-v /tmp:/tmp'
     }
+}
 ```
 
 **dockerfile**
@@ -156,9 +167,46 @@ pipeline {
 
 **③**使用‘openjdk:8-jre’的镜像创建容器，执行此阶段中的步骤。
 
+
+
+#### stages
+
+指定stages阶段，用于连接各个交付过程，如构建，测试和部署等。
+
+| **需要** | 是                               |
+| -------- | -------------------------------- |
+| **参数** | 无                               |
+| **允许** | 只能有一次，在pipeline代码块内。 |
+
+##### 样例
+
+```
+//Jenkinsfile (Declarative Pipeline)
+pipeline {
+    agent any
+    stages { ①
+        //下载代码
+        stage("GetCode"){ //阶段名称
+            steps { //步骤
+                timeout(time:5, unit:"MINUTES") //步骤超时时间
+                script{ //填写运行代码
+                    println('获取代码')
+                }
+            }
+        }
+        //构建代码
+        stage("Build"){
+            ...
+        }
+    }
+}
+```
+
+**①**stages章节通常跟随在agent,options等指令后面。
+
 #### post
 
-定义Pipeline或stage运行结束后的操作。post支持以下类型的代码块：always，changed，failure，success，unstable和aborted。这些代码块允许在Pipeline或stage运行结束时执行相关步骤，具体取决于Pipeline的运行状态。
+指定构建后操作
 
 | **需要** | 否                                        |
 | -------- | ----------------------------------------- |
@@ -169,7 +217,7 @@ pipeline {
 
 **always**
 
-结束时运行，无论Pipeline运行的完成状态如何。
+总是执行脚本片段
 
 **changed**
 
@@ -191,6 +239,10 @@ pipeline {
 
 只有当前Pipeline处于“**中止**”状态时，才会运行，通常是由于Pipeline被手动中止。通常用灰色指示的Web UI表示。
 
+correnBuild是一个全局变量
+
+- description：构建描述
+
 ##### 样例
 
 ```
@@ -204,9 +256,22 @@ pipeline {
             }
         }
     }
+    //构建后操作
     post { ①
         always { ②
-            echo 'I will always say Hello again!'
+            script{
+                println("always")
+            }
+        }
+        success {
+            script{
+                currentBuild.description += "\n 构建成功！"
+            }
+        }
+        failure {
+            script{
+                currentBuild.description += "\n 构建失败！"
+            }
         }
     }
 }
@@ -215,60 +280,6 @@ pipeline {
 ①post章节通常会放在pipeline末端。
 
 ②post代码块里包括steps章节的内容。
-
-#### stages
-
-包含一个或多个stage的序列，Pipeline的大部分工作在此执行。建议stages至少包含至少一个stage指令，用于连接各个交付过程，如构建，测试和部署等。
-
-| **需要** | 是                               |
-| -------- | -------------------------------- |
-| **参数** | 无                               |
-| **允许** | 只能有一次，在pipeline代码块内。 |
-
-##### 样例
-
-```
-//Jenkinsfile (Declarative Pipeline)
-pipeline {
-    agent any
-    stages { ①
-        stage('Example') {
-            steps {
-                echo 'Hello World'
-            }
-        }
-    }
-}
-```
-
-**①**stages章节通常跟随在agent,options等指令后面。
-
-#### steps
-
-steps包含一个或多个在stage块中执行的step序列。
-
-| **需要** | 是                    |
-| -------- | --------------------- |
-| **参数** | 无                    |
-| **允许** | 在每个stage代码块内。 |
-
-##### 样例
-
-```
-//Jenkinsfile (Declarative Pipeline)
-pipeline {
-    agent any
-    stages { 
-        stage('Example') {
-            steps {①
-                echo 'Hello World'
-            }
-        }
-    }
-}
-```
-
-**① steps章节必须包括一个或多个step。**
 
 ### Directives （指令）
 
