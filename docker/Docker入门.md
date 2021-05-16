@@ -132,13 +132,13 @@ Docker 整体架构采用 C/S（客户端 / 服务器）模式，主要由客户
    docker
 
    ```text
-   docker客户端，负责发送docker请求
+   docker客户端，负责发送docker请求给Docker Daemon（dockerd）
    ```
 
    dockerd
 
    ```text
-   Docker 服务端入口，负责接收客户端请求并返回请求结果
+   一般称之为Docker engine，负责接收客户端请求并返回请求结果
    ```
 
    docker-init 
@@ -170,20 +170,15 @@ Docker 整体架构采用 C/S（客户端 / 服务器）模式，主要由客户
    containerd-shim
 
    ```text
-   containerd-shim 的主要作用是将 containerd 和真正的容器进程解耦，使用 containerd-shim 作为容器进程的父进程，从而实现重启 containerd 不影响已经启动的容器进程。
+   是容器运行时的载体，containerd-shim 的主要作用是将 containerd 和真正的容器进程解耦，使用 containerd-shim 作为容器进程的父进程，从而实现重启 containerd 不影响已经启动的容器进程。
    ```
 
-   ctr
+   容器运行时相关的组件：runc
 
    ```text
-   containerd 的客户端，主要用来开发和调试，向 containerd 守护进程发送操作容器的请求。
+   用来运行容器，通过调用namespace、cgroups等系统接口，实现容器的创建和销毁
    ```
 
-3. 容器运行时相关的组件：runc
-
-   ```text
-   通过调用namespace、cgroups等系统接口，实现容器的创建和销毁
-   ```
 
 ### 核心底层技术
 
@@ -191,7 +186,7 @@ Docker使用的核心底层技术：Namespace、Control Groups和Union FS。
 
 **Namespaces**
 
-简单来说，Namespace 是 Linux 内核的一个特性，该特性可以实现在同一主机系统中，对进程 ID、主机名、用户 ID、文件名、网络和进程间通信等资源的隔离。Docker 利用 Linux 内核的 Namespace 特性，实现了每个容器的**资源相互隔离**，从而保证容器内部只能访问到自己 Namespace 的资源。
+简单来说，Namespace 是 Linux 内核的一个特性，可以实现在同一主机系统中，对进程 ID、主机名、用户 ID、文件名、网络和进程间通信等资源的隔离。Docker 利用 Linux 内核的 Namespace 特性，实现了每个容器的**资源相互隔离**，从而保证容器内部只能访问到自己 Namespace 的资源。
 
 namespace         系统调用参数            隔离内容                  内核版本
 	（1）UTS              CLONE_NEWUTS	       主机名和域名                  2.6.19
@@ -244,6 +239,9 @@ Docker目前支持的UnionFS种类包括AUFS,btrfs,vfs和 DeviceMapper。
 ## 安装
 
 ```shell
+#操作系统要求
+CentOS 7 要求系统为64位，系统内核版本为 3.10 以上
+CentOS 6.5.X 或更高的版本的 CenOS 上，要求系统为64位，系统内核为2.6.32-431或者更高版本。
 #先执行以下命令卸载旧版 Docker
 $ sudo yum remove docker \
                   docker-client \
@@ -267,11 +265,12 @@ docker-ce.x86_64            17.12.1.ce-1.el7.centos            docker-ce-stable
 docker-ce.x86_64            17.12.0.ce-1.el7.centos            docker-ce-stable
 docker-ce.x86_64            17.09.1.ce-1.el7.centos            docker-ce-stable
 $ sudo yum install docker-ce-<VERSION_STRING> docker-ce-cli-<VERSION_STRING> containerd.io
-#配置镜像加速
+#配置阿里云镜像加速
 mkdir /etc/docker
 vim /etc/docker/daemon.json
 {
-    "registry-mirrors": ["https://registry.docker-cn.com"]
+    "registry-mirrors": ["https://plqjafsr.mirror.aliyuncs.com"]
+    #"registry-mirrors": ["https://registry.docker-cn.com"]
 }
 systemctl enable docker && systemctl start docker
 docker version
@@ -569,13 +568,47 @@ docker import busybox.tar busybox:test
 
 查看docker版本:docker version
 
-查看docker详细信息：docker info
+查看docker状态信息：docker info
 
 查看 docker 的硬盘空间使用情况：docker system df
 
 更新容器启动项：docker container update --restart=always nginx
 
 登录登出仓库：docker login/docker logout
+
+修改docker存储目录：
+
+```shell
+[root@Pagerduty ~]# vi /usr/lib/systemd/system/docker.service 
+-----------修改内容截取--------------
+    9	[Service]
+    10	Type=notify
+    11	# the default is not to use systemd for cgroups because the delegate issues still
+    12	# exists and systemd currently does not support the cgroup feature set required
+    13	# for containers run by docker
+    14	#ExecStart=/usr/bin/dockerd -H fd:// --containerd=/run/containerd/containerd.sock
+    15	ExecStart=/usr/bin/dockerd --graph=/data/docker -H fd:// --containerd=/run/containerd/containerd.sock
+    16	ExecReload=/bin/kill -s HUP $MAINPID
+#######################################################
+修改内容如下，将官方内容注释，在15行处，添加一下内容：
+ExecStart=/usr/bin/dockerd --graph=/data/docker -H fd:// --containerd=/run/containerd/containerd.sock
+############################################
+随后重新加载配置文件，并重启docker：
+[root@Pagerduty ~]# systemctl daemon-reload
+[root@Pagerduty ~]# systemctl restart docker
+执行docker info 查看，是否修改成功：
+[root@Pagerduty ~]# docker info
+-------------内容截取，红字处，修改成功-----------
+Total Memory: 1.777GiB
+ Name: Pagerduty
+ ID: 4RDT:F4PO:L57F:3DLQ:JVPK:26C4:LD3W:J3VV:ZX4M:JG3S:SM4R:7EJL
+ Docker Root Dir: /data/docker
+ Debug Mode: false
+ Registry: https://index.docker.io/v1/
+-----------------内容截取---------------
+```
+
+
 
 ## 通过dockerfile创建镜像
 
