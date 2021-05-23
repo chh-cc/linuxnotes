@@ -1,3 +1,5 @@
+
+
 # zabbix简介
 
 zabbix主要由2部分构成zabbix server和zabbix agent，可选组建zabbix proxy
