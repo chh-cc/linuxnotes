@@ -1,5 +1,8 @@
 # Prometheus
 
+https://prometheus.io
+https://github.com/prometheus  
+
 ## 简介
 
 Prometheus主要用于大规模的云端环境和容器化微服务(k8s)的监控
@@ -51,7 +54,9 @@ prometheus server端口：9090
 
 **Prometheus server**：
 
-Prometheus Server是Prometheus组件中的核心部分，负责实现**对监控数据的获取，存储以及查询**。 Prometheus Server可以通过静态配置管理监控目标，也可以配合使用Service Discovery的方式动态管理监控目标，并从这些监控目标中获取数据。其次Prometheus Server需要对采集到的监控数据进行存储，Prometheus Server本身就是一个时序数据库，将采集到的监控数据按照时间序列的方式存储在本地磁盘当中。最后Prometheus Server对外提供了自定义的PromQL语言，实现对数据的查询以及分析。
+**收集指标和存储时间序列数据，并提供查询接口**  
+
+Prometheus Server可以通过静态配置管理监控目标，也可以配合使用Service Discovery的方式动态管理监控目标，并从这些监控目标中获取数据。其次Prometheus Server需要对采集到的监控数据进行存储，Prometheus Server本身就是一个时序数据库，将采集到的监控数据按照时间序列的方式存储在本地磁盘当中。最后Prometheus Server对外提供了自定义的PromQL语言，实现对数据的查询以及分析。
 
 ```text
 prometheus仅用于以“键值”形式存储时序式的聚合数据
@@ -63,9 +68,13 @@ prometheus仅用于以“键值”形式存储时序式的聚合数据
 
 **Pushgateway**：
 
+**短期存储指标数据。主要用于临时性的任务**  
+
 由于Prometheus数据采集基于Pull模型进行设计，因此在网络环境的配置上必须要让Prometheus Server能够直接与Exporter进行通信。 当这种网络需求无法直接满足时，就可以利用PushGateway来进行中转。可以通过PushGateway将内部网络的监控数据主动Push到Gateway当中。而Prometheus Server则可以采用同样Pull的方式从PushGateway中获取到监控数据。
 
 **Exporters**：
+
+**采集已有的第三方服务监控指标并暴露metrics**  
 
 Exporter将监控数据采集的端点**通过HTTP服务的形式暴露**给Prometheus Server，Prometheus Server通过访问该Exporter提供的Endpoint端点，即可获取到需要采集的监控数据。
 
@@ -141,8 +150,21 @@ vim prometheus.yml
 global:
 	scrape_interval:     15s	#每隔15秒采集一次数据
 	evaluation_interval: 15s	#记录规则和报警规则的执行间隔（频率）
-	scrape_timeout: 15s	#Server 拉取数据的超时时间，该值不能大于scrape_interval的值。
-...
+	scrape_timeout: 15s	#采集数据的超时时间，该值不能大于scrape_interval的值。
+#告警规则
+rule_files:
+    ...
+#配置被监控端，称为target，每个target用job_name分组管理，又分静态配置和服务发现
+scrape_configs:
+    ...
+#告警配置
+alerting:
+    ...
+#从远程数据库读写
+remote_write:
+    ...
+remote_read:
+    ...
 ```
 
 ```shell

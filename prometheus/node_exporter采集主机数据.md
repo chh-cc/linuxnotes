@@ -4,6 +4,16 @@ Prometheus Server并不能直接服务监控特定的目标，其主要任务负
 
 端口：9100
 
+node_exporter：用于监控Linux系统的指标采集器。
+常用指标：
+• CPU
+• 内存
+• 硬盘
+• 网络流量
+• 文件描述符
+• 系统负载
+• 系统服务  
+
 ## 安装node_exporter
 
 在被监控的服务器上下载安装node exporter
@@ -50,10 +60,14 @@ EOF
 
 ```shell
 vim /usr/local/prometheus/prometheus.yml
+#配置被监控端
 scrape_configs:
-...
+  # 采集prometheus监控数据
+  - job_name: 'prometheus'
+    static_configs:
+    - targets: ['localhost:9090']
   # 采集node exporter监控数据
-  - job_name: 'nodes'
+  - job_name: 'linux server'
     static_configs:
     - targets:
       - 10.1.96.3:9100
