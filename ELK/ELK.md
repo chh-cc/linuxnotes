@@ -4,11 +4,14 @@
 
 ELK由`Elasticsearch`、`Logstash`和`Kibana`三部分组件组成；
 
-Elasticsearch是个开源**分布式搜索引擎**，它的特点有：分布式，零配置，自动发现，索引自动分片，索引副本机制，restful风格接口，多数据源，自动搜索负载等。
+Elasticsearch是个开源**分布式搜索引擎**，提供restful web接口。
 
 Logstash是一个完全开源的工具，它可以对你的**日志进行收集**、分析，并将其存储供以后使用
 
 kibana 是一个开源和免费的工具，它可以为 Logstash 和 ElasticSearch 提供的日志分析友好的 **Web 界面**，可以帮助您汇总、分析和搜索重要数据日志。
+
+ELK6：默认安装它是开放访问的，需要xpack之类的才能启用认证
+ELK7 :  默认开启安全认证功能
 
 ## 架构
 

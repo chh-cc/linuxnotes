@@ -1,10 +1,31 @@
 # filebeat
 
-隶属于Beats,**轻量级数据收集引擎**。基于原先 Logstash-fowarder 的源码改造出来。换句话说：Filebeat就是新版的 Logstashfowarder。
+隶属于Beats,**轻量级数据收集引擎**。
+
+不需要使用正则的时候
+ 可直接用filebeat发送日志给es，用得比较少
+ 用得比较多filebeat -> Logstash做一些日志的分析提取
+
+
+
+先创建索引模板，不然filebeat创建的索引模板无用内容较多
+
+```
+PUT _template/sjgtemplate
+{
+  "index_patterns": ["sjg*"],
+  "settings":{
+    "number_of_shards": 2,
+    "number_of_replicas": 0
+  }
+}
+```
+
+
 
 配置文件：
 
-input配置
+filebeat.yml
 
 ```shell
 #每一个prospectors，起始于一个破折号”-“
@@ -55,6 +76,86 @@ filebeat.registry_file: ${path.data}/registry
 #定义filebeat配置文件目录，必须指定一个不同于filebeat主配置文件所在的目录，目录中所有配置文件中的全局配置会被忽略
 filebeat.config_dir
 ```
+
+
+
+Filebeat发送日志到ES:
+
+```
+filebeat.inputs:
+- type: log
+  tail_files: true
+  backoff: "1s"
+  paths:
+    - /var/log/secure
+    
+processors:
+- drop_fields:
+    fields: ["agent","ecs","input"]
+    
+output:
+  elasticsearch:
+    hosts: ["192.168.238.90:9200", "192.168.238.92:9200"]
+    username: elastic
+    password: sjgpwd
+    index: "sjgfb-secure-%{+YYYY.MM.dd}"
+    
+setup.template.name: "sjgtemplate"
+setup.template.pattern: "sjg*"
+setup.ilm.enabled: false
+```
+
+ Filebeat发送到Logstash
+
+```
+filebeat.inputs:
+- type: log
+  tail_files: true
+  backoff: "1s"
+  paths:
+    - /var/log/secure
+
+processors:
+- drop_fields:
+    fields: ["agent","ecs","log","input"]
+    
+output:
+  logstash:
+  hosts: ["192.168.238.90:5044"]
+```
+
+Filebeat采集多个日志输出到文件:
+
+```
+filebeat.inputs:
+- type: log
+  tail_files: true
+  backoff: "1s"
+  paths:
+      - /var/log/nginx/access.log
+  fields:
+    type: access
+  fields_under_root: true
+ 
+- type: log
+  tail_files: true
+  backoff: "1s"
+  paths:
+      - /var/log/secure
+  fields:
+    type: system
+  fields_under_root: true
+ 
+processors:
+- drop_fields:
+    fields: ["agent","ecs","log","input"]
+ 
+output.file:
+  path: "/tmp/filebeat"
+  filename: filebeat
+```
+
+
 
 output.elasticsearch
 
@@ -141,4 +242,3 @@ proxy_url:
 proxy_use_local_resolver: false
 ```
 
-#### 
