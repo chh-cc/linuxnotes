@@ -30,11 +30,6 @@ Declarative Pipeline里的Sections通常包含一个或多个Directives或Steps�
 
 agent指定流水线的执行节点。在pipeline代码块的顶层agent必须进行定义，但在stage级使用是可选的。
 
-| **需要** | 是                                        |
-| -------- | ----------------------------------------- |
-| **参数** | 见参数说明                                |
-| **允许** | 在pipeline顶层代码块或每个stage级代码块中 |
-
 ```
 agent {
     node {
@@ -57,7 +52,7 @@ options {
 在任何节点 上执行Pipeline。例如：agent any
 **none**
 
-没有指定agent时默认
+不会为整个Pipeline运行分配全局agent ，每个stage部分将需要定义其自己的agent。
 
 **label**
 
@@ -102,6 +97,7 @@ agent {
 string字符串。标记在哪里运行pipeline或stage
 
 此选项适用于node，docker和dockerfile，并且在node中是必需的。
+
 **customWorkspace**
 
 string字符串。自定义运行的工作空间,它可以是相对路径，在这种情况下，自定义工作区将位于node节点工作空间的根目录下，也可以是绝对路径。例如：
@@ -115,66 +111,11 @@ agent {
 }
 ```
 
-**reuseNode**
-一个布尔值，默认为false。如果为true，则在同一工作空间中，此选项适用于docker和dockerfile，并且仅在独立stage中使用agent时才有效。
-
-##### 样例
-
-```
-//Jenkinsfile (Declarative Pipeline)
-pipeline {
-    agent { docker 'maven:3-alpine' } ①
-    stages {
-        stage('Example Build') {
-            steps {
-                sh 'mvn -B clean verify'
-            }
-        }
-    }
-}
-```
-
-**①**使用‘maven:3-alpine’的镜像创建容器，执行pipeline的所有步骤。
-
-```
-//Jenkinsfile (Declarative Pipeline)
-pipeline {
-    agent none ①
-    stages {
-        stage('Example Build') {
-            agent { docker 'maven:3-alpine' } ②
-            steps {
-                echo 'Hello, Maven'
-                sh 'mvn --version'
-            }
-        }
-        stage('Example Test') {
-            agent { docker 'openjdk:8-jre' } ③
-            steps {
-                echo 'Hello, JDK'
-                sh 'java -version'
-            }
-        }
-    }
-}
-```
-
-**①**agent none在Pipeline顶层定义，表示将不会为整个Pipeline运行分配全局agent，每个stage需自己设置agent。
-
-**②**使用‘maven:3-alpine’的镜像创建容器，执行此阶段中的步骤。
-
-**③**使用‘openjdk:8-jre’的镜像创建容器，执行此阶段中的步骤。
-
-
-
 #### stages
 
 指定stages阶段，用于连接各个交付过程，如构建，测试和部署等。
 
-| **需要** | 是                               |
-| -------- | -------------------------------- |
-| **参数** | 无                               |
-| **允许** | 只能有一次，在pipeline代码块内。 |
+只能有一次，在pipeline代码块内。
 
 ##### 样例
 
@@ -206,10 +147,7 @@ pipeline {
 
 指定构建后操作
 
-| **需要** | 否                                        |
-| -------- | ----------------------------------------- |
-| **参数** | 无                                        |
-| **允许** | 在pipeline顶层代码块或每个stage级代码块中 |
+在pipeline顶层代码块或每个stage级代码块中
 
 ##### 参数列表
 
@@ -361,7 +299,7 @@ options {skipStagesAfterUnstable()}
 **timeout**
 设置Pipeline运行的超时时间。例如：
 
-options {timeout(time: 1, unit: 'HOURS')}F
+options {timeout(time: 1, unit: 'HOURS')}
 
 **retry**
 
@@ -400,10 +338,7 @@ pipeline {
 
 为流水线运行时设置项目相关的参数
 
-| **需要** | 否                               |
-| -------- | -------------------------------- |
-| **参数** | 无                               |
-| **允许** | 只能有一次，在pipeline代码块内。 |
+只能有一次，在pipeline代码块内。
 
 ##### 参数列表
 
@@ -442,72 +377,6 @@ pipeline {
         stage('Example') {
             steps {
                 echo "Hello ${params.PERSON}"
-            }
-        }
-    }
-}
-```
-
-#### triggers
-
-构建触发器。对于与源代码集成的Pipeline，如GitHub或BitBucket，triggers可能不需要基于webhook的集成也已经存在。目前只有两个可用的触发器：cron、pollSCM和upstream。
-
-| **需要** | 否                               |
-| -------- | -------------------------------- |
-| **参数** | 无                               |
-| **允许** | 只能有一次，在pipeline代码块内。 |
-
-**cron**
-
-接受一个cron风格的字符串来定义Pipeline触发的常规间隔，例如：
-
-triggers {cron('H 4/* 0 0 1-5')}
-
-**pollSCM**
-接受一个cron风格的字符串来定义Jenkins检查SCM源更改的常规间隔。如果存在新的更改，则Pipeline将被重新触发。例如：triggers {pollSCM('H 4/* 0 0 1-5')}
-
-**upstream**
-
-可接受多个job名称以及一个threshold设置参数。任何一个job以符合threshold条件完成后，均可以触发Pipeline的运行。举例：{ upstream(upstreamProjects: 'job1,job2', threshold: hudson.model.Result.SUCCESS) }
-
-##### 样例
-
-```
-//Jenkinsfile (Declarative Pipeline)
-pipeline {
-    agent any
-    triggers {
-        cron('H 4/* 0 0 1-5')
-    }
-    stages {
-        stage('Example') {
-            steps {
-                echo 'Hello World'
-            }
-        }
-    }
-}
-```
-
-#### stage
-
-stage指令包含在stages中，包含step、agent（可选）或其他特定包含于stage中的指令。实际上，Pipeline完成的所有实际工作都包含在一个或多个stage指令中。
-
-| **需要** | 至少一个                                  |
-| -------- | ----------------------------------------- |
-| **参数** | 一个强制参数，一个标识stage名称的字符串。 |
-| **允许** | 在stages章节内。                          |
-
-##### 样例
-
-```
-//Jenkinsfile (Declarative Pipeline)
-pipeline {
-    agent any
-    stages {
-        stage('Example') {
-            steps {
-                echo 'Hello World'
             }
         }
     }
@@ -682,8 +551,6 @@ pipeline {
 }
 ```
 
-
-
 #### script
 
 script步骤中可以引用script Pipeline语句，并在Declarative Pipeline中执行。对于大多数用例，script在Declarative Pipeline中的步骤不是必须的，但它可以提供一个有用的加强。
@@ -710,112 +577,4 @@ pipeline {
 }
 ```
 
-
-
-## pipeline配置java项目
-
-```shell
-pipeline {
-    agent { label 'slave' }
-    options {
-        timestamps()
-        disableConcurrentBuilds()
-        buildDiscarder(
-            logRotator(
-                numToKeepStr: '20',
-                daysToKeepStr: '30',
-            )
-        )
-    }
-    parameters {
-        choice(
-           name: "DEPLOY_FLAG",
-           choices: ['deploy', 'rollback'],
-           description: "发布/回滚"
-        )
-    }
-    /*=======================================常修改变量-start=======================================*/
-    environment {
-        gitUrl = "git地址"
-        branchName = "分支名称"
-        gitlabCredentialsId = "认证凭证"
-        projectRunDir = "项目运行目录"
-        jobName = "${env.JOB_NAME}"
-        serviceName = "服务名称"
-        serviceType = "jar"
-        runHosts = "192.168.167.xx,192.168.167.xx"
-        rollbackVersion = ""
-    }
-    stages {
-        stage('Deploy'){	#发布阶段
-            when {
-                expression { return params.DEPLOY_FLAG == 'deploy' }	#当表达式为发布时
-            }
-            stages {
-                stage('Pre Env') {
-                    steps {
-                        echo "======================================项目名称 = ${env.JOB_NAME}"
-                        echo "======================================项目 URL = ${gitUrl}"
-                        echo "======================================项目分支 = ${branchName}"
-                        echo "======================================当前编译版本号 = ${env.BUILD_NUMBER}"
-                    }
-                }
-                stage('Git Clone') {
-                    steps {
-                        git branch: "${branchName}",
-                        credentialsId: "${gitlabCredentialsId}",
-                        url: "${gitUrl}"
-                    }
-                }
-                stage('Mvn Build') {
-                    steps {
-                        withMaven(jdk: 'jdk1.8', maven: 'maven') {
-                            sh "mvn clean package -Dmaven.test.skip=true -U -f ${serviceName}/pom.xml"
-                        }
-                    }
-                }
-                stage('Ansible Deploy') {
-                    steps{
-                        script {
-                            sleep 5
-                            ansiColor('xterm') {
-                                ansiblePlaybook colorized: true, extras: '-e "directory=${projectRunDir}" -e "job=${jobName}" -e "service=${serviceName}" -e "type=${serviceType}"', installation: 'ansible', inventory: '/etc/ansible/hosts.yml', limit: "${runHosts}", playbook: '/etc/ansible/playbook/deploy-jenkins.yml'                            
-                            }
-                        }
-                    }
-                }
-            }   
-        }
-        stage('Rollback') {	#回滚
-            when {
-                expression { return params.DEPLOY_FLAG == 'rollback' }	#当表达式为回滚
-            }
-            steps{
-                script {
-                    rollbackVersion = input(
-                        message: "请填写要回滚的版本",
-                        parameters: [
-                            string(name:'last_number')
-                        ]
-                    )
-                    withEnv(["rollbackVersion=${rollbackVersion}"]){
-                        sh '''
-                            echo "正在回滚至就近第${rollbackVersion}个版本"
-                            ansible ${runHosts} -m shell -a "sh ${projectRunDir}/rollback.sh ${rollbackVersion} ${serviceName}"
-                        '''
-                    }
-                }
-            }
-        }
-    }
-    post {
-        always {
-            deleteDir()
-        }
-        success {
-            echo 'This task is successful!'
-        }
-    }
-}
-```
 

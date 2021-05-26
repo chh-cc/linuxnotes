@@ -47,7 +47,7 @@ SNMP的监控基于OID
 
 使用Oid获取监控数据
 
-1. snmpwalk -v 2c -c shijiangepwd 192.168.237.50 .1.3.6.1.4.1.2021.10.1.3 #监控cpuload
+1. snmpwalk -v 2c -c public 192.168.237.50 .1.3.6.1.4.1.2021.10.1.3 #监控cpuload
 
 2. .1.3.6.1.2.1.2  #监控网卡信息
 
@@ -81,16 +81,42 @@ MIB库
 
 
 
-Snmp密码修改（community修改）
+Snmp密码（community修改）
 
 1. 管理-> 一般->宏定义
 
-2. {$SNMP_COMMUNITY} = shijiangepwd
+2. {$SNMP_COMMUNITY} = public
 
 
 
 监控linux：
 
+服务端和客户端都安装
 
+```shell
+yum install net-snmp net-snmp-utils -y
+```
+
+客户端配置snmp
+
+```shell
+vim /etc/snmp/snmpd.conf
+##添加的第一行 ，且必须在前面,不然会无效
+view    systemview    included   .1  
+view    systemview    included   .1.3.6.1.2.1.1
+view    systemview    included   .1.3.6.1.2.1.25.1.1
+
+systemctl start snmpd
+```
 
 监控windows：
+
+客户端安装snmp
+
+![image-20210526152522943](https://gitee.com/c_honghui/picture/raw/master/img/20210526152604.png)
+
+设置snmp
+
+![image-20210526153123903](https://gitee.com/c_honghui/picture/raw/master/img/20210526153124.png)
+
+![image-20210526153139722](https://gitee.com/c_honghui/picture/raw/master/img/20210526153139.png)
