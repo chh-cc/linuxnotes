@@ -1,16 +1,28 @@
-# Docker入门
+# Docker
 
 ## 简介
+
+虚拟机非常重，并不利于可移植性。
+
+新的方式是通过部署容器方式实现，每个容器之间互相隔离，每个容器有自己的文件系统 ，容器之间进程不会相互影响，能区分计算资源。相对于虚拟机，容器能快速部署，由于容器与底层设施、机器文件系统解耦的，所以它能在不同云、不同版本操作系统间进行迁移。
 
 **docker可以实现虚拟机隔离应用环境的功能，并且开销比虚拟机小**，小就意味着省钱了。
 
 Docker将应用程序与该程序的依赖，打包在一个文件里面。运行这个文件，就会生成一个虚拟容器。程序在这个虚拟容器里运行，就好像在真实的物理机上运行一样。有了 Docker，就不用担心环境问题。
 
-docker容器镜像官网：dockerhub.com
-					download.docker.com
+docker容器镜像官网：
+
+```text
+dockerhub.com
+download.docker.com
+```
+
 docker国内加速镜像站：
-	阿里云
-	清华大学镜像站：mirrors.tuna.tsinghua.edu.cn
+
+```text
+阿里云
+清华大学镜像站：mirrors.tuna.tsinghua.edu.cn
+```
 
 ### 用途
 
@@ -570,6 +582,8 @@ docker import busybox.tar busybox:test
 
 查看docker状态信息：docker info
 
+获取容器端口：docker port 690123a26237
+
 查看 docker 的硬盘空间使用情况：docker system df
 
 更新容器启动项：docker container update --restart=always nginx
@@ -610,7 +624,7 @@ Total Memory: 1.777GiB
 
 
 
-## 通过dockerfile创建镜像
+## dockerfile
 
 Dockerfile 是一个文本文件，其内包含了一条条的指令(Instruction)，每一条指令构建一层，因此每一条指令的内容，就是描述该层应当如何构建。
 
@@ -619,6 +633,162 @@ Dockerfile 是一个文本文件，其内包含了一条条的指令(Instruction
 - 易于版本化管理，Dockerfile 本身是一个文本文件，方便存放在代码仓库做版本管理，可以很方便地找到各个版本之间的变更历史；
 - 过程可追溯，Dockerfile 的每一行指令代表一个镜像层，根据 Dockerfile 的内容即可很明确地查看镜像的完整构建过程；
 - 屏蔽构建环境异构，使用 Dockerfile 构建镜像无须考虑构建环境，基于相同 Dockerfile 无论在哪里运行，构建结果都一致。
+
+### dockerfile语法
+
+Dockerfile 由一行行命令语句组成，并且支持以#开头的注释行。
+一般而言，Dockerfile分为四部分：基础镜像信息、维护者信息、镜像操作指令和容器启动时执行指令。
+
+**FROM**
+
+```dockerfile
+指定所创建镜像的基础镜像，如果本地不存在，则默认会去 Docker Hub下载指定镜像
+任何Dockerfile 中的第一条指令必须为 FROM指令
+FROM <image> [AS <name>] 
+FROM centos:latest                                       #or
+FROM <image>[:<tag>] [AS <name>]                        
+FROM centos:7.5                                          #or
+FROM <image>[@<digest>] [AS <name>]
+
+注意：如果是从私有仓库拉取镜像，如果有配置权限，那么需要先登录到私有仓库。
+```
+
+**MAINTAINER**
+
+```dockerfile
+用于将image的制作者相关的信息写入image中
+LABEL maintainer="SvenDowideit@home.org.au"
+LABEL version=0.1
+LABEL deacription="Dev Basic PHP 5.3/5.6/7.2"
+```
+
+USER
+
+```dockerfile
+指定运行容器的用户，默认是root
+
+指令memcached的运行用户
+USER = su – user11(centos)
+ENTRYPOINT [“memcached”]
+USER daemon
+ENTRYPOINT [“memached”,”-u”,”daemon”]
+```
+
+ENV
+
+```dockerfile
+指定环境变量，后续 RUN 指令可以使用，container启动后，可以通过docker inspect查看这个环境变量，也可以通过docker run - -env key=value时设置或修改环境变量。
+环境变量可用于ADD、COPY、ENV、EXPOSE、FROM、LABEL、USER、VOLUME、WORKDIR、ONBUILD指令中。
+ENV <key> <value>
+ENV <key>=<value> ...
+
+假如你安装了JAVA程序，需要设置JAVA_HOME，那么你可以在Dockerfile中这样写：
+ENV JAVA_HOME /path/to/java/dirent
+ENV JAVA_HOME /usr/java/latest
+ENV PATH $JAVA_HOME/bin:$PATH
+ENV LANG en_us.UTF-8
+```
+
+**RUN**
+
+```dockerfile
+构建指令，RUN可以运行任何被基础image支持的命令。 这些命令包括安装软件、创建文件和目录，以及创建环境配置等。基本就是shell脚本。
+RUN <command>或RUN ["executable"，"param1"，"param2"]
+前者将在shell终端中运行命令，即/bin/sh -c；后者则使用exec执行，可以用来指定其它形式的shell来运行指令。
+RUN yum update && yum install -y vim \
+    python-dev #反斜线换行
+    
+注意初学docker容易出现的2个关于RUN命令的问题：
+1.RUN代码没有合并。
+2.每一层构建的最后一定要清理掉无关文件。
+
+注：容器在启动时，会挂载三个配置文件
+/etc/hostname
+/etc/hosts
+/etc/resolv.conf
+Dockerfile每执行一个run会临时创建一个容器（镜像层），每次从头创建都会重新挂载这三个配置文件。所以有对于次三个配置文件有依赖操作的命令需要处于同一个RUN
+```
+
+CMD（容易被替换）
+
+```dockerfile
+用来指定启动容器时默认执行的命令。它支持三种格式：
+CMD ["executable","param1","param2"]      #使用exec执行，推荐方式；exec 可以保证我们的业务进程就是 1 号进程，这对于需要处理 SIGTERM 信号量实现优雅终止十分重要。
+CMD ["param1","param2"]                   #提供给ENTRYPOINT的默认参数； 
+CMD command param1 param2                 #在/bin/sh中执行，提供给需要交互的应用；
+
+每个Dockerfile只能有一条CMD命令
+如果用户启动容器时手动指定了运行的命令（作为 run 的参数），则会覆盖掉CMD指定的命令。
+```
+
+**ENTRYPOINT**（无法被替换）
+
+```dockerfile
+指定容器启动时执行的命令，并且不可被docker run提供的参数覆盖。每个Dockerfile中只能有一个ENTRYPOINT
+ENTRYPOINT ["executable", "param1", "param2"] (exec form, preferred)
+例：ENTRYPOINT ["/bin/echo", "hello Ding"]
+   ENTRYPOINT ["/bin/sh/", "-c", "/bin/echo hello $name" ]
+ENTRYPOINT command param1 param2 (shell form)
+
+该指令的使用分为两种情况一种独自使用，另一种和CMD指令配合使用。
+当独自使用时，如果你还使用了CMD命令且CMD是一种完整的可执行的命令，那么CMD指令和ENTRYPOINT会相互覆盖只有最后一个CMD或者ENTRYPOINT有效。并且被覆盖的CMD指令将不会被执行，只有ENTRYPOINT指令被执行。
+```
+
+LABEL
+
+```text
+给镜像添加信息。使用docker inspect可查看镜像的相关信息
+LABEL <key>=<value> <key>=<value> <key>=<value> ...
+LABEL version="1.0"
+LABEL maintainer="394498036@qq.com"
+```
+
+**EXPOSE**
+
+```dockerfile
+声明镜像内服务所监听的端口
+EXPOSE <port> [<port>/<protocol>...]
+EXPOSE 22 80 8443
+注意，该指令只是起到声明作用，并不会自动完成端口映射。
+```
+
+**ADD**
+
+```dockerfile
+将复制指定的 <src>路径下的内容到容器中的<dest>路径下，<src>可以是dockerfile所在目录的相对路径、一个URL、还可以是tar文件（会自动解压）
+ADD [--chown=<user>:<group>] <src>... <dest>
+ADD [--chown=<user>:<group>] ["<src>",... "<dest>"] (this form is required for paths containing whitespace)
+```
+
+**COPY**
+
+```dockerfile
+复制本地主机的<src>（为 Dockerfile 所在目录的相对路径、文件或目录）下的内容到镜像中的 <dest> 下。目标路径不存在时，会自动创建。
+尽量使用COPY不使用ADD.
+COPY [--chown=<user>:<group>] <src>... <dest>
+COPY [--chown=<user>:<group>] ["<src>",... "<dest>"] (this form is required for paths containing whitespace)
+```
+
+**WORKDIR**
+
+```text
+为后续的RUN、CMD和ENTRYPOINT 指令配置工作目录，类似cd，可多次切换
+用WORKDIR，不要用RUN cd 尽量使用绝对目录！
+WORKDIR /path/to/workdir
+```
+
+VOLUME
+
+```dockerfile
+创建一个可以从本地主机或其他容器挂载的挂载点，一般用来存放数据库和需要保持的数据等
+VOLUME ["/data"]
+
+注意：
+host机器的目录路径必须为全路径(准确的说需要以/或~/开始的路径)，不然docker会将其当做volume而不是volume处理
+如果host机器上的目录不存在，docker会自动创建该目录
+如果container中的目录不存在，docker会自动创建该目录
+如果container中的目录已经有内容，那么docker会使用host上的目录将其覆盖掉
+```
 
 ### docker build语法
 
@@ -632,131 +802,41 @@ docker build -t shykes/myapp -f /path/Dockerfile /path
 docker build -t shykes/myapp http://www.example.com/Dockerfile
 ```
 
-### dockerfile语法
+编译jdk dockerfile
 
-Dockerfile 由一行行命令语句组成，并且支持以#开头的注释行。
-一般而言，Dockerfile分为四部分：基础镜像信息、维护者信息、镜像操作指令和容器启动时执行指令。
-
-**FROM**
-
-```text
-指定所创建镜像的基础镜像，如果本地不存在，则默认会去 Docker Hub下载指定镜像
-任何Dockerfile 中的第一条指令必须为 FROM指令
-FROM <image> [AS <name>]                                 #or
-FROM <image>[:<tag>] [AS <name>]                         #or
-FROM <image>[@<digest>] [AS <name>]
+```dockerfile
+[root@Pagerduty ~]# mkdir /jdk
+[root@Pagerduty /jdk]#  cat Dockerfile 
+FROM docker.io/jeanblanchard/alpine-glibc
+MAINTAINER Mengfei
+RUN echo "https://mirror.tuna.tsinghua.edu.cn/alpine/v3.4/main/" > /etc/apk/repositories
+RUN apk add --no-cache bash
+ADD jre1.8.0_211.tar.gz /usr/java/jdk/
+ENV JAVA_HOME /usr/java/jdk/jre1.8.0_211
+ENV PATH ${PATH}:${JAVA_HOME}/bin
+RUN chmod +x /usr/java/jdk/jre1.8.0_211/bin/java
+RUN mkdir /zz
+USER root
+VOLUME ["/tmp/data"]
+WORKDIR /opt
+#EXPOSE 22
+CMD ["java","-version"]
+# ENTRYPOINT ["java", "-version"]
 ```
 
-MAINTAINER
+编译镜像
 
-```text
-LABEL maintainer="SvenDowideit@home.org.au"
-LABEL version=0.1
-LABEL deacription="Dev Basic PHP 5.3/5.6/7.2"
+```shell
+[root@Pagerduty /jdk]# docker build -t jre8:1.5 .
+//注意：需要把jre8:1.5的软件包，放入当前目录中
 ```
 
-USER
+启动容器
 
-```text
-指定运行容器的用户名
+```shell
+[root@Pagerduty /jdk]# docker run -it --name=jre-V1.1  jre8:1.5 bash
+bash-4.3#
 ```
-
-ENV
-
-```text
-指定环境变量，在镜像生成过程中会被后续 RUN 指令使用，在镜像启动的容器中也会存在
-环境变量可用于ADD、COPY、ENV、EXPOSE、FROM、LABEL、USER、VOLUME、WORKDIR、ONBUILD指令中。
-ENV <key> <value>
-ENV <key>=<value> ...
-```
-
-**RUN**
-
-```text
-指令指定将要运行并捕获到新容器映像中的命令。 这些命令包括安装软件、创建文件和目录，以及创建环境配置等。基本就是shell脚本。
-RUN <command>或RUN ["executable"，"param1"，"param2"]
-前者将在shell终端中运行命令，即/bin/sh -c；后者则使用exec执行，可以用来指定其它形式的shell来运行指令。
-RUN yum update && yum install -y vim \
-    python-dev #反斜线换行
-注意初学docker容易出现的2个关于RUN命令的问题：
-1.RUN代码没有合并。
-2.每一层构建的最后一定要清理掉无关文件。
-```
-
-CMD（容易被替换）
-
-```text
-用来指定启动容器时默认执行的命令。它支持三种格式：
-CMD ["executable","param1","param2"]使用exec执行，推荐方式；
-CMD ["param1","param2"] 提供给ENTRYPOINT的默认参数； 
-CMD command param1 param2 在/bin/sh中执行，提供给需要交互的应用；
-每个Dockerfile只能有一条CMD命令
-如果用户启动容器时手动指定了运行的命令（作为 run 的参数），则会覆盖掉CMD指定的命令。
-```
-
-exec 可以保证我们的业务进程就是 1 号进程，这对于需要处理 SIGTERM 信号量实现优雅终止十分重要。
-
-LABEL
-
-```text
-给镜像添加信息。使用docker inspect可查看镜像的相关信息
-LABEL <key>=<value> <key>=<value> <key>=<value> ...
-LABEL version="1.0"
-LABEL maintainer="394498036@qq.com"
-```
-
-**EXPOSE**
-
-```text
-声明镜像内服务所监听的端口
-EXPOSE <port> [<port>/<protocol>...]
-EXPOSE 22 80 8443
-注意，该指令只是起到声明作用，并不会自动完成端口映射。
-```
-
-**ADD**
-
-```text
-将复制指定的 <src>路径下的内容到容器中的<dest>路径下，<src>可以是dockerfile所在目录的相对路径、一个URL、还可以是tar文件（会自动解压）
-ADD [--chown=<user>:<group>] <src>... <dest>
-ADD [--chown=<user>:<group>] ["<src>",... "<dest>"] (this form is required for paths containing whitespace)
-```
-
-**COPY**
-
-```text
-复制本地主机的<src>（为 Dockerfile 所在目录的相对路径、文件或目录）下的内容到镜像中的 <dest> 下。目标路径不存在时，会自动创建。
-尽量使用COPY不使用ADD.
-COPY [--chown=<user>:<group>] <src>... <dest>
-COPY [--chown=<user>:<group>] ["<src>",... "<dest>"] (this form is required for paths containing whitespace)
-```
-
-**ENTRYPOINT**（无法被替换）
-
-```text
-配置容器启动后执行的命令，并且不可被docker run提供的参数覆盖。每个Dockerfile中只能有一个ENTRYPOINT
-ENTRYPOINT ["executable", "param1", "param2"] (exec form, preferred)
-例：ENTRYPOINT ["/bin/echo", "hello Ding"]
-   ENTRYPOINT ["/bin/sh/", "-c", "/bin/echo hello $name" ]
-ENTRYPOINT command param1 param2 (shell form)
-```
-
-WORKDIR
-
-```text
-为后续的RUN、CMD和ENTRYPOINT 指令配置工作目录
-用WORKDIR，不要用RUN cd 尽量使用绝对目录！
-WORKDIR /path/to/workdir
-```
-
-VOLUME
-
-```text
-创建一个可以从本地主机或其他容器挂载的挂载点，一般用来存放数据库和需要保持的数据等
-VOLUME ["/data"]
-```
-
-
 
 ### 操作系统
 
@@ -862,13 +942,7 @@ docker run -itd -p 88:80  -v /home/anhao1226/:/usr/local/nginx/html nginx:202010
 
 ## 网络
 
-容器的网络标准便分为两大阵营，一个是以 Docker 公司为代表的 **CNM**，另一个便是以 Google、Kubernetes、CoreOS 为代表的 **CNI** 网络标准。
-
-CNM 抽象了容器的网络接口 ，使得只要满足 CNM 接口的网络方案都可以接入到 Docker 容器网络，更好地满足了用户网络模型多样化的需求。
-
-为了更好地构建容器网络标准，Docker 团队把网络功能从 Docker 中剥离出来，成为独立的项目 libnetwork，它通过插件的形式为 Docker 提供网络功能。
-
-Libnetwork 比较典型的网络模式主要有四种，这四种网络模式基本满足了我们单机容器的所有场景。：
+网络模式主要有四种，这四种网络模式基本满足了我们单机容器的所有场景。：
 
 ```text
 null 空网络模式：可以帮助我们构建一个没有网络接入的容器环境，以保障数据安全。
@@ -908,7 +982,7 @@ Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
 
 实现容器与容器的互通，主机与容器的互通
 
-Docker 启动时，libnetwork 会在主机上创建 docker0 网桥，docker0 网桥就相当于图 1 中的交换机，而 Docker 创建出的 brige 模式的容器则都会连接 docker0 上，从而实现网络互通。
+Bridge 模式是Docker默认的网络设置，此模式会为每一个容器分配Network Namespace、设置IP等，并将一个主机上的Docker容器连接一个虚拟网卡。
 
 ![image-20210304163014916](https://gitee.com/c_honghui/picture/raw/master/img/20210304163015.png)
 
@@ -917,6 +991,10 @@ Docker 启动时，libnetwork 会在主机上创建 docker0 网桥，docker0 网
 #### （3）host 主机网络模式（共享主机的网络模式）
 
 容器不会获得一个独立的network namespace，而是与宿主机共用一个。这就意味着容器不会有自己的网卡信息，而是使用宿主 机的。容器除了网络，其他都是隔离的。
+
+注意：如果是host模式，命令行参数不能带-p/-P主机端口：容器端口
+
+场景：组建集群，对网络要求比较高的话，可以用host模式。
 
 ```shell
 $ docker run -it --net=host busybox
@@ -1024,9 +1102,23 @@ docker run指定容器ip启动时仅适用于自定义网络。
 注意：数据卷 的使用，类似于 Linux 下对目录或文件进行 mount，镜像中的被指定为挂载点的目录中的文件会隐藏掉，能显示和看的是挂载的 数据卷，而不是被作为挂载点儿的目录中原来的内容。
 ```
 
+从容器拷贝数据到主机上：
+
+```shell
+[root@Pagerduty /]# docker cp 92592755c544:/docker.txt /opt
+[root@Pagerduty /]# ls /opt/
+containerd  docker.txt
+```
+
+从宿主机拷贝数据到容器目录：
+
+```shell
+[root@Pagerduty ~]# docker cp /opt/centos.txt 92592755c544:/tmp/
+```
 
 
-**创建一个名为myvolume的数据卷**
+
+创建一个名为myvolume的数据卷
 
 ```shell
 $ docker volume create myvolume
@@ -1072,7 +1164,7 @@ $ docker volume inspect myvolume
 ]
 ```
 
-**使用数据卷**
+使用数据卷
 
 使用上一步创建的卷来启动一个 nginx 容器，并将 /usr/share/nginx/html 目录与卷关联:
 
@@ -1080,7 +1172,7 @@ $ docker volume inspect myvolume
 $ docker run -d --name=nginx --mount source=myvolume,target=/usr/share/nginx/html nginx
 ```
 
-**删除数据卷**
+删除数据卷
 
 这里需要注意，正在被使用中的数据卷无法删除，如果你想要删除正在使用中的数据卷，需要先删除所有关联的容器。
 
@@ -1088,7 +1180,7 @@ $ docker run -d --name=nginx --mount source=myvolume,target=/usr/share/nginx/htm
 $ docker volume rm myvolume
 ```
 
-**容器与容器之间数据共享**
+容器与容器之间数据共享
 
 有时候，两个容器之间会有共享数据的需求，很典型的一个场景就是容器内产生的日志需要一个专门的日志采集程序去采集日志内容
 
@@ -1112,11 +1204,60 @@ $ docker run -v /data:/usr/local/data -it busybox
 
 容器启动后，便可以在容器内的 /usr/local/data 访问到主机 /data 目录的内容了，并且容器重启后，/data 目录下的数据也不会丢失。
 
-**在dockerfile指定数据卷**
+## 私有仓库
+
+在实际的生产过程中会使用到Harbor
+
+
+
+私有仓库工作流程：
+
+1)    用户本地构建镜像，将镜像推送到Registry仓库
+
+2)    Docker用户使用的时候，直接从Registry下载，无须从Docker Hub下载
+
+
+
+搭建私有仓库：
+
+镜像名称：Registry，默认使用最新版本。
+
+挂载宿主机的/opt/myregistry目录到容器目录的/var/lib/registry
 
 ```shell
-FROM debian:wheezy
-VOLUME  /data
+[root@Pagerduty ~]# mkdir -p  /opt/myregistry  
+[root@Pagerduty ~]# docker run -d -p  5000:5000 --restart=always --name=registry -v  /opt/myregistry/:/var/lib/registry registry
+```
+
+
+
+上传本地镜像到私有仓库：
+
+```shell
+打标签
+docker image tag centos:latest 192.168.13:5000/centos7:V1.0
+上传
+docker push 192.168.1.13:5000/centos7:V1.0
+```
+
+出现htpps报错的解决方式：
+
+1)    修改Docker节点配置文件
+
+2)    添加nginx反向代理
+
+```shell
+[root@Pagerduty ~]# cat /etc/docker/daemon.json
+{
+  "registry-mirrors": ["https://plqjafsr.mirror.aliyuncs.com"],
+  "data-root": "/data/docker",
+  "insecure-registries": ["192.168.1.13:5000"],
+  "storage-driver": "overlay2",
+  "storage-opts":[
+     "overlay2.override_kernel_check=true",
+     "overlay2.size=1G"
+ ]
+}
 ```
 
 
