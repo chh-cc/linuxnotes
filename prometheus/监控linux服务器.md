@@ -1,8 +1,4 @@
-# node_exporter采集主机数据
-
-Prometheus Server并不能直接服务监控特定的目标，其主要任务负责数据的收集，存储并且对外提供数据查询支持。因此为了能够能够监控到某些东西，如主机的CPU使用率，我们需要使用到Exporter。**Prometheus周期性的从Exporter暴露的HTTP服务地址（通常是/metrics）拉取监控样本数据。**
-
-端口：9100
+# 监控linux服务器
 
 node_exporter：用于监控Linux系统的指标采集器。
 常用指标：
@@ -13,6 +9,12 @@ node_exporter：用于监控Linux系统的指标采集器。
 • 文件描述符
 • 系统负载
 • 系统服务  
+
+数据接口：http://ip:9100/
+
+使用文档：https://prometheus.io/docs/guides/node-exporter/
+
+github：https://github.com/prometheus/node_exporter
 
 ## 安装node_exporter
 
@@ -33,6 +35,7 @@ LISTEN      0      128                                                [::]:22   
 ```
 
 ```shell
+配置为系统服务管理：
 # cat >/usr/lib/systemd/system/node_exporter.service  <<EOF
 
 [Unit]
@@ -56,9 +59,9 @@ EOF
 
 
 
-在prometheus服务器修改配置文件并重启服务
+在prometheus配置文件添加被监控端：
 
-```shell
+```yaml
 vim /usr/local/prometheus/prometheus.yml
 #配置被监控端
 scrape_configs:
@@ -72,6 +75,16 @@ scrape_configs:
     - targets:
       - 10.1.96.3:9100
 ```
+
+使用Grafana展示node_exporter数据指标，仪表盘ID： 9276
+
+![image-20210602235405777](https://gitee.com/c_honghui/picture/raw/master/img/20210602235405.png)
+
+
+
+![image-20210602235421197](https://gitee.com/c_honghui/picture/raw/master/img/20210602235421.png)
+
+
 
 当我们需要采集不同的监控指标(例如：主机、MySQL、Nginx)时，我们只需要运行相应的监控采集程序，并且让Prometheus Server知道这些Exporter实例的访问地址。
 

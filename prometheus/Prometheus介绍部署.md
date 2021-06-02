@@ -12,13 +12,16 @@ prometheus server端口：9090
 
 ## 特点
 
-1、多维数据模型，Prometheus存储数据的格式是  **指标(metric)名称**和**键/值对标签(label)**的**时间序列**。
+1、多维数据模型，Prometheus存储数据的格式是  **指标(metric)名称**和**键值对（称为标签）**的**时间序列**。
 
 ```text
 时序数据是在一段时间通过重复测量而获得的观测数据的集合；将这些观测数据绘制于图形上，会有一个数据轴和时间轴
 
-具有相同度量名称以及
+具有相同度量名称以及标签属于同一指标，通过标签查询指定指标
+指标格式：<mertic name>{<label name>=<label value>,...}
 ```
+
+<img src="https://gitee.com/c_honghui/picture/raw/master/img/20210602231330.png" alt="image-20210602231323197" style="zoom:67%;" />
 
 2、PromQL是一种灵活的查询语言，可以利用多维度数据完成复杂的查询。
 
@@ -57,14 +60,6 @@ prometheus server端口：9090
 **收集指标和存储时间序列数据，并提供查询接口**  
 
 Prometheus Server可以通过静态配置管理监控目标，也可以配合使用Service Discovery的方式动态管理监控目标，并从这些监控目标中获取数据。其次Prometheus Server需要对采集到的监控数据进行存储，Prometheus Server本身就是一个时序数据库，将采集到的监控数据按照时间序列的方式存储在本地磁盘当中。最后Prometheus Server对外提供了自定义的PromQL语言，实现对数据的查询以及分析。
-
-```text
-prometheus仅用于以“键值”形式存储时序式的聚合数据
-其中键称为指标，通常表示cpu速率、内存使用率等
-同一指标可能会适配多个目标或设备，因而使用“标签”作为元数据
-```
-
-![image-20210218232158122](https://gitee.com/c_honghui/picture/raw/master/img/20210218232158.png)
 
 **Pushgateway**：
 
@@ -188,9 +183,13 @@ EOF
 
 ## prometheus+grafana
 
-安装好 Prometheus 以后，接下来需要安装的就是 Grafana，它是一个 Web 界面化的监控数据的展示平台
+grafana部署文档：https://grafana.com/grafana/download
 
-完成安装以后，同样可以在浏览器里访问 {ip}:3000 的端口，就可以访问到 Grafana 控制台的界面，它有一个默认的用户密码，用户是 admin，密码也是 admin，我们登录进去以后，就完成了 Grafana 的安装。
+访问地址：http://ip:3000
+
+用户名密码：admin/admin
+
+
 
 接下来需要配置的就是 Grafana 的采集数据源要从哪个地方采集，所以我们需要把 Grafana 的数据源配置成从 Prometheus 去采集，我们在登录到 Grafana 界面以后，在浏览器里面点击 Data Source 这个按钮：
 
