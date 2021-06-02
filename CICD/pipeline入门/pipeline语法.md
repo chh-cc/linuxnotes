@@ -41,7 +41,7 @@ options {
     timestamps() //日志会有时间
     skipDefaultCheckout() //删除隐式checkout scm语句
     disableCoucurrentBuilds() //禁止并行
-    timeout(time:1, unit:'HOURS') //流水线超时设置1小时
+    timeout(time: 1, unit: 'HOURS') //流水线超时设置1小时
 }
 ```
 
@@ -119,7 +119,7 @@ agent {
 
 ##### 样例
 
-```
+```groovy
 //Jenkinsfile (Declarative Pipeline)
 pipeline {
     agent any
@@ -181,7 +181,7 @@ correnBuild是一个全局变量
 
 ##### 样例
 
-```
+```groovy
 //Jenkinsfile (Declarative Pipeline)
 pipeline {
     agent any
@@ -234,7 +234,7 @@ environment指令指定一系列键值对，这些键值对将被定义为所有
 
 ##### 样例
 
-```
+```groovy
 //Jenkinsfile (Declarative Pipeline)
 environment
 pipeline {
@@ -315,7 +315,7 @@ options {timestamps()}
 
 ##### 样例
 
-```
+```groovy
 //Jenkinsfile (Declarative Pipeline)
 pipeline {
     agent any
@@ -366,7 +366,7 @@ parameters {
 
 ##### 样例
 
-```
+```groovy
 //Jenkinsfile (Declarative Pipeline)
 pipeline {
     agent any
@@ -385,7 +385,7 @@ pipeline {
 
 #### tools
 
-通过tools可自动安装工具，并放置环境变量到PATH。如果agent none，这将被忽略。
+获取工具的环境变量,工具的名称必须在系统设置->全局工具配置中定义
 
 | **需要** | 否                            |
 | -------- | ----------------------------- |
@@ -402,12 +402,12 @@ gradle
 
 ##### 样例
 
-```
-//Jenkinsfile (Declarative Pipeline)
+```groovy
+g//Jenkinsfile (Declarative Pipeline)
 pipeline {
     agent any
     tools {
-        maven 'apache-maven-3.0.1' ①
+        maven 'apache-maven-3.0.1'
     }
     stages {
         stage('Example') {
@@ -419,48 +419,51 @@ pipeline {
 }
 ```
 
-**①**调用的tool必须被预置在Jenkins中，可通过**Manage Jenkins**→**Global Tool Configuration配置。**
-
 #### when
 
 when指令允许Pipeline根据给定的条件确定是否执行该阶段。when指令必须至少包含一个条件，如果when指令包含多个条件，则只有所有子条件返回true时才会执行stage，这与子条件嵌套在allOf相同（见下面的例子）。
-
-更复杂的条件结构可使用嵌套条件：not，allOf或anyOf，嵌套条件可以嵌套到任意深度。
-
-| **需要** | 否              |
-| -------- | --------------- |
-| **参数** | 无              |
-| **允许** | 在stage指令内。 |
 
 ##### 内置条件
 
 **branch**
 
-当正在构建的分支与给出的分支模式匹配时执行，例如：when { branch 'master' }。请注意，这仅适用于multibranch Pipeline。
+当正在构建的分支与给出的分支模式匹配时执行，请注意，这仅适用于multibranch（多分支） Pipeline：
+
+when { branch 'master' }。
 
 **environment**
 
-当指定的环境变量设置为指定值时执行，例如： when { environment name: 'DEPLOY_TO', value: 'production' }
+当指定的环境变量设置为指定值时执行： 
+
+when { environment name: 'DEPLOY_TO', value: 'production' }
 
 **expression**
 
-当指定的Groovy表达式求值为true时执行，例如： when { expression { return params.DEBUG_BUILD } }
+当指定的Groovy表达式求值为true时执行：
+
+when { expression { return params.DEBUG_BUILD } }
 
 **not**
 
-当嵌套条件为false时执行。必须包含一个条件。例如：when { not { branch 'master' } }
+当嵌套条件为false时执行。必须包含一个条件：
+
+when { not { branch 'master' } }
 
 **allOf**
 
-当所有嵌套条件都为true时执行。必须至少包含一个条件。例如：when { allOf { branch 'master'; environment name: 'DEPLOY_TO', value: 'production' } }
+当所有嵌套条件都为true时执行。必须至少包含一个条件：
+
+when { allOf { branch 'master'; environment name: 'DEPLOY_TO', value: 'production' } }
 
 **anyOf**
 
-当至少一个嵌套条件为真时执行。必须至少包含一个条件。例如：when { anyOf { branch 'master'; branch 'staging' } }
+当至少一个嵌套条件为真时执行。必须至少包含一个条件。例如：
+
+when { anyOf { branch 'master'; branch 'staging' } }
 
 ##### 样例
 
-```
+```groovy
 //Jenkinsfile (Declarative Pipeline)
 pipeline {
     agent any
@@ -513,7 +516,7 @@ Declarative Pipeline的stages中可能包含多个嵌套的stage, 对相互不�
 
 ##### 样例
 
-```
+```groovy
 //Jenkinsfile (Declarative Pipeline)
 pipeline {
     agent any
@@ -557,7 +560,7 @@ script步骤中可以引用script Pipeline语句，并在Declarative Pipeline中
 
 ##### 样例
 
-```
+```groovy
 //Jenkinsfile (Declarative Pipeline)
 pipeline {
     agent any

@@ -1,4 +1,4 @@
-# Prometheus
+# Prometheus介绍部署
 
 https://prometheus.io
 https://github.com/prometheus  
@@ -12,19 +12,19 @@ prometheus server端口：9090
 
 ## 特点
 
-1、Prometheus存储数据的格式是  **指标(metric)名称**和**键/值对标签(label)**的**时间序列**。
+1、多维数据模型，Prometheus存储数据的格式是  **指标(metric)名称**和**键/值对标签(label)**的**时间序列**。
 
 ```text
 时序数据是在一段时间通过重复测量而获得的观测数据的集合；将这些观测数据绘制于图形上，会有一个数据轴和时间轴
+
+具有相同度量名称以及
 ```
 
-![image-20210218214547111](https://gitee.com/c_honghui/picture/raw/master/img/20210218214554.png)
+2、PromQL是一种灵活的查询语言，可以利用多维度数据完成复杂的查询。
 
-2、PromQL是一种灵活的查询语言，可以利用度量(metric)名称和标签进行查询、聚合。
+3、不依赖于分布式存储，单个Prometheus服务节点可直接工作。
 
-3、不依赖于分布式存储，单个Prometheus服务也是自治理的。
-
-4、使用基于HTTP的拉(pull)从配置文件中指定的网络端点周期性获取指标数据
+4、使用基于HTTP的拉(pull)方式采集时间序列数据
 
 ![image-20210218214947697](https://gitee.com/c_honghui/picture/raw/master/img/20210218214947.png)
 
@@ -38,9 +38,9 @@ prometheus server端口：9090
 
 ![image-20210218222629887](https://gitee.com/c_honghui/picture/raw/master/img/20210218222629.png)
 
-5、目标对象(主机)是通过静态配置或者服务发现来添加的。
+5、通过服务发现或静态配置发现目标。
 
-6、支持多种图形模式和仪表盘。
+6、支持多种图形模式和仪表盘（grafana）。
 
 ## 架构
 

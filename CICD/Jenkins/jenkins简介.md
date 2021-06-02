@@ -1,5 +1,11 @@
 # jenkins简介(java开发)
 
+默认端口:8080
+
+jenkins_home默认/var/lib/jenkins
+
+启动用户:默认jenkins
+
 ## Devops
 
 - DevOps 是Development和Operations的组合，也就是开发和运维的简写。
