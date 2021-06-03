@@ -1,6 +1,8 @@
 # PromQL
 
-### 时间序列
+PromQL(Prometheus Query Language) 是 Prometheus 自己开发的数据查询 DSL 语言，语言表现力 非常丰富，支持条件查询、操作符，并且内建了大量内置函数，供我们针对监控数据的各种维度进行查询
+
+
 
 通过Node Exporter暴露的HTTP服务，Prometheus可以采集到当前主机所有监控指标的样本数据。例如：
 
@@ -15,7 +17,9 @@ node_load1 3.0703125
 
 非#开头的每一行表示当前Node Exporter采集到的一个监控样本：node_cpu和node_load1表明了当前指标的名称、大括号中的标签则反映了当前样本的一些特征和维度、浮点数则是该监控样本的具体值。
 
-#### 样本
+
+
+样本：
 
 Prometheus会将所有采集到的样本数据以时间序列（time-series）的方式保存在内存数据库中，并且定时保存到硬盘上。time-series是按照时间戳和值的序列顺序存放的，我们称之为向量(vector). 每条time-series通过指标名称(metrics name)和一组标签集(labelset)命名。如下所示，可以将time-series理解为一个以时间为Y轴的数字矩阵：
 
@@ -40,7 +44,9 @@ Prometheus会将所有采集到的样本数据以时间序列（time-series）�
 http_request_total{status="200", method="GET"}@1434417560938 => 94355
 ```
 
-#### 指标
+
+
+指标：
 
 指标格式:
 
@@ -53,16 +59,17 @@ http_request_total{status="200", method="GET"}@1434417560938 => 94355
 
 ## PromQL
 
-Prometheus提供了一种名为PromQL (Prometheus查询语言)的功能查询语言，该语言允许用户实时选择和聚合时间序列数据。查询的结果可以显示为图表，如在Prometheus本身内置的Web控制台展示，又或者使用诸如Grafana数据展示工具。
-
 ### 瞬时向量选择器
 
-查询时间序列时，返回值中只会包含该时间序列中的最新的一个样本值，这样的返回结果我们称之为**瞬时向量**。
+查询指标最新样本，称之为**瞬时向量**。
 
 ```shell
 http_requests_total
 等同于
 http_requests_total{}
+
+可以通过附加一组标签来进一步过来这些时间序列：
+node_cpu_seconds_total{job="Linux Server"}
 ```
 
 PromQL还支持用户根据时间序列的标签匹配模式来对时间序列进行过滤，目前主要支持两种匹配模式：完全匹配和正则匹配。
@@ -91,7 +98,7 @@ http_requests_total{environment=~"staging|testing|development",method!="GET"}
 
 如果我们想过去一段时间范围内的样本数据时，我们则需要使用**区间向量表达式**。**在瞬时范围选择器后面加个`[]`进行定义。**
 
-通过以下表达式可以选择最近5分钟内的所有样本数据：
+查询指标最近5分钟内的所有样本数据：
 
 ```shell
 http_requests_total{}[5m]
@@ -217,6 +224,18 @@ prometheus_tsdb_compaction_chunk_range_count 780
 同时对于Histogram的指标，我们还可以通过histogram_quantile()函数计算出其值的分位数。不同在于Histogram通过histogram_quantile函数是**在服务器端计算的分位数**。 而Sumamry的分位数则是**直接在客户端计算完成**。因此对于分位数的计算而言，Summary在通过PromQL进行查询时有更好的性能表现，而Histogram则会消耗更多的资源。反之对于客户端而言Histogram消耗的资源更少。在选择这两种方式时用户应该按照自己的实际场景进行选择。
 
 ## PromQL操作符
+
+常规操作符：
+
+| 类型           | 操作符                                                       | 示例                                                         |
+| -------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| 比较操作符     | = 等于<br />!= 不等于<br />> 大于<br />< 小于<br />>= 大于等于<br /><= 小于等于 | node_cpu_seconds_total{job="Linux Server",mode="iowait"} <br />node_cpu_seconds_total{job="Linux Server",mode=~"user\|system"} <br />node_cpu_seconds_total{job="Linux Server",mode=~"user\|system",cpu!="0"} |
+| 算数操作符     | + 加法<br />- 减法<br />* 乘法<br />/ 除法                   | CPU使用率： <br />100 - (avg(irate(node_cpu_seconds_total{mode="idle"}[5m])) by (instance) * 100) <br />内存使用率： <br />100 - (node_memory_MemFree_bytes+node_memory_Cached_bytes+node_memory_Buffers_bytes) / node_memory_MemTotal_bytes * 100 |
+| 正则匹配操作符 | =~ 正则表达式匹配<br />!~ 正则表达式匹配结果取反             | 磁盘使用率： <br />100 - (node_filesystem_free_bytes{mountpoint="/",fstype=~"ext4\|xfs"} / node_filesystem_size_bytes{mountpoint="/",fstype=~"ext4\|xfs"} * 100) |
+| 聚合操作符     | sum (在维度上求和) <br />max (在维度上求最大值) <br />min (在维度上求最小值) <br />avg (在维度上求平均值)<br />count(统计样本数量） | 所有实例CPU system使用率总和： <br />sum(node_cpu_seconds_total{job="Linux Server",mode="system"})  <br />所有实例CPU system变化速率平均值： <br />avg(irate(node_cpu_seconds_total{job="Linux Server",mode="system"}[5m]) <br />统计CPU数量： <br />count(node_cpu_seconds_total{job="Linux Server",mode="system"}) |
+| 逻辑操作符     | and 与<br />or 或                                            | 大于10并且小于50： <br />prometheus_http_requests_total > 10 and prometheus_http_requests_total < 50 <br />大于10或者小于50： <br />prometheus_http_requests_total > 10 or prometheus_http_requests_total < 50 |
+
+
 
 #### 数学运算
 
