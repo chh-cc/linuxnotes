@@ -1,32 +1,58 @@
+# 发布java项目实战
+
+## 实战1
+
 一条完整的pipeline交付流水线通常会包括代码获取、单元测试、静态检查、打包部署、接口层测试、UI层测试、性能专项测试（可能还有安全、APP等专项）、人工验收等研发测试环节，还会包括灰度发布、正式发布等发布环节。
 
 1.此项目的部署还是使用传统虚拟机服务器的方式，暂未采用docker容器。
 2.灰度发布、正式发布等发布环节，由于涉及到线上发布系统对接，该项目暂未包括。
 3.采用jenkins官方推荐的declarative pipeline方式实现。
 
+
+
+jenkins一些配置：
+
+![image-20210603105044736](https://gitee.com/c_honghui/picture/raw/master/img/20210603105140.png)
+
+![image-20210603105118319](https://gitee.com/c_honghui/picture/raw/master/img/20210603105118.png)
+
 参数化构建界面：
 
 ![img](https://gitee.com/c_honghui/picture/raw/master/img/20210328200832.png)
 
-脚本详解：
+jenkinsfile：
 
 ```groovy
 #!groovy
 pipeline{
     //在任何可用的代理上执行Pipeline
     agent any
+    
+    options {
+        //日志会有时间戳
+        timestamps()
+        //禁止并行
+        disableConcurrentBuilds()
+        buildDiscarder(
+            logRotator(
+                numToKeepStr: '20',
+                daysToKeepStr: '30',
+            )
+        )
+    }
+    
     //参数化变量，目前只支持[booleanParam, choice, credentials, file, text, password, run, string]这几种参数类型，其他高级参数化类型还需等待社区支持。
     parameters {
         //git代码路径【参数值对外隐藏】
-        string(name:'repoUrl', defaultValue: 'git@git.*****.com:*****/*****.git', description: 'git代码路径')
+        string(name:'repoUrl', defaultValue: 'git@192.168.71.136:root/service.git', description: 'git代码路径')
         //repoBranch参数后续替换成git parameter不再依赖手工输入,JENKINS-46451【git parameters目前还不支持pipeline】
         string(name:'repoBranch', defaultValue: 'master', description: 'git分支名称')
         //pom.xml的相对路径
         string(name:'pomPath', defaultValue: 'pom.xml', description: 'pom.xml的相对路径')
         //war包的相对路径
-        string(name:'warLocation', defaultValue: 'rpc/war/target/*.war', description: 'war包的相对路径 ')
+        string(name:'jarLocation', defaultValue: '/target/*.jar', description: 'jar包的相对路径 ')
         //服务器参数采用了组合方式，避免多次选择，使用docker为更佳实践【参数值对外隐藏】
-        choice(name: 'server',choices:'192.168.1.107,9090,*****,*****\n192.168.1.60,9090,*****,*****', description: '测试服务器列表选择(IP,JettyPort,Name,Passwd)')
+        choice(name: 'server',choices:'192.168.1.107,9090,*****\n192.168.1.60,9090,*****,*****', description: '测试服务器列表选择(IP,JettyPort)')
         //测试服务器的dubbo服务端口
         string(name:'dubboPort', defaultValue: '31100', description: '测试服务器的dubbo服务端口')
         //单元测试代码覆盖率要求，各项目视要求调整参数
@@ -34,28 +60,33 @@ pipeline{
         //若勾选在pipelie完成后会邮件通知测试人员进行验收
         booleanParam(name: 'isCommitQA',description: '是否邮件通知测试人员进行人工验收',defaultValue: false )
     }
+    
     //环境变量，初始确定后一般不需更改
     tools {
         maven 'maven3'
         jdk   'jdk8'
     }
+    
     //常量参数，初始确定后一般不需更改
     environment{
         //git服务全系统只读账号cred_id【参数值对外隐藏】
-        CRED_ID='*****-****-****-****-*********'
+        CRED_ID='3319285d-4697-4907-9f6a-3f5ddce4cc4a'
         //测试人员邮箱地址【参数值对外隐藏】
         QA_EMAIL='*****@*****.com'
         //接口测试（网络层）的job名，一般由测试人员编写
         ITEST_JOBNAME='Guahao_InterfaceTest_ExpertPatient'
     }
+    
     options {
         //保持构建的最大个数
         buildDiscarder(logRotator(numToKeepStr: '10')) 
     }
+    
     //定期检查开发代码更新，工作日每晚4点做daily build
     triggers {
         pollSCM('H 4 * * 1-5')
     }
+    
     //pipeline运行结果通知给触发者
     post{
         success{
@@ -87,6 +118,7 @@ pipeline{
             }
         }
     }
+    
     //pipeline的各个阶段场景
     stages {
         stage('代码获取') {
@@ -96,14 +128,13 @@ pipeline{
                     def split=params.server.split(",")
                     serverIP=split[0]
                     jettyPort=split[1]
-                    serverName=split[2]
-                    serverPasswd=split[3]
                 }
                 echo "starting fetchCode from ${params.repoUrl}......"
                 // Get some code from a GitHub repository
                 git credentialsId:CRED_ID, url:params.repoUrl, branch:params.repoBranch
             }
         }
+        
         stage('单元测试') {
             steps {
                 echo "starting unitTest......"
@@ -114,6 +145,7 @@ pipeline{
                 jacoco changeBuildStatus: true, maximumLineCoverage:"${params.lineCoverage}"
             }
         }
+        
         stage('静态检查') {
             steps {
                 echo "starting codeAnalyze with SonarQube......"
@@ -133,28 +165,31 @@ pipeline{
                 }
             }
         }
+        
         stage('部署测试环境') {
             steps {
                 echo "starting deploy to ${serverIP}......"
                 //编译和打包
                 sh "mvn  -f ${params.pomPath} clean package -Dautoconfig.skip=true -Dmaven.test.skip=true"
-                archiveArtifacts warLocation
+                archiveArtifacts jarLocation
                 script {
+                    //需要安装build user vars插件
                     wrap([$class: 'BuildUser']) {
-                        //发布war包到指定服务器，虚拟机文件目录通过shell脚本初始化建立，所以目录是固定的
-                        sh "sshpass -p ${serverPasswd} scp ${params.warLocation} ${serverName}@${serverIP}:htdocs/war"
+                        //发布jar包到指定服务器，如果没有sshpass需要安装
+                        sh "scp ${params.jarLocation} ${serverName}@${serverIP}:htdocs/war"
                         //这里增加了一个小功能，在服务器上记录了基本部署信息，方便多人使用一套环境时问题排查，storge in {WORKSPACE}/deploy.log  & remoteServer:htdocs/war
                         Date date = new Date()
                         def deploylog="${date.toString()},${BUILD_USER} use pipeline  '${JOB_NAME}(${BUILD_NUMBER})' deploy branch ${params.repoBranch} to server ${serverIP}"
                         println deploylog
                         sh "echo ${deploylog} >>${WORKSPACE}/deploy.log"
-                        sh "sshpass -p ${serverPasswd} scp ${WORKSPACE}/deploy.log ${serverName}@${serverIP}:htdocs/war"
+                        sh "scp ${WORKSPACE}/deploy.log ${serverName}@${serverIP}:htdocs/war"
                         //jetty restart，重启jetty
-                        sh "sshpass -p ${serverPasswd} ssh ${serverName}@${serverIP} 'bin/jettyrestart.sh' "
+                        sh "ssh ${serverName}@${serverIP} 'bin/jettyrestart.sh' "
                     }
                 }
             }
         }
+        
         stage('接口自动化测试') {
             steps{
                 echo "starting interfaceTest......"
@@ -177,18 +212,21 @@ pipeline{
                 }
             }
         }
+        
         stage('UI自动化测试') { 
              steps{
              echo "starting UITest......"
              //这个项目不需要UI层测试，UI自动化与接口测试的pipeline脚本类似
              }
         }
+        
         stage('性能自动化测试 ') { 
             steps{
                  echo "starting performanceTest......"
                 //视项目需要增加性能的冒烟测试，具体实现后续专文阐述
                 }
         }
+        
         stage('通知人工验收'){
             steps{
                 script{
@@ -215,3 +253,128 @@ pipeline{
 }
 ```
 
+这里只实验了代码拉取和发布，结果如下：
+
+![image-20210603110418527](https://gitee.com/c_honghui/picture/raw/master/img/20210603110418.png)
+
+## 实战2
+
+jenkinsfile:
+
+```groovy
+pipeline {
+    //运行节点
+    agent { label 'slave'}
+    
+    options {
+        //日志会有时间戳
+        timestamps()
+        //禁止并行
+        disableConcurrentBuilds()
+        buildDiscarder(
+            logRotator(
+                numToKeepStr: '20',
+                daysToKeepStr: '30',
+            )
+        )
+    }
+    
+    parameters {
+        choice(
+           name: "DEPLOY_FLAG",
+           choices: ['deploy', 'rollback'],
+           description: "发布/回滚"
+        )
+    }
+    
+    /*=======================================常修改变量-start=======================================*/
+    environment {
+        gitUrl = "git地址"
+        branchName = "分支名称"
+        gitlabCredentialsId = "认证凭证"
+        projectRunDir = "项目运行目录"
+        jobName = "${env.JOB_NAME}"
+        serviceName = "服务名称"
+        serviceType = "jar"
+        runHosts = "192.168.167.xx,192.168.167.xx"
+        rollbackVersion = ""
+    }
+    /*=======================================常修改变量-end=======================================*/
+    stages {
+        stage('Deploy'){
+            when {
+                expression { return params.DEPLOY_FLAG == 'deploy' }
+            }
+            stages {
+                stage('Pre Env'){
+                    steps {
+                        echo "======================================项目名称 = ${env.JOB_NAME}"
+                        echo "======================================项目 URL = ${gitUrl}"
+                        echo "======================================项目分支 = ${branchName}"
+                        echo "======================================当前编译版本号 = ${env.BUILD_NUMBER}"
+                    }
+                }
+                stage('Git clone'){
+                    steps {
+                        git branch: "${branchName}",
+                        credentialsId: "${gitlabCredentialsId}",
+                        url: "${gitUrl}"
+                    }
+                }
+                stage('Mvn Build'){
+                    steps {
+                        withMaven(jdk: 'jdk1.8', maven: 'maven') {
+                            sh "mvn clean package -Dmaven.test.skip=true -U -f ${serviceName}/pom.xml"
+                        }
+                    }
+                }
+                stage('Ansible Deploy') {
+                    steps{
+                        script {
+                            sleep 5
+                            ansiColor('xterm') {
+                                ansiblePlaybook colorized: true, extras: '-e "directory=${projectRunDir}" -e "job=${jobName}" -e "service=${serviceName}" -e "type=${serviceType}"', installation: 'ansible', inventory: '/etc/ansible/hosts.yml', limit: "${runHosts}", playbook: '/etc/ansible/playbook/deploy-jenkins.yml'                            
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('Rollback') {
+            when {
+                expression { return params.DEPLOY_FLAG == 'rollback' }
+            }
+            steps{
+                script {
+                    rollbackVersion = input(
+                        message: "请填写要回滚的版本",
+                        parameters: [
+                            string(name:'last_number')
+                        ]
+                    )
+                    withEnv(["rollbackVersion=${rollbackVersion}"]){
+                        sh '''
+                            echo "正在回滚至就近第${rollbackVersion}个版本"
+                            ansible ${runHosts} -m shell -a "sh ${projectRunDir}/rollback.sh ${rollbackVersion} ${serviceName}"
+                        '''
+                    }
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            deleteDir()
+        }
+        success {
+            echo 'This task is successful!'
+        }
+    }
+}
+```
+
+结果如下：
+
+![image-20210603160814307](https://gitee.com/c_honghui/picture/raw/master/img/20210603160814.png)
