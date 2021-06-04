@@ -1,19 +1,19 @@
-## Prometheus告警处理
+# alertmanager
 
-### 简介
+## 简介
 
-Prometheus发出告警时分为两部分。首先，Prometheus**按告警规则**(rule_files配置块)向Alertmanager**发送**告警（即告警规则是在Prometheus上定义的）。然后，**由Alertmanager来管理**这些告警，包括去重(Deduplicating)、分组(Grouping)、静音(silencing)、抑制(inhibition)、聚合(aggregation )，最终将面要发出的告警通过电子邮件、webhook等方式将告警通知路由(route)给对应的联系人。
+Prometheus发出告警时分为两部分。首先，Prometheus**按告警规则**向Alertmanager**发送**告警。然后，**由Alertmanager来管理**这些告警，包括去重(Deduplicating)、分组(Grouping)、静音(silencing)、抑制(inhibition)、聚合(aggregation )，最终将面要发出的告警通过电子邮件、webhook等方式将告警通知路由(route)给对应的联系人。
 
 端口：9093
 
-![image-20210301232909110](https://gitee.com/c_honghui/picture/raw/master/img/20210318102955.png)
+
 
 在Prometheus中一条告警规则主要由以下几部分组成：
 
 - 告警名称：用户需要为告警规则命名，当然对于命名而言，需要能够直接表达出该告警的主要内容
 - 告警规则：告警规则实际上主要由PromQL进行定义，其实际意义是当表达式（PromQL）查询结果持续多长时间（During）后出发告警
 
-Alertmanager作为一个独立的组件，负责接收并处理来自Prometheus Server(也可以是其它的客户端程序)的告警信息。Alertmanager可以对这些告警信息进行进一步的处理，比如当接收到大量重复告警时能够消除重复的告警信息，同时对告警信息进行分组并且路由到正确的通知方，Prometheus内置了对邮件，Slack等多种通知方式的支持，同时还支持与Webhook的集成，以支持更多定制化的场景。例如，目前Alertmanager还不支持钉钉，那用户完全可以通过Webhook与钉钉机器人进行集成，从而通过钉钉接收告警信息。同时AlertManager还提供了静默和告警抑制机制来对告警通知行为进行优化。
+
 
 **Alertmanager特性**
 
@@ -29,9 +29,21 @@ Alertmanager作为一个独立的组件，负责接收并处理来自Prometheus 
 
 快速根据标签对告警进行静默处理。如果接收到的告警符合静默的配置，Alertmanager则**不会发送告警**通知。
 
-### 部署AlertManager
 
-#### 获取并安装软件包
+
+使用步骤：
+1. 部署Alertmanager
+2. 配置告警接收人
+3. 配置Prometheus与Alertmanager通信
+4. 在Prometheus中创建告警规则  
+
+## 部署AlertManager
+
+### 获取并安装软件包
+
+安装包下载
+地址1： https://prometheus.io/download/
+地址2： https://github.com/prometheus/alertmanager/releases  
 
 ```shell
 export VERSION=0.15.2
@@ -40,7 +52,7 @@ tar xvf alertmanager-$VERSION.darwin-amd64.tar.gz
 mv alertmanager-$VERSION.darwin-amd64 /usr/local/alertmanager
 ```
 
-#### 创建alertmanager配置文件
+### 创建alertmanager配置文件
 
 Alertmanager解压后会包含一个默认的alertmanager.yml配置文件，内容如下所示：
 
@@ -67,22 +79,6 @@ inhibit_rules:
 ```
 
 配置说明:
-
-```text
-global：全局配置，主要配置告警方式，如邮件、webhook等。
-
-route：Prometheus的告警先是到达alertmanager的根路由(route)，alertmanager的根路由不能包含任何匹配项，因为根路由是所有告警的入口点。另外，根路由需要配置一个接收器(receiver)，用来处理那些没有匹配到任何子路由的告警（如果没有配置子路由，则全部由根路由发送告警），即缺省接收器。告警进入到根route后开始遍历子route节点，如果匹配到，则将告警发送到该子route定义的receiver中，然后就停止匹配了。因为在route中continue默认为false，如果continue为true，则告警会继续进行后续子route匹配。如果当前告警仍匹配不到任何的子route，则该告警将从其上一级(匹配)route或者根route发出（按最后匹配到的规则发出邮件）。
-
-group_by：用于分组聚合，对告警通知按标签(label)进行分组，将具有相同标签或相同告警名称(alertname)的告警通知聚合在一个组，然后作为一个通知发送。如果想完全禁用聚合，可以设置为group_by: [...]
-
-group_wait: 当一个新的告警组被创建时，需要等待'group_wait'后才发送初始通知。这样可以确保在发送等待前能聚合更多具有相同标签的告警，最后合并为一个通知发送。
-
-group_interval: 当第一次告警通知发出后，在新的评估周期内又收到了该分组最新的告警，则需等待'group_interval'时间后，开始发送为该组触发的新告警，可以简单理解为，group就相当于一个通道(channel)。
-
-repeat_interval: 告警通知成功发送后，若问题一直未恢复，需再次重复发送的间隔。
-```
-
-
 
 启动Alertmanager
 
@@ -117,7 +113,16 @@ EOF
 
 Alertmanager启动后可以通过9093端口访问，http://192.168.33.10:9093
 
-### 关联Prometheus与Alertmanager
+
+
+## 在prometheus中创建告警规则
+
+在Prometheus中一条告警规则主要由以下几部分组成：
+
+- 告警名称：用户需要为告警规则命名，当然对于命名而言，需要能够直接表达出该告警的主要内容
+- 告警规则：告警规则实际上主要由PromQL进行定义，其实际意义是当表达式（PromQL）查询结果持续多长时间（During）后出发告警
+
+
 
 编辑Prometheus配置文件prometheus.yml,并添加以下内容
 
@@ -125,9 +130,9 @@ Alertmanager启动后可以通过9093端口访问，http://192.168.33.10:9093
 # Alertmanager configuration
 alerting:
   alertmanagers:
-    - static_configs:
-        - targets:
-            - monitor01: 9093
+  - static_configs:
+      - targets:
+          - monitor01: 9093
   #指定记录规则和告警规则文件
   #默认情况下Prometheus会每分钟对这些告警规则进行计算
   rule_files:
@@ -143,13 +148,11 @@ alerting:
 
 重启Prometheus服务，成功后，可以从http://192.168.33.10:9090/config查看alerting配置是否生效。
 
-### 添加记录规则和告警规则
-
 cat node_rules.yml
 
 ```yaml
 groups:
-- name: node_rules
+- name: node_rules #告警规则组名称
   #interval: 15s
   rules:
   - record: instance:node_cpu_usage  
@@ -267,7 +270,7 @@ ALERTS{alertname="<alert name>", alertstate="pending|firing", <additional alert 
 
 样本值为1表示当前告警处于活动状态（pending或者firing），当告警从活动状态转换为非活动状态时，样本值则为0。
 
-### Alertmanager配置
+## Alertmanager配置
 
 在Alertmanager中通过路由(Route)来定义告警的处理方式。路由是一个基于标签匹配的树状匹配结构。根据接收到告警的标签匹配相应的处理方式。
 
@@ -327,6 +330,7 @@ route中则主要定义了告警的路由匹配规则，以及Alertmanager需要
 route:
   group_by: ['alertname']
   receiver: 'web.hook'
+  
 receivers:
 - name: 'web.hook'
   webhook_configs:
@@ -459,18 +463,28 @@ to: <tmpl_string>
 
 这里，以Gmail邮箱为例，我们定义了一个全局的SMTP配置，并且通过route将所有告警信息发送到default-receiver中:
 
+
+
 ```yaml
+#全局配置
 global:
+  resolve_timeout: 5m
+  #邮箱服务器
   smtp_smarthost: smtp.gmail.com:587
   smtp_from: <smtp mail from>
   smtp_auth_username: <usernae>
   smtp_auth_identity: <username>
   smtp_auth_password: <password>
 
+#配置路由树
 route:
-  group_by: ['alertname']
+  group_by: ['alertname'] # 用于分组聚合，对告警通知按标签(label)进行分组，将具有相同标签或相同告警名称(alertname)的告警通知聚合在一个组，然后作为一个通知发送。
+  group_wait: 10s # 分组内第一个告警等待时间，10s内如有第二个告警会合并一个告警
+  group_interval: 10s # 发送新告警间隔时间
+  repeat_interval: 1h # 重复告警间隔发送时间
   receiver: 'default-receiver'
 
+#接收人
 receivers:
   - name: default-receiver
     email_configs:
@@ -513,8 +527,10 @@ global:
   wechat_api_url: 'https://qyapi.weixin.qq.com/cgi-bin/'
   wechat_api_secret: '应用的secret，在应用的配置页面可以看到'
   wechat_api_corp_id: '企业id，在企业的配置页面可以看到'
+  
 templates:
 - '/etc/alertmanager/config/*.tmpl'
+
 route:
   group_by: ['alertname']
   group_wait: 30s
@@ -523,8 +539,10 @@ route:
   routes:
   - receiver: 'wechat'
     continue: true
+    
 inhibit_rules:
 - source_match:
+
 receivers:
 - name: 'wechat'
   wechat_configs:
@@ -628,6 +646,14 @@ templates:
 
 ### 屏蔽告警通知
 
+分组（group） ： 将类似性质的警报分类为单个通知
+抑制（Inhibition） ： 当警报发出后， 停止重复发送由此警报引发的其他警报
+静默（Silences） ： 是一种简单的特定时间静音提醒的机制  
+
+![image-20210604151014911](https://gitee.com/c_honghui/picture/raw/master/img/20210604151036.png)
+
+![image-20210604151047311](https://gitee.com/c_honghui/picture/raw/master/img/20210604151047.png)
+
 **抑制机制**
 
 避免当某种问题告警产生之后用户接收到大量由此问题导致的一系列的其它告警通知。
@@ -666,6 +692,4 @@ source_match_re:
 用户可以通过该UI定义新的静默规则的开始时间以及持续时间，通过Matchers部分可以设置多条匹配规则(字符串匹配或者正则匹配)。填写当前静默规则的创建者以及创建原因后，点击"Create"按钮即可。
 
 通过"Preview Alerts"可以查看预览当前匹配规则匹配到的告警信息。静默规则创建成功后，Alertmanager会开始加载该规则并且设置状态为Pending,当规则生效后则进行到Active状态。
-
-## 
 
