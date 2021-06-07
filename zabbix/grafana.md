@@ -11,13 +11,19 @@ systemctl daemon-reload
 systemctl start grafana-server.service
 ```
 
-安装zabbix插件:
+命令安装zabbix插件,但可能会出现版本冲突,建议手动安装插件:
 
 ```shell
 # 获取可用插件列表
-grafana-cli plugins list-remote
-grafana-cli plugins install alexanderzobnin-zabbix-app
-systemctl restart grafana-server.service
+#grafana-cli plugins list-remote
+#grafana-cli plugins install alexanderzobnin-zabbix-app
+#systemctl restart grafana-server.servic
+
+#手动安装插件
+登陆https://grafana.com/grafana/plugins/alexanderzobnin-zabbix-app/?tab=installation,因为这里我安装的是grafana6,所以选择3.12.0版本的插件,要根据grafana的版本选择插件版本
+把下载好的插件上传到/var/lib/grafana/plugins,解压
+unzip alexanderzobnin-grafana-zabbix-v3.12.0-1-gd0e8319.zip
+systemctl restart grafana-server.servic
 ```
 
 ```text
