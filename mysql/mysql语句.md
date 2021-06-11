@@ -250,7 +250,7 @@ possible_keys: NULL #没有用索引
 information_schema.tables视图
 
 ```text
-DESC information_schema.TABLES
+DESC information_schema.TABLES;
 TABLE_SCHEMA    ---->库名
 TABLE_NAME      ---->表名
 ENGINE          ---->引擎
@@ -332,9 +332,9 @@ truncate、delete 清空表数据的区别 :
 
 `select @@port;`
 
-`select 函数()`
+`select 函数();`
 
-`select version()`
+`select version();`
 
 
 

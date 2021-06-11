@@ -304,13 +304,13 @@ innodb_status_file  = 1
 
 ```
 没配置
-    Average number of seconds to run all queries: 0.735 seconds
-    Minimum number of seconds to run all queries: 0.551 seconds
-    Maximum number of seconds to run all queries: 1.141 seconds
+    Average number of seconds to run all queries: 0.351 seconds
+    Minimum number of seconds to run all queries: 0.259 seconds
+    Maximum number of seconds to run all queries: 0.878 seconds
 优化后的
-    Average number of seconds to run all queries: 0.691 seconds
-    Minimum number of seconds to run all queries: 0.630 seconds
-    Maximum number of seconds to run all queries: 0.749 seconds
+    Average number of seconds to run all queries: 0.246 seconds
+    Minimum number of seconds to run all queries: 0.190 seconds
+    Maximum number of seconds to run all queries: 0.537 seconds
 ```
 
 my.cnf
