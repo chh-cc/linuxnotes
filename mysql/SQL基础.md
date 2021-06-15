@@ -193,7 +193,7 @@ alter table s2 ENGINE=InnoDB;
 
 ```mysql
 show databases；
-show create database oldboy；
+show create database oldboy；#查看建表语句
 ```
 
 表
@@ -206,8 +206,11 @@ show create table stu；
 
 SELECT 列1,列2 FROM 表
 SELECT  *  FROM 表
+select user,host from mysql.user; #显示所有用户
 
 show table status             # 查看表的引擎状态
+
+explain select * from s1; #查询过程中的操作信息
 ```
 
 单独使用
@@ -240,9 +243,14 @@ show status;                  # 运行状态
 show grants for user@'%';     # 查看用户权限
 ```
 
-
-
 ## DCL（数据库控制语言）
+
+```mysql
+#授权
+grant 权限列表 ON 库名.表名 TO 用户名@'客户端地址';
+#撤销权限
+show grants for 用户名@'客户端地址';
+```
 
 ## DML（数据库操作语言）
 
@@ -285,4 +293,20 @@ delete（危险）
 
 ```mysql
 DELETE FROM stu  WHERE id=3;
+
+全表删除:
+DELETE FROM stu
+truncate table stu;
+区别:
+delete: DML操作, 是逻辑性质删除,逐行进行删除,速度慢.
+truncate: DDL操作,对与表段中的数据页进行清空,速度快.
+
+伪删除：用update来替代delete，最终保证业务中查不到（select）即可
+1.添加状态列
+ALTER TABLE stu ADD state TINYINT NOT NULL DEFAULT 1 ;
+SELECT * FROM stu;
+2. UPDATE 替代 DELETE
+UPDATE stu SET state=0 WHERE id=6;
+3. 业务语句查询
+SELECT * FROM stu WHERE state=1;
 ```
