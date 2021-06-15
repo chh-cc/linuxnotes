@@ -302,6 +302,20 @@ innodb_status_file  = 1
 测试语句
 `mysqlslap -uroot -p123456 --concurrency=100 --iterations=30 --auto-generate-sql --auto-generate-sql-load-type=mixed --auto-generate-sql-add-autoincrement --engine=innodb --number-of-queries=5000`
 
+mysqlslap解析
+
+```shell
+--concurrency= #表示并发量，也就是模拟多少个客户端同时执行select
+--iterations= #测试执行的迭代次数，代表要在不同并发环境下，各自运行测试多少次
+--auto-generate-sql #自动生成测试表和数据，表示用mysqlslap工具自己生成的SQL脚本来测试并发压力
+--auto-generate-sql-load-type= #测试语句的类型。代表要测试的环境是读操作还是写操作还是两者混合的。取值包括：read，key，write，update和mixed(默认)。
+--auto-generate-sql-add-auto-increment #代表对生成的表自动添加auto_increment列
+--engine= #代表要测试的引擎
+--number-of-queries= #总的测试查询次数(并发客户数×每客户查询次数)
+```
+
+
+
 ```
 没配置
     Average number of seconds to run all queries: 0.351 seconds

@@ -142,69 +142,7 @@ use mysql;`
 刷新
 `FLUSH PRIVILEGES;`
 
-## 表
 
-### 结构
-
-#### 增
-
-create table 表名(字段名 类型);
-
-建表s1，id字段为int类型，设置为自增主键：
-
-```mysql
-create table s1(
-id int AUTO_INCREMENT PRIMARY KEY,
-name char(20),
-age int,
-)charset=utf8mb4 engine=innodb;
-```
-
-将s1复制为s2表：
-
-```mysql
-create table s2 select * from s1;
-```
-
-复制s1的表结构为s2，不包含数据：
-
-```mysql
-create table IF NOT EXISTS s2 (LIKE s1);
-```
-
-#### 删
-
-删除表
-`drop table 表名;`
-
-#### 改
-
-新增一个age字段，放在name后：
-
-```mysql
-desc s2;
-alter table s2 add age int(4) after name;
-```
-
-把刚才的字段删掉：
-
-``` msyql
-alter table s2 drop age;
-```
-
-修改字段的数据类型：
-
-``` mysql
-alter table s2 modify age int(8) not null;
-```
-
-将表s1名字改成s2
-
-`alter table s1 rename to s2;`
-
-更改默认存储引擎
-
-`alter table s2 ENGINE=InnoDB;`
 
 #### 查
 
@@ -324,19 +262,7 @@ truncate、delete 清空表数据的区别 :
 3. truncate 不激活trigger (触发器)，但是会重置Identity (标识列、自增字段)，相当于自增列会被置为初始值，又重新从1开始记录，而不是接着原来的 ID数。而 delete 删除以后，identity 依旧是接着被删除的最近的那一条记录ID加1后进行记录。如果只需删除表中的部分记录，只能使用 DELETE语句配合 where条件
 4. truncate操作中的table可以省略，delete操作中的*可以省略
 
-#### 查
-
-获取参数信息：
-
-` select @@参数;`
-
-`select @@port;`
-
-`select 函数();`
-
-`select version();`
-
-
+#### 
 
 where(> < >= <= <> and or):
 
