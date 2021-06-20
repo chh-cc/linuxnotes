@@ -204,10 +204,6 @@ show tables；#查看库中所有的表
 desc stu; #查看表结构
 show create table stu；
 
-SELECT 列1,列2 FROM 表
-SELECT  *  FROM 表
-select user,host from mysql.user; #显示所有用户
-
 show table status             # 查看表的引擎状态
 
 explain select * from s1; #查询过程中的操作信息
@@ -242,6 +238,269 @@ show variables;               # 查看所有参数变量
 show status;                  # 运行状态
 show grants for user@'%';     # 查看用户权限
 ```
+
+单表子句-from
+
+```mysql
+SELECT 列1,列2 FROM 表
+SELECT  *  FROM 表
+
+SELECT * FROM stu ; #查询stu中所有的数据(不要对大表进行操作)
+select user,host from mysql.user; #显示所有用户
+```
+
+单表子句-where
+
+```mysql
+SELECT col1,col2 FROM TABLE WHERE colN 条件;
+
+SELECT * FROM city WHERE countrycode='CHN'; #查询中国(CHN)所有城市信息
+
+where配合比较操作符(> < >= <= <>)
+SELECT * FROM city WHERE population<100; #查询世界上少于100人的城市
+
+where配合逻辑运算符(and or )
+SELECT * FROM city WHERE countrycode='CHN' AND population>5000000; #中国人口数量大于500w
+
+where配合模糊查询
+SELECT * FROM city WHERE district LIKE 'guang%'; #查询省的名字前面带guang开头的，注意:%不能放在前面,因为不走索引.
+
+where配合in语句
+SELECT * FROM city WHERE countrycode IN ('CHN' ,'USA'); #中国或美国城市信息
+
+where配合between and
+SELECT * FROM city  WHERE population BETWEEN 1000000 AND 2000000; #查询世界上人口数量大于100w小于200w的城市信息
+```
+
+group by+常用聚合函数
+
+```mysql
+根据 by后面的条件进行分组，方便统计，by后面跟一个列或多个列
+
+常用聚合函数
+**max()**      ：最大值
+**min()**      ：最小值
+**avg()**      ：平均值
+**sum()**      ：总和
+**count()**    ：个数
+group_concat() : 列转行
+
+统计世界上每个国家的总人口数
+USE world;
+SELECT countrycode,SUM(population) FROM city GROUP BY countrycode;
+
+统计中国各个省的总人口数量(练习)
+SELECT district,SUM(Population) FROM city  WHERE countrycode='chn' GROUP BY district;
+```
+
+having
+
+```mysql
+统计中国每个省的总人口数，只打印总人口数小于100
+SELECT district,SUM(Population)
+FROM city
+WHERE countrycode='chn'
+GROUP BY district
+HAVING SUM(Population) < 1000000 ;
+```
+
+order by+limit
+
+```mysql
+实现先排序，by后添加条件列
+
+查看中国所有的城市，并按人口数进行排序(从大到小)
+SELECT * FROM city WHERE countrycode='CHN' ORDER BY population DESC;
+
+统计中国各个省的总人口数量，按照总人口从大到小排序
+SELECT district AS 省 ,SUM(Population) AS 总人口
+FROM city
+WHERE countrycode='chn'
+GROUP BY district
+ORDER BY 总人口 DESC ;
+
+统计中国,每个省的总人口,找出总人口大于500w的,并按总人口从大到小排序,只显示前三名
+SELECT  district, SUM(population)  FROM  city 
+WHERE countrycode='CHN'
+GROUP BY district 
+HAVING SUM(population)>5000000
+ORDER BY SUM(population) DESC
+LIMIT 3 ;
+
+LIMIT N ,M --->跳过N,显示一共M行
+LIMIT 5,5
+
+SELECT  district, SUM(population)  FROM  city 
+WHERE countrycode='CHN'
+GROUP BY district 
+HAVING SUM(population)>5000000
+ORDER BY SUM(population) DESC
+LIMIT 5,5;
+```
+
+distinct
+
+```mysql
+去重复
+SELECT countrycode FROM city ;
+SELECT DISTINCT(countrycode) FROM city  ;
+```
+
+union all
+
+```mysql
+联合查询
+-- 中国或美国城市信息
+
+SELECT * FROM city 
+WHERE countrycode IN ('CHN' ,'USA');
+
+SELECT * FROM city WHERE countrycode='CHN'
+UNION ALL
+SELECT * FROM city WHERE countrycode='USA'
+
+说明:一般情况下,我们会将 IN 或者 OR 语句 改写成 UNION ALL,来提高性能
+UNION     去重复
+UNION ALL 不去重复
+```
+
+join
+
+```mysql
+多表连接查询
+
+案例准备：
+use school
+student ：学生表
+sno：    学号
+sname：学生姓名
+sage： 学生年龄
+ssex： 学生性别
+
+teacher ：教师表
+tno：     教师编号
+tname：教师名字
+
+course ：课程表
+cno：  课程编号
+cname：课程名字
+tno：  教师编号
+
+score  ：成绩表
+sno：  学号
+cno：  课程编号
+score：成绩
+
+-- 项目构建
+drop database school;
+CREATE DATABASE school CHARSET utf8;
+USE school
+
+CREATE TABLE student(
+sno INT NOT NULL PRIMARY KEY AUTO_INCREMENT COMMENT '学号',
+sname VARCHAR(20) NOT NULL COMMENT '姓名',
+sage TINYINT UNSIGNED  NOT NULL COMMENT '年龄',
+ssex  ENUM('f','m') NOT NULL DEFAULT 'm' COMMENT '性别'
+)ENGINE=INNODB CHARSET=utf8;
+
+CREATE TABLE course(
+cno INT NOT NULL PRIMARY KEY COMMENT '课程编号',
+cname VARCHAR(20) NOT NULL COMMENT '课程名字',
+tno INT NOT NULL  COMMENT '教师编号'
+)ENGINE=INNODB CHARSET utf8;
+
+CREATE TABLE sc (
+sno INT NOT NULL COMMENT '学号',
+cno INT NOT NULL COMMENT '课程编号',
+score INT  NOT NULL DEFAULT 0 COMMENT '成绩'
+)ENGINE=INNODB CHARSET=utf8;
+
+CREATE TABLE teacher(
+tno INT NOT NULL PRIMARY KEY COMMENT '教师编号',
+tname VARCHAR(20) NOT NULL COMMENT '教师名字'
+)ENGINE=INNODB CHARSET utf8;
+
+INSERT INTO student(sno,sname,sage,ssex)
+VALUES (1,'zhang3',18,'m');
+
+INSERT INTO student(sno,sname,sage,ssex)
+VALUES
+(2,'zhang4',18,'m'),
+(3,'li4',18,'m'),
+(4,'wang5',19,'f');
+
+INSERT INTO student
+VALUES
+(5,'zh4',18,'m'),
+(6,'zhao4',18,'m'),
+(7,'ma6',19,'f');
+
+INSERT INTO student(sname,sage,ssex)
+VALUES
+('oldboy',20,'m'),
+('oldgirl',20,'f'),
+('oldp',25,'m');
+
+
+INSERT INTO teacher(tno,tname) VALUES
+(101,'oldboy'),
+(102,'hesw'),
+(103,'oldguo');
+
+DESC course;
+INSERT INTO course(cno,cname,tno)
+VALUES
+(1001,'linux',101),
+(1002,'python',102),
+(1003,'mysql',103);
+
+DESC sc;
+INSERT INTO sc(sno,cno,score)
+VALUES
+(1,1001,80),
+(1,1002,59),
+(2,1002,90),
+(2,1003,100),
+(3,1001,99),
+(3,1003,40),
+(4,1001,79),
+(4,1002,61),
+(4,1003,99),
+(5,1003,40),
+(6,1001,89),
+(6,1003,77),
+(7,1001,67),
+(7,1003,82),
+(8,1001,70),
+(9,1003,80),
+(10,1003,96);
+
+SELECT * FROM student;
+SELECT * FROM teacher;
+SELECT * FROM course;
+SELECT * FROM sc;
+
+查询张三的家庭住址
+SELECT A.name,B.address FROM
+A JOIN  B
+ON A.id=B.id
+WHERE A.name='zhangsan'
+
+查询一下世界上人口数量小于100人的城市名和国家名
+SELECT b.name ,a.name ,a.population
+FROM  city  AS a
+JOIN  country AS b
+ON    b.code=a.countrycode
+WHERE  a.Population<100
+
+查询城市shenyang，城市人口，所在国家名（name）及国土面积（SurfaceArea）
+SELECT a.name,a.population,b.name ,b.SurfaceArea
+FROM city  AS a JOIN country AS b
+ON a.countrycode=b.code
+WHERE a.name='shenyang';
+```
+
+
 
 ## DCL（数据库控制语言）
 
