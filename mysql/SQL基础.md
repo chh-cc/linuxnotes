@@ -106,6 +106,7 @@ utf8mb4
 #创建数据库
 create database school;
 create schema sch;
+
 show charset;
 show collation;
 CREATE DATABASE test CHARSET utf8;
@@ -115,14 +116,13 @@ create database xyz charset utf8mb4 collate utf8mb4_bin;
 1.库名不能有大写字母   
 2.建库要加字符集         
 3.库名不能有数字开头
-4. 库名要和业务相关
+4.库名要和业务相关
 
 #删库(生产禁止)
 mysql> drop database oldboy;
 
 #修改
-SHOW CREATE DATABASE school;
-ALTER DATABASE school CHARSET utf8;
+alter database db_name default charset utf8;                         #修改数据库的字符集 
 注意：修改字符集，修改后的字符集一定是原字符集的严格超集
 ```
 
@@ -185,6 +185,8 @@ DESC stu;
 alter table s1 rename to s2;
 8.更改默认存储引擎
 alter table s2 ENGINE=InnoDB;
+
+alter table tab_name default charset utf8 collate utf8_general_ci;   #修改表字符集和字符序
 ```
 
 ## DQL(数据库查询语言)
@@ -193,7 +195,7 @@ alter table s2 ENGINE=InnoDB;
 
 ```mysql
 show databases；
-show create database oldboy；#查看建表语句
+show create database database_name \G                                #查看数据库字符集设置
 ```
 
 表
@@ -202,7 +204,7 @@ show create database oldboy；#查看建表语句
 use school #打开数据库
 show tables；#查看库中所有的表
 desc stu; #查看表结构
-show create table stu；
+show create table table_name \G                                      #查看表字符集设置
 
 show table status             # 查看表的引擎状态
 
@@ -237,6 +239,12 @@ show slave status\G;          # 查看主从状态
 show variables;               # 查看所有参数变量
 show status;                  # 运行状态
 show grants for user@'%';     # 查看用户权限
+show OPEN TABLES where In_use > 0;                  # 查看当前锁信息
+show variables like 'innodb_print_all_deadlocks';   # 查看当前死锁参数
+show global variables like '%char%';                #查看RDS实例字符集相关参数设置
+show global variables like 'coll%';                 #查看当前会话字符序相关参数设置
+show character set;                                 #查看实例支持的字符集
+show collation;                                     #查看实例支持的字符序
 ```
 
 单表子句-from
@@ -507,8 +515,13 @@ WHERE a.name='shenyang';
 ```mysql
 #授权
 grant 权限列表 ON 库名.表名 TO 用户名@'客户端地址';
+grant all on zabbix.* to user@"$IP";             # 对现有账号赋予权限
+grant select on database.* to user@"%" Identified by "passwd";     # 赋予查询权限(没有用户，直接创建，不允许对当前库给其他用户赋权限)
+grant all privileges on database.* to user@"localhost" identified by 'passwd' with grant option;   # 赋予本机指定用户所有权限(允许对当前库给其他用户赋权限)
+grant select, insert, update, delete on database.* to user@'ip'identified by "passwd";   # 开放管理操作指令
+
 #撤销权限
-show grants for 用户名@'客户端地址';
+revoke all on *.* from user@localhost;     # 回收权限
 ```
 
 ## DML（数据库操作语言）
