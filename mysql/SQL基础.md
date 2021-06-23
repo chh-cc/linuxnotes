@@ -119,7 +119,7 @@ create database xyz charset utf8mb4 collate utf8mb4_bin;
 4.库名要和业务相关
 
 #删库(生产禁止)
-mysql> drop database oldboy;
+drop database oldboy;
 
 #修改
 alter database db_name default charset utf8;                         #修改数据库的字符集 
@@ -189,6 +189,25 @@ alter table s2 ENGINE=InnoDB;
 alter table tab_name default charset utf8 collate utf8_general_ci;   #修改表字符集和字符序
 ```
 
+用户
+
+```mysql
+#创建用户
+create user 用户名@'客户端地址' identified by ‘密码’;
+
+客户端地址：
+%：匹配所有主机
+192.168.0.%：匹配某个网段
+192.168.0.1：匹配单个ip
+%.chen.com：匹配一个dns区域
+blog.chen.com：匹配指定域名
+
+#删除用户
+DROP USER 用户名@'客户端地址';
+```
+
+
+
 ## DQL(数据库查询语言)
 
 库
@@ -202,13 +221,25 @@ show create database database_name \G                                #查看数�
 
 ```mysql
 use school #打开数据库
+
 show tables；#查看库中所有的表
+
 desc stu; #查看表结构
-show create table table_name \G                                      #查看表字符集设置
+DESC information_schema.TABLES;
+TABLE_SCHEMA    ---->库名
+TABLE_NAME      ---->表名
+ENGINE          ---->引擎
+TABLE_ROWS      ---->表的行数
+AVG_ROW_LENGTH  ---->表中行的平均行（字节）
+INDEX_LENGTH    ---->索引的占用空间大小（字节）
 
-show table status             # 查看表的引擎状态
+show create table table_name \G      #查看表字符集设置
 
-explain select * from s1; #查询过程中的操作信息
+show table status                    # 查看表的引擎状态
+
+SHOW COLUMNS FROM s21 LIKE '%name';  #查看s1表的结构，显示name字段
+
+explain select * from s1;            #查询过程中的操作信息
 ```
 
 单独使用
@@ -278,6 +309,14 @@ SELECT * FROM city WHERE countrycode IN ('CHN' ,'USA'); #中国或美国城市�
 
 where配合between and
 SELECT * FROM city  WHERE population BETWEEN 1000000 AND 2000000; #查询世界上人口数量大于100w小于200w的城市信息
+
+查询所有innodb引擎的表及所在的库:
+SELECT table_schema,table_name,ENGINE FROM information_schema.`TABLES`
+WHERE ENGINE='innodb';
+
+统计world数据库下每张表的磁盘空间占用:
+SELECT table_name,CONCAT((TABLE_ROWS*AVG_ROW_LENGTH+INDEX_LENGTH)/1024," KB")  AS size_KB
+FROM information_schema.tables WHERE TABLE_SCHEMA='world';
 ```
 
 group by+常用聚合函数
@@ -286,11 +325,11 @@ group by+常用聚合函数
 根据 by后面的条件进行分组，方便统计，by后面跟一个列或多个列
 
 常用聚合函数
-**max()**      ：最大值
-**min()**      ：最小值
-**avg()**      ：平均值
-**sum()**      ：总和
-**count()**    ：个数
+max()      ：最大值
+min()      ：最小值
+avg()      ：平均值
+sum()      ：总和
+count()    ：个数
 group_concat() : 列转行
 
 统计世界上每个国家的总人口数
@@ -299,6 +338,18 @@ SELECT countrycode,SUM(population) FROM city GROUP BY countrycode;
 
 统计中国各个省的总人口数量(练习)
 SELECT district,SUM(Population) FROM city  WHERE countrycode='chn' GROUP BY district;
+
+查询整个数据库中所有库和所对应的表信息:
+SELECT table_schema,GROUP_CONCAT(table_name)
+FROM  information_schema.tables
+GROUP BY table_schema;
+
+统计所有数据库的总的磁盘空间占用:
+SELECT
+TABLE_SCHEMA,
+CONCAT(SUM(TABLE_ROWS*AVG_ROW_LENGTH+INDEX_LENGTH)/1024," KB") AS Total_KB
+FROM information_schema.tables
+GROUP BY table_schema;
 ```
 
 having
