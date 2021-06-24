@@ -2,7 +2,9 @@
 
 ## 简介
 
-Redis是一款开源的、高性能的**键-值存储**。它常被称作是一款数据结构服务器、**缓存服务器**。Rredis属于非关系型数据库和Memcached类似，Redis也是一种key-value型存储系统。
+Redis是内存数据库、kv数据库、以及数据结构数据库
+
+![image-20210624092116961](https://gitee.com/c_honghui/picture/raw/master/img/20210624092128.png)
 
 Redis在奇数版本为非稳定版本，例如2.7，3.1。如果为**偶数则为稳定版本**，例如3.2，3.4
 
@@ -78,253 +80,6 @@ mysql这么重要的数据库，不是让你玩高并发的，单机支撑到200
 - ADB文件检测和修复工具：`redis-check-dump`
 - 启动哨兵：`redis-sentinel`
 
-## Redis 基本部署
-
-### 1、Yum 方式安装最新版本 Redis
-
-#### 1、安装 redis-rpm源
-
-```shell
-[root@qfedu.com ~]# yum install http://rpms.famillecollet.com/enterprise/remi-release-7.rpm
-```
-
-#### 2、安装 Redis
-
-```shell
-[root@qfedu.com ~]# yum --enablerepo=remi install redis
-```
-
-#### 3、开机自启 Redis
-
-```shell
-[root@qfedu.com ~]# systemctl enable redis
-```
-
-#### 4、设置redis.conf
-
-允许远程登录： bind 127.0.0.1 改为 bind 0.0.0.0 (可选) 
-
-```shell
-[root@qfedu.com ~]# vim /etc/redis.conf
-```
-
-### 2、编译安装最新版本redis
-
-#### 1、编译安装 Redis
-
-```shell
-[root@qfedu.com  ~]# wget http://download.redis.io/releases/redis-5.0.5.tar.gz 
-[root@qfedu.com  ~]# tar -zxvf redis-5.0.5.tar.gz -C /usr/local
-[root@qfedu.com  ~]# yum install gcc -y       # gcc -v查看，如果没有需要安装
-[root@qfedu.com  ~]# cd /usr/local/redis-5.0.5
-[root@qfedu.com  redis-5.0.5]# make MALLOC=lib 
-[root@qfedu.com  redis-5.0.5]# cd src && make all
-[root@qfedu.com  src]# make install
-```
-
-#### 2、启动 Redis 实例
-
-```shell
-[root@qfedu.com  src]# ./redis-server
-21522:C 17 Jun 2019 15:36:52.038 # oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo
-21522:C 17 Jun 2019 15:36:52.038 # Redis version=5.0.5, bits=64, commit=00000000, modified=0, pid=21522, just started
-21522:C 17 Jun 2019 15:36:52.038 # Warning: no config file specified, using the default config. In order to specify a config file use ./redis-server /path/to/redis.conf
-                _._                                                 
-           _.-``__ ''-._                                            
-      _.-``    `.  `_.  ''-._           Redis 5.0.5 (00000000/0) 64 bit
-  .-`` .-```.  ```\/    _.,_ ''-._                                  
- (    '      ,       .-`  | `,    )     Running in standalone mode
- |`-._`-...-` __...-.``-._|'` _.-'|     Port: 6379
- |    `-._   `._    /     _.-'    |     PID: 21522
-  `-._    `-._  `-./  _.-'    _.-'                                  
- |`-._`-._    `-.__.-'    _.-'_.-'|                                 
- |    `-._`-._        _.-'_.-'    |           http://redis.io       
-  `-._    `-._`-.__.-'_.-'    _.-'                                  
- |`-._`-._    `-.__.-'    _.-'_.-'|                                 
- |    `-._`-._        _.-'_.-'    |                                 
-  `-._    `-._`-.__.-'_.-'    _.-'                                  
-      `-._    `-.__.-'    _.-'                                      
-          `-._        _.-'                                          
-              `-.__.-'                                              
- 
-出现以上界面说明安装成功
- 
-[root@qfedu.com  src]# ./redis-cli --version           # 查询是安装的最新版本的redis
-redis-cli 5.0.5
-[root@qfedu.com  src]# ./redis-server --version
-Redis server v=5.0.5 sha=00000000:0 malloc=libc bits=64 build=4db47e2324dd3c5
-```
-
-如果用6380作为端口启动:
-
-```shell
-redis-server --port 6380
-```
-
-指定配置文件启动:
-
-```shell
-redis-server /opt/redis/redis.conf
-```
-
-### 3、配置启动数据库
-
-#### 1、开启 Redis 服务守护进程
-
-```shell
-# 以./redis-server 启动方式，需要一直打开窗口，不能进行其他操作，不太方便，以后台进程方式启动 redis
-[root@qfedu.com  src]# vim /usr/local/redis-5.0.5/redis.conf   # 默认安装好的配置文件并不在这个目录下，需要找到复制到该目录下
-daemonize no 改为 daemonize yes        # 以守护进程运行           
- 
-[root@qfedu.com  src]# ./redis-server /usr/local/redis-5.0.5/redis.conf
-21845:C 17 Jun 2019 15:44:14.129 # oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo
-21845:C 17 Jun 2019 15:44:14.129 # Redis version=5.0.5, bits=64, commit=00000000, modified=0, pid=21845, just started
-21845:C 17 Jun 2019 15:44:14.129 # Configuration loaded
-```
-
-#### 2、关闭redis进程
-
-```shell
-[root@qfedu.com  src]# ps -ef|grep redis
-root     21846     1  0 15:44 ?        00:00:00 ./redis-server 127.0.0.1:6379
-root     22042  6950  0 15:46 pts/1    00:00:00 grep --color=auto redis
-[root@qfedu.com  src]# kill -9 21846
- # 此方法启动关闭较为麻烦，且不能设置开机自启动
-```
-
-### 4、设置系统进程启动 Redis
-
-#### 1、编辑Redis 配置文件
-
-```shell
-# 先编辑配置文件，然后在把配置文件拷贝到/etc/redis下
-[root@qfedu.com  ~]# vim /usr/local/redis-5.0.5/redis.conf 
-#bind 127.0.0.1           # 将bind 127.0.0.1注释掉，否则数据库只有本机能够使用 或者 修改为 0.0.0.0
-daemonize yes             # 将no改为yes，使数据库能够以后台守护进程运行
-protected-mode no         # 把保护模式的yes改为no,否则会阻止远程访问 
-requirepass redis         # 打开注释，设置密码 
-[root@qfedu.com  ~]# cp /root/redis-5.0.5/redis.conf /etc/redis/
-```
-
-#### 2、添加 Redis 系统启动
-
-```shell
-# 开机自启动，将redis的启动脚本复制一份放到/etc/init.d目录下
-[root@qfedu.com ~]# cp /usr/local/redis-5.0.5/utils/redis_init_script /etc/init.d/redis 
-[root@qfedu.com ~]# vim /etc/init.d/redis
-CONF="/usr/local/redis-5.0.5/redis.conf"         # 将conf的变量修改下，否则读不到配置文件 
-[root@qfedu.com  ~]# cd /etc/init.d
-[root@qfedu.com  init.d]# chkconfig redis on
- 
-# 通过 systemctl 管理 redis
-[root@qfedu.com ~]# systemctl start redis
-[root@qfedu.com ~]# systemctl status redis
-● redis.service - LSB: Redis data structure server
-   Loaded: loaded (/etc/rc.d/init.d/redis; bad; vendor preset: disabled)
-   Active: active (running) since Mon 2019-06-24 11:10:48 CST; 54s ago
-     Docs: man:systemd-sysv-generator(8)
-  Process: 3184 ExecStop=/etc/rc.d/init.d/redis stop (code=exited, status=0/SUCCESS)
-  Process: 3187 ExecStart=/etc/rc.d/init.d/redis start (code=exited, status=0/SUCCESS)
-   CGroup: /system.slice/redis.service
-           └─3189 /usr/local/bin/redis-server *:6379
- 
-Jun 24 11:10:48 test systemd[1]: Starting LSB: Redis data structure server...
-Jun 24 11:10:48 test redis[3187]: Starting Redis server...
-Jun 24 11:10:48 test redis[3187]: 3188:C 24 Jun 2019 11:10:48.203 # oO0OoO0OoO0Oo R...0Oo
-Jun 24 11:10:48 test redis[3187]: 3188:C 24 Jun 2019 11:10:48.203 # Redis version=5...ted
-Jun 24 11:10:48 test redis[3187]: 3188:C 24 Jun 2019 11:10:48.203 # Configuration loaded
-Jun 24 11:10:48 test systemd[1]: Started LSB: Redis data structure server.
-Hint: Some lines were ellipsized, use -l to show in full.
-```
-
-### 5、Redis多实例配置
-
-注意：本次多实例配置基于单实例配置完成后
-
-#### 1、创建程序目录
-
-```shell
-[root@qfedu.com ~]# mkdir /application/redis  -p
-[root@qfedu.com ~]# cd /application/redis/
-```
-
-####  2、修改配置文件
-
-```shell
-[root@qfedu.com redis]# vim install-redis.sh
-#!/bin/bash
-for i in 0 1 2 3
-  do
-    # 创建多实例(端口命名)目录
-    mkdir -p 638$i
-    # 复制启动程序到各实例
-    \cp /usr/local/redis-5.0.5/src/redis-server /application/redis/638$i/
-    # 复制配置文件。注意：此处基于单实例配置完成
-    \cp /usr/local/redis-5.0.5/redis.conf  /application/redis/638$i/
-    # 修改程序存储目录
-    sed -i  "s#^dir .*#dir /application/redis/638$i/#g" /application/redis/638$i/redis.conf
-    # 修改其他端口信息
-    sed -i  "s#6379#638$i#g" /application/redis/638$i/redis.conf
-    # 允许远程连接redis
-    sed -i '/protected-mode/s#yes#no#g' /application/redis/638$i/redis.conf
-done
-
-```
-
-#### 3、启动实例
-
-```shell
-[root@qfedu.com redis]# vim start-redis.sh
-#!/bin/bash
-for i in 0 1 2 3
-  do
-  /application/redis/638$i/redis-server /application/redis/638$i/redis.conf 
-done
-```
-
-####  4、连接 redis
-
-交互方式：
-
-```shell
-[root@qfedu.com redis]# redis-cli -h 192.168.152.161 -p 6379
-192.168.152.161:6379> set hello world
-OK
-192.168.152.161:6379> get hello
-"world"
-```
-
-非交互方式：
-
-```shell
-redis-cli -h 127.0.0.1 -p 6379 get hello
-"world"
-```
-
-### 6、在线变更配置
-
-1、获取当前配置
-
-```
-CONFIG GET *
-```
-
-2、变更运行配置
-
-```
-CONFIG SET loglevel "notice"
-```
-
-3、修改密码为空
-
-```
-192.168.152.161:6379> config set requirepass ""
-192.168.152.161:6379> exit
-192.168.152.161:6379> config get dir
-1) "dir"
-2) "/usr/local/redis/data"
-```
-
 
 
 ## 原理
@@ -369,27 +124,34 @@ I/O多路复用机制
 
 <img src="https://gitee.com/c_honghui/picture/raw/master/img/20210326143138.png" alt="image-20210326143019276" style="zoom:67%;" />
 
-**string:**
+### string
 
 信息缓存、计数器、分布式锁等
 
+主要命令
+
 ```shell
+#设置key的value值
 set key value [ex seconds] [px milliseconds] [nx|xx]
 ex seconds:为键设置秒级过期时间
 px milliseconds：为键设置毫秒级过期时间
 nx：键必须不存在才能设置
 xx：键必须存在才能设置
 
-mset key value [key value ...]
+#获取key的value值
+get key
 
+mset key value [key value ...]
 mget key [key ...]
-#返回nil为空
 
 #计数
 incr key
 值不是整数，返回错误
 值是整数返回自增后结果
 键不存在按照0自增，返回1
+
+#删除key
+del key
 ```
 
 场景1：缓存功能，如用户信息
@@ -408,18 +170,29 @@ incr key
 
 场景4：短信验证码限速
 
-**hash：**
+### hash
 
 键值本身就是一个键值对结构
 
 场景：以购物车为例子，用户id设置为key，那么购物车里所有的商品就是用户key对应的值了，每个商品有id和购买数量，对应hash的结构就是商品id为field，商品数量为value。
 
+主要命令：
+
 ```shell
+#获取key对应hash中的field对应的值
+hget key field
+hget person name
+#设置key对应hash中的field对应的值
+hset key field value
 hset person name bingo
 hset person age 20
 hset person id 1
-hget person name
-
+#设置多个hash键值
+hmset key field1 value1 field2 value2 ...
+hmget key field1 field2 ...
+#获取key对应的hash有多少个键值对
+hlen key
+#删除key对应的hash键值对
 (person = {
   "name": "bingo",
   "age": 20,
@@ -427,24 +200,32 @@ hget person name
 })
 ```
 
-**list：**
+### list
 
 列表用来存储多个有序的可重复的字符串。
 
+场景：朋友圈消息推送
+
+主要命令
+
 ```shell
-从左到右获取列表所有元素
+#从左到右获取列表所有元素
 lrange listkey 0 -1
-获取第2到第4个元素
+#获取第2到第4个元素
 lrange listkey 1 3
-获取当前列表最后一个元素
+#获取当前列表最后一个元素
 lindex listkey -1
-获取列表长度
+#获取列表长度
 llen key
 
-从右边插入元素
+#从队列右边插入元素
 rpush key value [value ...]
-从左边插入元素
+#从队列右边弹出一个元素
+rpop key
+#从队列左边插入元素
 lpush key value [value ...]
+#从队列左边弹出一个元素
+lpop key
 在元素b前插入java
 linsert listkey before b java
 ```
