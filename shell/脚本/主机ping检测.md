@@ -1,4 +1,6 @@
-# 主机ping 检测脚本
+# 
+
+checkhost.sh
 
 ```shell
 #!/bin/bash
