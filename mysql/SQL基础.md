@@ -98,7 +98,18 @@ utf8
 utf8mb4
 ```
 
-## DDL(数据库定义语言)
+## DDL(数据定义语言)
+
+数据库连接：
+
+```shell
+mysql -h ip -u root -p
+参数：
+-e 执行命令并推出
+-h 主机地址
+-p 密码
+-P 端口
+```
 
 库
 
@@ -155,6 +166,7 @@ intime  TIMESTAMP NOT NULL DEFAULT NOW() COMMENT '入学时间'
 6. 每个列都要有注释
 7. 每个列设置为非空，无法保证非空，用0来填充。
 
+#复制
 将s1复制为s2表
 create table s2 select * from s1;
 复制s1的表结构为s2，不包含数据
@@ -208,7 +220,7 @@ DROP USER 用户名@'客户端地址';
 
 
 
-## DQL(数据库查询语言)
+## DQL(数据查询语言)
 
 库
 
@@ -561,7 +573,7 @@ WHERE a.name='shenyang';
 
 
 
-## DCL（数据库控制语言）
+## DCL（数据控制语言）
 
 ```mysql
 #授权
@@ -575,7 +587,7 @@ grant select, insert, update, delete on database.* to user@'ip'identified by "pa
 revoke all on *.* from user@localhost;     # 回收权限
 ```
 
-## DML（数据库操作语言）
+## DML（数据操作语言）
 
 对表中的数据行进行增、删、改
 
