@@ -4,19 +4,18 @@
 
 ```shell
 vim nginx.conf
-#全局参数
-(配置影响nginx全局的指令。一般有运行nginx服务器的用户组，nginx进程pid存放路径，日志存放路径，配置文件引入，允许生成worker process数等。)
-user nginx#使用nginx这个用户运行，更加安全，默认nobody
-pid /run/nginx.pid;#pid文件位置
-error_log /var/log/nginx/error.log notice;#全局日志输出位置,notice是日志级别
-worker_processes auto;#开启的工作进程数量,和cpu核心数量相等
-worker_rlimit_nofile 65535;#一个nginx 进程打开的最多文件描述符数目，理论值应该是最多打开文件数（ulimit -n）一样
 
-#events块
+#全局参数(配置影响nginx全局的指令。一般有运行nginx服务器的用户组，nginx进程pid存放路径，日志存放路径，配置文件引入，允许生成worker process数等。)
+user nginx nginx	#定义nginx运行的用户和组
+pid /run/nginx.pid;	#pid文件位置
+error_log /var/log/nginx/error.log notice;	#全局日志输出位置,notice是日志级别
+worker_processes auto;	#开启的工作进程数量,和cpu核心数量相等
+worker_rlimit_nofile 65535;	#一个nginx 进程打开的最多文件描述符数目，理论值应该是最多打开文件数（ulimit -n）与进程数相除，但是nginx分配请求并不是那么均匀，所以最好与ulimit -n值一致
+
+#events块(配置影响nginx服务器或与用户的网络连接。有每个进程的最大连接数，选取哪种事件驱动模型处理连接请求，是否允许同时接受多个网路连接，开启多个网络连接序列化等。)
 events {
-	(配置影响nginx服务器或与用户的网络连接。有每个进程的最大连接数，选取哪种事件驱动模型处理连接请求，是否允许同时接受多个网路连接，开启多个网络连接序列化等。)
 	use epoll;
-	worker_connections	51200;#每个work进程可以建立的最大的连接数,并发限定总数是 worker_processes 和 worker_connections 的乘积;在设置了反向代理的情况下，max_clients = worker_processes * worker_connections / 2  因为作为反向代理服务器，每个并发会建立与客户端的连接和与后端服务的连接，会占用两个连接。
+	worker_connections	51200;	#每个work进程可以建立的最大的连接数,并发限定总数是 worker_processes 和 worker_connections 的乘积;在设置了反向代理的情况下，max_clients = worker_processes * worker_connections / 2  因为作为反向代理服务器，每个并发会建立与客户端的连接和与后端服务的连接，会占用两个连接。
 }
 
 # http 服务相关设置
@@ -46,7 +45,7 @@ http {
     autoindex off;
     #媒体类型,标准
     include       mime.types;
-     #默认文件类型，默认为text/plain
+    #默认文件类型，默认为text/plain
     default_type  application/octet-stream;
     #隐藏版本号
     server_tokens off;
@@ -75,22 +74,25 @@ http {
 	
 	#server_name控制
 	#对虚拟主机服务器名字(server_name www.xx.com这种)在内存中做hash，如果名字太长，就需要将如下值变大为64
+	#保存服务器名字的hash表是由指令server_names_hash_max_size 和server_names_hash_bucket_size所控制的。参数hash bucket size总是等于hash表的大小，并且是一路处理器缓存大小的倍数。在减少了在内存中的存取次数后，使在处理器中加速查找hash表键值成为可能。如果hash bucket size等于一路处理器缓存的大小，那么在查找键的时候，最坏的情况下在内存中查找的次数为2。第一次是确定存储单元的地址，第二次是在存储单元中查找键 值。因此，如果Nginx给出需要增大hash max size 或 hash bucket size的提示，那么首要的是增大前一个参数的大小
     server_names_hash_bucket_size 64;
     #存储服务器名字的值大小，默认512kb，如果一个server对应多个域名，就要加大此值
     server_names_hash_max_size 256;
     
     #提交缓存
     #nginx 会将整个请求头都放在一个 buffer 里面，如果用户的请求头太大，这个 buffer 装不下，那 nginx 就会重新分配一个新的更大的 buffer来装请求头，这个大 buffer 可以通过 large_client_header_buffers 来设置，比如配置 4 8k，就是表示有四个 8k 大小的buffer 可以用。
-    client_header_buffer_size 256k;
+    #客户端请求头部的缓冲区大小。这个可以根据你的系统分页大小来设置，一般一个请求的头部大小不会超过1k，不过由于一般系统分页都要大于1k，所以这里设置为分页大小。分页大小可以用命令getconf PAGESIZE取得。
+    client_header_buffer_size 32k;
     #此指令规定了用于读取大型客户端请求头的缓冲区的最大数量和大小。 这些缓冲区仅在缺省缓冲区不足时按需分配。 当处理请求或连接转换到保持活动状态时，释放缓冲区。如下例子：
-    large_client_header_buffers 4 32k;
-    #此指令设置NGINX能处理的最大请求主体大小。 如果请求大于指定的大小，则NGINX发回HTTP 413（Request Entity too large）错误。如果在上传大文件，可以将此值设置大一些
+    large_client_header_buffers 4 64k;
+    #NGINX上传文件最大限制。 如果请求大于指定的大小，则NGINX发回HTTP 413（Request Entity too large）错误。如果在上传大文件，可以将此值设置大一些
     client_max_body_size 20m;
+    
     #这个将为打开文件指定缓存，默认是没有启用的，max指定缓存数量，建议和打开文件数一致，inactive 是指经过多长时间文件没被请求后删除缓存。
     open_file_cache max=100000 inactive=20s;
     #这个是指多长时间检查一次缓存的有效信息。
     open_file_cache_valid 30s;
-     #open_file_cache指令中的inactive 参数时间内文件的最少使用次数，如果超过这个数字，文件描述符一直是在缓存中打开的，如上例，如果有一个文件在inactive 时间内一次没被使用，它将被移除。
+    #open_file_cache指令中的inactive 参数时间内文件的最少使用次数，如果超过这个数字，文件描述符一直是在缓存中打开的，如上例，如果有一个文件在inactive 时间内一次没被使用，它将被移除。
     open_file_cache_min_uses 2;
     #指定了当搜索一个文件时是否缓存错误信息，也包括再次给配置中添加文件。我们也包括了服务器模块，这些是在不同文件中定义的。如果你的服务器模块不在这些位置，你就得修改这一行来指定正确的位置
     open_file_cache_errors off;
