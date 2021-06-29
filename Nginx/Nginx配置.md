@@ -153,8 +153,8 @@ http {
 vim domains/*.conf
 server {
 	(配置虚拟主机的相关参数)
-	listen       80;#监听端口
-	server_name  www.zjswdlt.cn;#域名
+	listen       80;	#监听端口
+	server_name  www.zjswdlt.cn;	#域名可以多个，用空格隔开
 	root         /data/webapps/htdocs;
 	access.log   /var/logs/webapps_access.log main
 	#配置代理
@@ -486,7 +486,7 @@ nginx日志统计
 
 ```shell
 1.根据访问IP统计UV     awk '{print $1}'  access.log|sort | uniq -c |wc -l
-2.统计访问URL统计PV    awk '{print $7}' access.log|wc -l     
+2.根据访问URL统计PV    awk '{print $7}' access.log|wc -l     
 3.查询访问最频繁的URL  awk '{print $7}' access.log|sort | uniq -c |sort -n -k 1 -r|more    
 4.查询访问最频繁的IP   awk '{print $1}' access.log|sort | uniq -c |sort -n -k 1 -r|more
 ```
