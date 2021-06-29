@@ -15,12 +15,12 @@ worker_rlimit_nofile 65535;	#一个nginx 进程打开的最多文件描述符数
 #events块(配置影响nginx服务器或与用户的网络连接。有每个进程的最大连接数，选取哪种事件驱动模型处理连接请求，是否允许同时接受多个网路连接，开启多个网络连接序列化等。)
 events {
 	use epoll;
-	worker_connections	51200;	#每个work进程可以建立的最大的连接数,并发限定总数是 worker_processes 和 worker_connections 的乘积;在设置了反向代理的情况下，max_clients = worker_processes * worker_connections / 2  因为作为反向代理服务器，每个并发会建立与客户端的连接和与后端服务的连接，会占用两个连接。
+	worker_connections	65535;	#每个work进程最大的连接数,并发限定总数是 worker_processes 和 worker_connections 的乘积;在设置了反向代理的情况下，max_clients = worker_processes * worker_connections / 2  因为作为反向代理服务器，每个并发会建立与客户端的连接和与后端服务的连接，会占用两个连接。
 }
 
-# http 服务相关设置
+# http 服务相关设置(可以嵌套多个server，配置代理，缓存，日志定义等绝大多数功能和第三方模块的配置。)
 http {
-	(可以嵌套多个server，配置代理，缓存，日志定义等绝大多数功能和第三方模块的配置。)
+	
 	#日志格式
 	log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
                       '$status $body_bytes_sent "$http_referer" '
@@ -41,7 +41,7 @@ http {
     #基础设置
     #禁用ssi
     ssi off;
-    #禁用autoindex 模块
+    #开启目录列表访问,适合下载服务器,默认关闭
     autoindex off;
     #媒体类型,标准
     include       mime.types;
