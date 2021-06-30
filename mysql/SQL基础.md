@@ -245,7 +245,7 @@ TABLE_ROWS      ---->表的行数
 AVG_ROW_LENGTH  ---->表中行的平均行（字节）
 INDEX_LENGTH    ---->索引的占用空间大小（字节）
 
-show create table table_name \G      #查看表字符集设置
+show create table table_name;      #查看表字符集设置
 
 show table status                    # 查看表的引擎状态
 
@@ -268,7 +268,6 @@ SELECT NOW();
 SELECT DATABASE();
 SELECT USER();
 select version();
-SELECT CONCAT("hello world");
 SELECT CONCAT(USER,"@",HOST) FROM mysql.user;
 SELECT GROUP_CONCAT(USER,"@",HOST) FROM mysql.user;
 ```
@@ -286,7 +285,7 @@ show OPEN TABLES where In_use > 0;                  # 查看当前锁信息
 show variables like 'innodb_print_all_deadlocks';   # 查看当前死锁参数
 show global variables like '%char%';                #查看RDS实例字符集相关参数设置
 show global variables like 'coll%';                 #查看当前会话字符序相关参数设置
-show character set;                                 #查看实例支持的字符集
+show charset;                                 #查看实例支持的字符集
 show collation;                                     #查看实例支持的字符序
 ```
 
