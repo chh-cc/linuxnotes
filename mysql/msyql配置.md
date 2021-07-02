@@ -51,13 +51,13 @@ max_connect_errors = 6000
 #建立三次握手的超时时间
 connect_timeout=10
 #控制连接最大空闲时长的参数。
-#wait_timeout控制非交互，比如java程序的链接，interactive_timeout控制交互，比如mysql命令进行的操作。
+#即使没有网络问题，也不能允许客户端一直占用连接。对于保持sleep状态超过了wait_timeout（或interactive_timeout，取决于client_interactive标志）的客户端，MySQL会主动断开连接。
 #show global variables like '%timeout%';
-wait_timeout = 300
+wait_timeout = 86400
 interactive_timeout = 300
 #如果等待连接的数量超过back_log，将不被授予连接资源
 #不能超过TCP/IP连接的侦听队列的大小：cat /proc/sys/net/ipv4/tcp_max_syn_backlog
-back_log = 300
+back_log = 3000
 #mysql可以打开的最大文件数，不能超过 ulimt -n 看到的数值
 open_files_limit = 65535
 #每当MySQL访问一个表时，如果在表缓冲区中还有空间，该表就被打开并放入其中，这样可以更快地访问表内容。
