@@ -140,6 +140,7 @@ http {
     fastcgi_buffer_size    32k;	#指定读取FastCGI应答第一部分需要用多大的缓冲区，这个值表示将使用1个64KB的缓冲区读取应答的第一部分（应答头），可以置为fastcgi_buffers选项指定的缓冲区大小。
     fastcgi_buffers    8 32k;	#指定本地需要用多少和多大的缓冲区来缓冲FastCGI的应答请求。如果一个PHP脚本所产生的页面大小为256KB,为其分配4个64KB的缓冲区来缓存；如果页面大小大于256KB，那么大于256KB的部分会缓存到fastcgi_temp指定的路径中，但是这并不是好方法，因为内存中的数据处理速度要快于硬盘。一般这个值应该为站点中PHP脚本所产生的页面大小的中间值，如果站点大部分脚本所产生的页面大小为256KB，那么可以把这个值设置为"16 16k"、"16 16k" 
     
+    #负载均衡
 	upstream static_pools {
 		server    10.1.96.3:80 weight=1 max_fails=2 fail_timeout=30s;
         server    10.1.96.4:80 weight=1 max_fails=2 fail_timeout=30s;
@@ -490,4 +491,26 @@ nginx日志统计
 3.查询访问最频繁的URL  awk '{print $7}' access.log|sort | uniq -c |sort -n -k 1 -r|more    
 4.查询访问最频繁的IP   awk '{print $1}' access.log|sort | uniq -c |sort -n -k 1 -r|more
 ```
+
+## 负载均衡
+
+集群架构是热备的高可用架构，它通常采用虚拟VIP技术（如keepalived、heartbeat）来解决单点故障的问题，让架构高可用。
+集群的虚拟VIP技术只能让一台服务器平时作为backup热备，只有出现故障的时候才会切换到backup上，平时backup都处于空闲状态。
+
+分布式架构的技术特点就是引入了负载均衡，让不同服务器来同时处理业务压力。负载均衡是分布式架构的起点，高可用架构底层最需要及最依赖的就是负载均衡。
+
+应用最广泛的开源负载均衡：nginx、lvs、HAProxy
+
+阿里云的SLB也是基于LVS及Nginx
+
+由于LVS基于虚拟VIP，阿里云当前底层限制，经典网络和VPC专有云网络都不支持虚拟VIP的功能，所以ECS不支持使用LVS，keepalived也不能
+
+负载均衡性能对比：
+
+| 类型              | 支持并发  |
+| ----------------- | --------- |
+| LVS DR            | 100W~400W |
+| LVS NAT/SLB四层   | 50W~100W  |
+| nginx四层         | 10w~50W   |
+| SLB七层/nginx七层 | 2W~5W     |
 

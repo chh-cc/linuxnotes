@@ -275,6 +275,7 @@ SELECT GROUP_CONCAT(USER,"@",HOST) FROM mysql.user;
 其他
 
 ```mysql
+show engines;                 # 查看所有存储引擎
 show processlist;             # 查看mysql进程
 show full processlist;        # 显示进程全的语句
 show slave status\G;          # 查看主从状态
