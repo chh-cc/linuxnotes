@@ -2,11 +2,9 @@
 
 ## 简介
 
-虚拟机非常重，并不利于可移植性。
+通过部署容器方式实现，每个容器之间互相隔离，每个容器有自己的文件系统 ，容器之间进程不会相互影响，能区分计算资源。相对于虚拟机，容器能快速部署，由于容器与底层设施、机器文件系统解耦的，所以它能在不同云、不同版本操作系统间进行迁移。
 
-新的方式是通过部署容器方式实现，每个容器之间互相隔离，每个容器有自己的文件系统 ，容器之间进程不会相互影响，能区分计算资源。相对于虚拟机，容器能快速部署，由于容器与底层设施、机器文件系统解耦的，所以它能在不同云、不同版本操作系统间进行迁移。
-
-**docker可以实现虚拟机隔离应用环境的功能，并且开销比虚拟机小**，小就意味着省钱了。
+**docker可以实现虚拟机隔离应用环境的功能，并且开销比虚拟机小**。
 
 Docker将应用程序与该程序的依赖，打包在一个文件里面。运行这个文件，就会生成一个虚拟容器。程序在这个虚拟容器里运行，就好像在真实的物理机上运行一样。有了 Docker，就不用担心环境问题。
 
@@ -58,7 +56,9 @@ docker国内加速镜像站：
 
 ### **镜像（Image）**
 
-镜像是一个**只读**的文件和文件夹组合。它包含了容器运行时所需要的所有基础文件和配置信息，是容器启动的基础。实际上image是由**一层层的文件系统组成**的，这种层级的文件系统称为UnionFS。
+镜像是一个**只读**的文件和文件夹组合。它包含了容器运行时所需要的所有基础文件和配置信息，是容器启动的基础。
+
+实际上image是由**一层层的文件系统组成**的，这种层级的文件系统称为UnionFS。
 
 Docker image来源：
 
@@ -69,16 +69,27 @@ Docker image来源：
 （4）甚至也可以直接下载别人的image。
 ```
 
-镜像名称组成：registry/repo:tag
+镜像名称组成：
 
-基础镜像：⼀个没有任何⽗镜像的镜像，谓之基础镜像
+```text
+registry/repo:tag
+```
 
-镜像ID：所有镜像都是通过⼀个 64 位⼗六进制字符串 （内部是⼀个 256 bit 的值）来标识的。 为简化使⽤，前
-12 个字符可以组成⼀个短ID，可以在命令⾏中使⽤。短ID还是有⼀定的碰撞机率，所以服务器总是返回
-⻓ID
+基础镜像：
+
+```text
+⼀个没有任何⽗镜像的镜像，谓之基础镜像
+```
+
+镜像ID：
+
+```text
+所有镜像都是通过⼀个 64 位⼗六进制字符串 （内部是⼀个 256 bit 的值）来标识的。 为简化使⽤，前12 个字符可以组成⼀个短ID，可以在命令⾏中使⽤。短ID还是有⼀定的碰撞机率，所以服务器总是返回⻓ID
+```
 
 分层存储机制：
 
+```text
 ***docker采用分层构建机制，最底层为bootfs，其之为rootfs***
 
 ***bootfs***：用于系统引导的文件系统，包括bootloader和kernel，容器启动完成后会被卸载以节约内存资源；
@@ -100,6 +111,7 @@ Docker image来源：
 此外，docker的分层镜像还支持btrfs、vfs等。
 
 在Ubuntu系统下，docker默认Ubuntu的aufs，而在Centos7上用的是devicemapper
+```
 
 ### **容器（Container）**
 
@@ -137,38 +149,51 @@ kubernetes: google主导的容器调度平台。
 
 ![image-20210304103656232](https://gitee.com/c_honghui/picture/raw/master/img/20210304103702.png)
 
-Docker 整体架构采用 C/S（客户端 / 服务器）模式，主要由客户端和服务端两大部分组成。客户端负责发送操作指令，服务端负责接收和处理指令。客户端和服务端通信有多种方式，既可以在同一台机器上通过`UNIX`套接字通信，也可以通过网络连接远程通信。
+Docker 整体架构采用 C/S（客户端 / 服务器）模式。客户端和服务端通信有多种方式，既可以在同一台机器上通过`UNIX`套接字通信，也可以通过网络连接远程通信。
+
+```shell
+[root@Pagerduty ~]# docker version
+Client: Docker Engine – Community   ## 客户端
+ Version:           19.03.6        ## Docker版本号
+ API version:       1.40            ## Docker API 版本
+ Go version:        go1.12.16       ## Go语言版本
+ Git commit:        369ce74a3c     ## GIT commit ID
+ Built:             Thu Feb 13 01:29:29 2020   ## 发布日期
+ OS/Arch:           linux/amd64            ## 系统版本
+ Experimental:      false 
+
+Server: Docker Engine – Community      ### Docker 服务端
+ Engine:                              ### 引擎版本号
+  Version:          19.03.6
+  API version:      1.40 (minimum version 1.12)   ### 服务端API版本
+  Go version:       go1.12.16                  ### 服务端Go语言版本
+  Git commit:       369ce74a3c                ### 服务端 commit ID
+  Built:            Thu Feb 13 01:28:07 2020     ### 发布时间
+  OS/Arch:          linux/amd64               ### 系统版本
+  Experimental:     false                       ### 是否开启夜间实验
+ containerd:                                  ### 容器版本
+  Version:          1.4.3
+  GitCommit:        269548fa27e0089a8b8278fc4fc781d7f65a939b
+ runc:                                        ###轻量级的工具，用来运行容器
+  Version:          1.0.0-rc92
+  GitCommit:        ff819c7e9184c13b7c2607fe6c30ae19403a7aff
+ docker-init:
+  Version:          0.18.0
+  GitCommit:        fec3683
+```
 
 1. Docker 相关的组件：
 
    docker
 
    ```text
-   docker客户端，负责发送docker请求给Docker Daemon（dockerd）
+   docker客户端，负责发送docker请求给Docker Daemon（dockerd）,该程序的安装路径为：/usr/bin/docker
    ```
 
    dockerd
 
    ```text
-   一般称之为Docker engine，负责接收客户端请求并返回请求结果
-   ```
-
-   docker-init 
-
-   ```shell
-   在执行 docker run 启动容器时可以添加 --init 参数，此时 Docker 会使用 docker-init 作为1号进程，帮你管理容器内子进程，例如回收僵尸进程等
-   $ docker run -it --init busybox sh
-   / # ps aux
-   PID   USER     TIME  COMMAND
-       1 root      0:00 /sbin/docker-init -- sh
-       6 root      0:00 sh
-       7 root      0:00 ps aux
-   ```
-
-   docker-proxy
-
-   ```text
-   用来做docker的网络实现，通过设置iptables规则使得访问主机的流量可以被转发到容器中
+   一般称之为Docker engine，负责接收客户端请求并返回请求结果,该程序的安装路径为：/usr/bin/dockerd
    ```
 
 2. containerd 相关的组件：
@@ -176,17 +201,18 @@ Docker 整体架构采用 C/S（客户端 / 服务器）模式，主要由客户
    containerd
 
    ```text
-   containerd 包含一个后台常驻进程，默认的 socket 路径为 /run/containerd/containerd.sock，dockerd 通过 UNIX 套接字向 containerd 发送请求，containerd 接收到请求后负责执行相关的动作并把执行结果返回给 dockerd。
+   Containerd 主要负责：管理容器的生命周期（从创建到销毁容器）、拉取/推送镜像、存储管理（管理镜像及容器存储）、调用Runc 运行容器（与Runc等容器运行时交互）、管理容器网络接口及网络。
    ```
 
    containerd-shim
 
    ```text
-   是容器运行时的载体，containerd-shim 的主要作用是将 containerd 和真正的容器进程解耦，使用 containerd-shim 作为容器进程的父进程，从而实现重启 containerd 不影响已经启动的容器进程。
-   ```
-
-   容器运行时相关的组件：runc
-
+   是容器运行时的载体，我们在Docker宿主机上看到的shim也正是代表着一个个通过调用containerd启动的docker容器。
+   containerd-shim 的主要作用是将 containerd 和真正的容器进程解耦，使用 containerd-shim 作为容器进程的父进程，从而实现重启 containerd 不影响已经启动的容器进程。
+```
+   
+容器运行时相关的组件：runc
+   
    ```text
    用来运行容器，通过调用namespace、cgroups等系统接口，实现容器的创建和销毁
    ```
@@ -250,10 +276,11 @@ Docker目前支持的UnionFS种类包括AUFS,btrfs,vfs和 DeviceMapper。
 
 ## 安装
 
-```shell
-#操作系统要求
+操作系统要求：
 CentOS 7 要求系统为64位，系统内核版本为 3.10 以上
 CentOS 6.5.X 或更高的版本的 CenOS 上，要求系统为64位，系统内核为2.6.32-431或者更高版本。
+
+```shell
 #先执行以下命令卸载旧版 Docker
 $ sudo yum remove docker \
                   docker-client \
@@ -310,6 +337,13 @@ Hello from Docker!
 
 ```shell
 [root@localhost ~]# docker search centos
+NAME                      DESCRIPTION                                     STARS               OFFICIAL            AUTOMATED
+-----显示内容描述—
+NAME：          - 镜像名称
+DESCRIPTION：   - 镜像描述说明
+STARS：         - 收藏数量
+OFFICIAL：      - “OK”表示官方镜像
+AUTOMATED：     - “OK” 表示自助构建
 ```
 
 获取镜像：docker pull [选项] [Docker Registry 地址[:端口]]/仓库名/[image]:[tag]
@@ -346,7 +380,7 @@ dockerhub显示的镜像大小是压缩的
 
 查询指定镜像：docker image ls 镜像名 或 docker images | grep 镜像名
 
-查看镜像层次：docker history
+查看镜像构建历史：docker history
 
 ```shell
 [root@localhost ~]# docker history 67f7ad418fdf
@@ -440,10 +474,6 @@ docker run -d nginx:last /bin/bash
 #容器能保持运行
 docker run -d nginx:last
 ```
-
-
-
-
 
 某些时候，执行docker run会出错，因为命令无法正常执行容器会直接退出，此时可以查看退出的错误代码。默认情况下，常见错误代码包括：
 
@@ -580,7 +610,58 @@ docker import busybox.tar busybox:test
 
 查看docker版本:docker version
 
-查看docker状态信息：docker info
+查看docker状态信息：
+
+```shell
+[root@Pagerduty ~]# docker info
+Client:            ## docker 客户端信息
+ Debug Mode: false
+Server:           ## 代表服务端
+ Containers: 1     ## 容器数量
+  Running: 0      ## 运行容器数量
+  Paused: 0       ## 暂停容器数量
+  Stopped: 1      ## 停止容器数量
+ Images: 1        ## 镜像数量
+ Server Version: 19.03.6   ## docker服务版本
+ Storage Driver: overlay2   ## docker存储驱动程序
+  Backing Filesystem: xfs    ## 文件系统
+  Supports d_type: true     ## 
+  Native Overlay Diff: true
+ Logging Driver: json-file    ## 日志驱动程序
+ Cgroup Driver: cgroupfs     ## Cgroup 驱动程序
+ Plugins:                   ## 插件信息
+  Volume: local
+  Network: bridge host ipvlan macvlan null overlay
+  Log: awslogs fluentd gcplogs gelf journald json-file local logentries splunk syslog
+ Swarm: inactive   ## Swarm 状态
+Runtimes: runc    ## runtimes 信息
+ Default Runtime: runc   ## 默认 runtimes 
+ Init Binary: docker-init
+ containerd version: 269548fa27e0089a8b8278fc4fc781d7f65a939b
+ runc version: ff819c7e9184c13b7c2607fe6c30ae19403a7aff
+ init version: fec3683
+ Security Options:       ## 安全选项
+  seccomp
+   Profile: default
+ Kernel Version: 3.10.0-1160.11.1.el7.x86_64  ## Linux内核版本
+ Operating System: CentOS Linux 7 (Core)    ## Linux操作系统
+ OSType: linux                     ## 操作系统类型
+ Architecture: x86_64         ## 系统架构
+ CPUs: 4                       ## CPU 数量
+ Total Memory: 1.777GiB         ## 宿主机内存
+ Name: Pagerduty             ## 宿主机名称
+ ID: 4RDT:F4PO:L57F:3DLQ:JVPK:26C4:LD3W:J3VV:ZX4M:JG3S:SM4R:7EJL
+ Docker Root Dir: /var/lib/docker   ## Docker目录
+ Debug Mode: false
+ Registry: https://index.docker.io/v1/   ## 镜像仓库
+ Labels:
+ Experimental: false
+ Insecure Registries:         ## 非安全镜像仓库
+  127.0.0.0/8
+ Registry Mirrors:           ## 镜像加速
+  https://plqjafsr.mirror.aliyuncs.com/
+ Live Restore Enabled: false
+```
 
 获取容器端口：docker port 690123a26237
 
@@ -589,38 +670,6 @@ docker import busybox.tar busybox:test
 更新容器启动项：docker container update --restart=always nginx
 
 登录登出仓库：docker login/docker logout
-
-修改docker存储目录：
-
-```shell
-[root@Pagerduty ~]# vi /usr/lib/systemd/system/docker.service 
------------修改内容截取--------------
-    9	[Service]
-    10	Type=notify
-    11	# the default is not to use systemd for cgroups because the delegate issues still
-    12	# exists and systemd currently does not support the cgroup feature set required
-    13	# for containers run by docker
-    14	#ExecStart=/usr/bin/dockerd -H fd:// --containerd=/run/containerd/containerd.sock
-    15	ExecStart=/usr/bin/dockerd --graph=/data/docker -H fd:// --containerd=/run/containerd/containerd.sock
-    16	ExecReload=/bin/kill -s HUP $MAINPID
-#######################################################
-修改内容如下，将官方内容注释，在15行处，添加一下内容：
-ExecStart=/usr/bin/dockerd --graph=/data/docker -H fd:// --containerd=/run/containerd/containerd.sock
-############################################
-随后重新加载配置文件，并重启docker：
-[root@Pagerduty ~]# systemctl daemon-reload
-[root@Pagerduty ~]# systemctl restart docker
-执行docker info 查看，是否修改成功：
-[root@Pagerduty ~]# docker info
--------------内容截取，红字处，修改成功-----------
-Total Memory: 1.777GiB
- Name: Pagerduty
- ID: 4RDT:F4PO:L57F:3DLQ:JVPK:26C4:LD3W:J3VV:ZX4M:JG3S:SM4R:7EJL
- Docker Root Dir: /data/docker
- Debug Mode: false
- Registry: https://index.docker.io/v1/
------------------内容截取---------------
-```
 
 
 
@@ -1203,6 +1252,38 @@ $ docker run -v /data:/usr/local/data -it busybox
 ```
 
 容器启动后，便可以在容器内的 /usr/local/data 访问到主机 /data 目录的内容了，并且容器重启后，/data 目录下的数据也不会丢失。
+
+**修改docker存储目录**
+
+```shell
+[root@Pagerduty ~]# vi /usr/lib/systemd/system/docker.service 
+-----------修改内容截取--------------
+    9	[Service]
+    10	Type=notify
+    11	# the default is not to use systemd for cgroups because the delegate issues still
+    12	# exists and systemd currently does not support the cgroup feature set required
+    13	# for containers run by docker
+    14	#ExecStart=/usr/bin/dockerd -H fd:// --containerd=/run/containerd/containerd.sock
+    15	ExecStart=/usr/bin/dockerd --graph=/data/docker -H fd:// --containerd=/run/containerd/containerd.sock
+    16	ExecReload=/bin/kill -s HUP $MAINPID
+#######################################################
+修改内容如下，将官方内容注释，在15行处，添加一下内容：
+ExecStart=/usr/bin/dockerd --graph=/data/docker -H fd:// --containerd=/run/containerd/containerd.sock
+############################################
+随后重新加载配置文件，并重启docker：
+[root@Pagerduty ~]# systemctl daemon-reload
+[root@Pagerduty ~]# systemctl restart docker
+执行docker info 查看，是否修改成功：
+[root@Pagerduty ~]# docker info
+-------------内容截取，红字处，修改成功-----------
+Total Memory: 1.777GiB
+ Name: Pagerduty
+ ID: 4RDT:F4PO:L57F:3DLQ:JVPK:26C4:LD3W:J3VV:ZX4M:JG3S:SM4R:7EJL
+ Docker Root Dir: /data/docker
+ Debug Mode: false
+ Registry: https://index.docker.io/v1/
+-----------------内容截取---------------
+```
 
 ## 私有仓库
 
