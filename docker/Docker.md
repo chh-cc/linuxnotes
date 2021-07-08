@@ -50,6 +50,11 @@ docker国内加速镜像站：
 
  9）**使用非root用户运行进程** – “docker容器默认以root运行。（…）随着docker的成熟，更多的安全默认选项变得可用。现如今，请求root对于其他人是危险的，可能无法在所有环境中可用。你的镜像应该使用USER指令来指令容器的一个非root用户来运行。”
 
+```shell
+让用户拥有docker权限
+usermod -G docker 用户名
+```
+
  10）不要依赖IP地址 – 每个容器都有自己的内部IP地址，如果你启动并停止它地址可能会变化。如果你的应用或微服务需要与其他容器通讯，使用任何命名与（或者）环境变量来从一个容器传递合适信息到另一个。
 
 ## 架构和原理
@@ -209,13 +214,14 @@ Server: Docker Engine – Community      ### Docker 服务端
    ```text
    是容器运行时的载体，我们在Docker宿主机上看到的shim也正是代表着一个个通过调用containerd启动的docker容器。
    containerd-shim 的主要作用是将 containerd 和真正的容器进程解耦，使用 containerd-shim 作为容器进程的父进程，从而实现重启 containerd 不影响已经启动的容器进程。
+   ```
 ```
    
 容器运行时相关的组件：runc
    
    ```text
    用来运行容器，通过调用namespace、cgroups等系统接口，实现容器的创建和销毁
-   ```
+```
 
 
 ### 核心底层技术
@@ -450,14 +456,23 @@ docker run [参数] 镜像名
 #参数：
 -i	捕获标准输入输出,交互式操作
 -t	分配一个终端或控制台
+-d	容器运行在后台，此时所有I/O数据只能通过网络资源或共享卷组进行交互
+
+--entrypoint=""	覆盖imgae的入口点
 --restart=always	自动重启，这样每次docker重启后仓库容器也会自动启动
 --name="mycontainer"	为容器分配一个名字，不指定会随机分配一个名称,容器的名称是唯一的
+--rm	在容器退出时自动清理容器并移除文件系统
 --net="bridge": 指定容器的网络连接类型，支持如下：
      bridge / host / none / container:<name|id>
--d	容器运行在后台，此时所有I/O数据只能通过网络资源或共享卷组进行交互
+
 -p	指定本地端口映射到容器端口
+-u	指定容器的用户
 -h	指定主机名
 -v	指定挂载一个本地的已有目录到容器中去作为数据卷
+
+注：修改docker启动参数
+1. 停止docker容器
+2. docker update --restart=no 容器名字
 ```
 
 ```shell

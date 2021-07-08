@@ -2,6 +2,10 @@
 
 ## SonarQube简介
 
+SonarQube是一个用于代码质量管理的开源平台，用于管理Java源代码的质量。通过插件机制，SonarQube可以集成不同的测试工具，代码分析工具，以及持续集成工具，比如pmd-cpd、checkstyle、findbugs、Jenkins。通过不同的插件对这些结果进行再加工处理，通过量化的方式度量代码质量的变化，从而可以方便地对不同规模和种类的工程进行代码质量管理。同时 SonarQube还对大量的持续集成工具提供了接口支持，可以很方便地在持续集成中使用 SonarQube。此外，SonarQube的插件还可以对 Java 以外的其他编程语言提供支持，对国际化以及报告文档化也有良好的支持。
+
+
+
 组成：
 
 - sonarqube server ：  他有三个程序分别是 webserver（配置和管理sonar） searchserver（搜索结果返回给sonarUI）  ComplateEngineserver（计算服务 将分析结果入库）。
@@ -51,13 +55,15 @@ ulimit -u 4096
 ```shell
 LOCALDIR=/data/devops
 docker run --rm -d --name sonarqube \
--p 9000:9000
+-p 9000:9000 \
 -v ${LOCALDIR}/sonar/sonarqube_conf:/opt/sonarqube/conf \
 -v ${LOCALDIR}/sonar/sonarqube_extensions:/opt/sonarqube/extensions \
 -v ${LOCALDIR}/sonar/sonarqube_logs:/opt/sonarqube/logs \
 -v ${LOCALDIR}/sonar/sonarqube_data:/opt/sonarqube/data \
 sonarqube:7.9.2-community
 ```
+
+登陆sonarqube：
 
 docker安装会提示：
 
@@ -78,6 +84,7 @@ LDAP集成：
 <img src="https://gitee.com/c_honghui/picture/raw/master/img/20210518230633.png" alt="image-20210518230633465" style="zoom:67%;" />
 
 ```shell
+vi conf/sonar.properties
 #LDAP settings
 #admin
 sonar.security.realm=LDAP
