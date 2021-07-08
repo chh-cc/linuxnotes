@@ -246,3 +246,53 @@ git push origin master
 ![img](https://gitee.com/c_honghui/picture/raw/master/img/20210312102203.png)
 
 ![img](https://gitee.com/c_honghui/picture/raw/master/img/20210312102219.jpeg)
+
+
+
+
+
+git commit
+
+```text
+Git 仓库中的提交记录保存的是你的目录下所有文件的快照，就像是把整个目录复制，然后再粘贴一样，但比复制粘贴优雅许多！
+
+Git 希望提交记录尽可能地轻量，因此在你每次进行提交时，它并不会盲目地复制整个目录。条件允许的情况下，它会将当前版本与仓库中的上一个版本进行对比，并把所有的差异打包到一起作为一个提交记录。
+
+Git 还保存了提交的历史记录。这也是为什么大多数提交记录的上面都有父节点的原因
+```
+
+git branch
+
+```text
+Git 的分支也非常轻量。它们只是简单地指向某个提交纪录
+
+早建分支！多用分支！
+```
+
+git branch newImage（新创建的分支指向了提交记录c1）
+
+![image-20210708223033201](https://gitee.com/c_honghui/picture/raw/master/img/20210708223040.png)
+
+git checkout newImage;git commit（新的修改已经保存到新的分支）
+
+![image-20210708223240509](https://gitee.com/c_honghui/picture/raw/master/img/20210708223240.png)
+
+git merge bugFix（把bugFix分支的修改合并到当前分支，main现在指向了一个拥有两个父节点的提交记录）
+
+![image-20210708223909531](https://gitee.com/c_honghui/picture/raw/master/img/20210708223909.png)
+
+git rebase main（把当前bugFix分支合并到main分支，提交记录 C3 依然存在，而 C3是我们 Rebase 到 main 分支上的 C3 的副本）
+
+![image-20210708224857037](https://gitee.com/c_honghui/picture/raw/master/img/20210708224857.png)
+
+git checkout main;git rebase bugFix（由于 `bugFix` 继承自 `main`，所以 Git 只是简单的把 `main` 分支的引用向前移动了一下而已。）
+
+![image-20210708225142001](https://gitee.com/c_honghui/picture/raw/master/img/20210708225142.png)
+
+HEAD
+
+```text
+HEAD 总是指向当前分支上最近一次提交记录。
+HEAD 通常情况下是指向分支名的（如 bugFix）,在你提交时，改变了 bugFix 的状态
+```
+
