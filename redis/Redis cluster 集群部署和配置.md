@@ -2,27 +2,36 @@
 
 [TOC]
 
-
-
 ## 简介
+
+哨兵架构已经可以稳定运行很长时间了,如果读请求增长,可以增加slave,读写分离;如果写请求增长,只有一个master可能就无法承担很大的写流量了,这时就要考虑"分片集群"了
 
 集群，即Redis Cluster，是**Redis 3.0**开始引入的分布式存储方案。
 
-如果你的**数据量很少**，主要是承载高并发高性能的场景，比如你的缓存一般就几个 G，单机就足够了，可以使用 replication，一个 master 多个 slaves，要几个 slave 跟你要求的读吞吐量有关，然后自己**搭建一个 sentinel 集群**去保证 Redis 主从架构的高可用性。
-
-Redis cluster，主要是针对**海量数据+高并发+高可用**的场景。Redis cluster 支撑 **N 个 Redis master node**，每个 master node 都可以挂载多个 slave node。这样整个 Redis 就可以横向扩容了。如果你要支撑更大数据量的缓存，那就横向扩容更多的 master 节点，每个 master 节点就能存放更多的数据了。
-
 集群由多个节点(Node)组成，Redis的数据分布在这些节点中。集群中的节点分为主节点和从节点：只有主节点负责读写请求和集群信息的维护；从节点只进行主节点数据和状态信息的复制。
 
-在 Redis cluster 架构下，每个 Redis 要放开**两个端口号**，比如一个是 6379，另外一个就是 加 1w 的端口号，比如 16379。
-
-16379 端口号是用来进行**节点间通信**的，也就是 cluster bus 的东西，cluster bus 的通信，用来进行故障检测、配置更新、故障转移授权。cluster bus 用了另外一种二进制的协议， `gossip` 协议，用于节点间进行高效的数据交换，占用更少的网络带宽和处理时间。
+在 Redis cluster 架构下，每个 Redis 要放开**两个端口号**，比如一个是 6379，另外一个就是 加 1w 的端口号，比如 16379。16379 端口号是用来进行**节点间通信**的
 
 ### 特点
 
-1、**数据分区**：数据分区(或称数据分片)是集群最核心的功能。每个 master 上放一部分数据。
+1. 每个节点各自存储一部分数据，所有节点数据之和才是全量数据
+2. 制定一个路由规则，对于不同的 key，把它路由到固定一个实例上进行读写
 
-2、**高可用**：集群支持主从复制和主节点的自动故障转移（与哨兵类似）；当任一节点发生故障时，集群仍然可以对外提供服务。
+而分片集群根据路由规则所在位置的不同，还可以分为两大类：
+
+1. 客户端分片
+
+   把这个路由规则封装成一个模块，当需要使用时，集成这个模块就可以了。
+
+   ![image-20210709144350131](https://gitee.com/c_honghui/picture/raw/master/img/20210709144350.png)
+
+2. 服务端分片
+
+   Proxy 会把你的请求根据路由规则，转发到对应的 Redis 节点上
+
+   ![image-20210709144437526](https://gitee.com/c_honghui/picture/raw/master/img/20210709144437.png)
+
+Redis Cluster 内置了哨兵逻辑，无需再部署哨兵。
 
 ### Redis Cluster 参考资料
 
@@ -35,8 +44,6 @@ Redis cluster，主要是针对**海量数据+高并发+高可用**的场景。R
 批量操作工具：https://github.com/eyjian/libmooon/releases
 
 ## Redis Cluster原理
-
-Redis cluster 的高可用的原理，几乎跟哨兵是类似的。
 
 ### 1、Redis Cluster 集群数据共享
 
@@ -52,8 +59,6 @@ Redis 集群使用**数据分片（sharding）**而非一致性哈希（consiste
 
 ### 2、Redis Cluster 集群运行机制
 
-- 所有的 redis 节点彼此互联(PING-PONG机制),内部使用二进制协议优化传输速度和带宽.
-
 
 - 节点的 fail 是通过集群中超过半数的 master 节点检测失效时才失效。
 
@@ -64,8 +69,6 @@ Redis 集群使用**数据分片（sharding）**而非一致性哈希（consiste
 - 把所有的物理节点映射到[0-16383]slot上,cluster 负责维护node<->slot<->key
 
 ![image-20210311115730925](https://gitee.com/c_honghui/picture/raw/master/img/20210311115737.png)
-
-为了使得集群在一部分节点下线或者无法与集群的大多数（majority）节点进行通讯的情况下， 仍然可以正常运作，Redis 集群对节点使用了主从复制功能： 集群中的每个节点都有 1 个至 N 个复制品（replica）， 其中一个复制品为主节点（master）， 而其余的 N-1 个复制品为从节点（slave）。
 
 ### 3、Redis Cluster 集群的故障转移
 
