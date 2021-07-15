@@ -1,6 +1,6 @@
 # logstash
 
-Logstash主要对日志进行过滤处理，也能用来做日志收集。但日志采集一般不用logstash
+Logstash主要对日志进行**过滤处理**，也能用来做日志收集。**但日志采集一般不用**logstash
 
 logstash内部主要分为三个组件，输入（input），过滤器（filter），输出（output）
 
