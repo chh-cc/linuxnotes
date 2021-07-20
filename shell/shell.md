@@ -122,21 +122,23 @@ sh -x /path/to/some_script
 - 取消变量：unset 变量名 
 - 作用范围：当前shell和子shell都有效
 
+bash内建的环境变量：
+
+PATH SHELL USER UID HOME PWD SHLVL LANG MAIL HOSTNAME HISTSIZE
+
 ### 位置参数变量
 
-$1 $2 $3...
-
-### 预先定义变量
+$1 $2 $3... 对应第1个、第2个等参数；**shift 1** 脚本参数左移1位,原本第二个参数变成第一个
 
 $0 脚本名称
 
-$n 脚本第n个参数
-
 $# 脚本参数个数
 
-$* 脚本所有参数；shift 1 脚本参数左移1位,原本第二个参数变成第一个
+$* 脚本所有参数
 
-$? 获取上条命令的返回结果，0表示成功
+
+
+$? 获取上条命令的返回结果，0表示成功，1到255 表示失败，exit  [n]自定义退出状态码
 
 $$ 当前进程的PID
 
@@ -234,9 +236,18 @@ test 条件表达式
 
 ![image-20210307170652058](https://gitee.com/c_honghui/picture/raw/master/img/20210307170659.png)
 
-() 子shell中执行 
+() 子shell中执行  {} 在当前 shell 执行
 
-{} 在当前 shell 执行
+```shell
+[root@centos8 ~]#name=mage;(echo $name;name=wang;echo $name );echo $name
+mage
+wang
+mage
+[root@centos8 ~]#name=mage;{ echo $name;name=wang;echo $name; } ;echo $name
+mage
+wang
+wang
+```
 
 ### 文件测试
 
