@@ -1,5 +1,11 @@
 # zabbix简介
 
+支持实时监控数千台服务器，虚拟机和网络设备，采集百万级监控指标
+
+使用场景：
+
+![image-20210802202344443](https://gitee.com/c_honghui/picture/raw/master/img/20210802202351.png)
+
 ## 监控原理
 
 Zabbix 通过C/S 模式采集数据，通过B/S模式在web 端展示和配置。
