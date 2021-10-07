@@ -97,23 +97,46 @@ http {
     #指定了当搜索一个文件时是否缓存错误信息，也包括再次给配置中添加文件。我们也包括了服务器模块，这些是在不同文件中定义的。如果你的服务器模块不在这些位置，你就得修改这一行来指定正确的位置
     open_file_cache_errors off;
     
-    #压缩
+
+    
+    # fastcgi调优（配合PHP引擎动态服务）
+    fastcgi_connect_timeout    300;	#指定连接到后端fastCGI的超时时间
+    fastcgi_send_timeout    300;	#向FastCGI传送请求的超时时间，这个值是指已经完成两次握手后向FastCGI传送请求的超时时间
+    fastcgi_read_timeout    300;	#指定接收FastcGI应答的超时时间，这个值是指己经完成两次握手后接收FastCGI应答的超时时间
+    fastcgi_buffer_size    32k;	#指定读取FastCGI应答第一部分需要用多大的缓冲区，这个值表示将使用1个64KB的缓冲区读取应答的第一部分（应答头），可以置为fastcgi_buffers选项指定的缓冲区大小。
+    fastcgi_buffers    8 32k;	#指定本地需要用多少和多大的缓冲区来缓冲FastCGI的应答请求。如果一个PHP脚本所产生的页面大小为256KB,为其分配4个64KB的缓冲区来缓存；如果页面大小大于256KB，那么大于256KB的部分会缓存到fastcgi_temp指定的路径中，但是这并不是好方法，因为内存中的数据处理速度要快于硬盘。一般这个值应该为站点中PHP脚本所产生的页面大小的中间值，如果站点大部分脚本所产生的页面大小为256KB，那么可以把这个值设置为"16 16k"、"16 16k" 
+    
+    #负载均衡
+	upstream lbEureka {
+		server    10.1.96.3:80 weight=1 max_fails=2 fail_timeout=30s;
+        server    10.1.96.4:80 weight=1 max_fails=2 fail_timeout=30s;
+	}
+
+	include	/etc/nginx/conf.d/*.conf;
+}
+```
+
+
+
+```shell
+vim /etc/nginx/conf.d/gzip.conf
     #开启页面压缩
     gzip  on;
     #gzip压缩是要申请临时内存空间的，假设前提是压缩后大小是小于等于压缩前的。例如，如果原始文件大小为10K，那么它超过了8K，所以分配的内存是8 * 2 = 16K;再例如，原始文件大小为18K，很明显16K也是不够的，那么按照 8 * 2 * 2 = 32K的大小申请内存。如果没有设置，默认值是申请跟原始数据相同大小的内存空间去存储gzip压缩结果。
     gzip_buffers 16 8k;
-    #进行压缩的原始文件的最小大小值，也就是说如果原始文件小于1K，那么就不会进行压缩了
+    #进行压缩的原始文件的最小大小值，也就是说如果原始文件小于1024K，那么就不会进行压缩了
     gzip_min_length 1024K;
     # 默认值: gzip_http_version 1.1(就是说对HTTP/1.1协议的请求才会进行gzip压缩)
-# 识别http的协议版本。由于早期的一些浏览器或者http客户端，可能不支持gzip自解压，用户就会看到乱码，所以做一些判断还是有必要的。 
-# 注：99.99%的浏览器基本上都支持gzip解压了，所以可以不用设这个值,保持系统默认即可。
-# 假设我们使用的是默认值1.1，如果我们使用了proxy_pass进行反向代理，那么nginx和后端的upstream server之间是用HTTP/1.0协议通信的，如果我们使用nginx通过反向代理做Cache Server，而且前端的nginx没有开启gzip，同时，我们后端的nginx上没有设置gzip_http_version为1.0，那么Cache的url将不会进行gzip压缩
-    gzip_http_version 1.1;
+	# 识别http的协议版本。由于早期的一些浏览器或者http客户端，可能不支持gzip自解压，用户就会看到乱码，所以做一些判断还是有必要的。 
+	# 注：99.99%的浏览器基本上都支持gzip解压了，所以可以不用设这个值,保持系统默认即可。
+	# 假设我们使用的是默认值1.1，如果我们使用了proxy_pass进行反向代理，那么nginx和后端的upstream server之间是用HTTP/1.0协议通信的，如果我们使用nginx通过反向代理做Cache Server，而且前端的nginx没有开启gzip，同时，我们后端的nginx上没有设置gzip_http_version为1.0，那么Cache的url将不会进行gzip压缩
+    #gzip_http_version 1.1;
     # 默认值：1(建议选择为4)
     # gzip压缩比/压缩级别，压缩级别 1-9，级别越高压缩率越大，当然压缩时间也就越长（传输快但比较消耗cpu）。
     gzip_comp_level 6;
     #需要进行gzip压缩的Content-Type的Header的类型。建议js、text、css、xml、json都要进行压缩；图片就没必要了，gif、jpge文件已经压缩得很好了，就算再压，效果也不好，而且还耗费cpu。
-    gzip_types text/HTML text/plain application/x-javascript text/css application/xml;
+    #gzip_types text/HTML text/plain application/x-javascript text/css application/xml;
+    gzip_types text/plain application/javascript application/x-javascript text/css application/xml text/javascript application/x-httpd-php image/jpeg image/gif image/png;
     # 禁用IE6的gzip压缩，又是因为杯具的IE6。当然，IE6目前依然广泛的存在，所以这里你也可以设置为“MSIE [1-5].”
     # IE6的某些版本对gzip的压缩支持很不好，会造成页面的假死，今天产品的同学就测试出了这个问题后来调试后，发现是对img进行gzip后造成IE6的假死，把对img的gzip压缩去掉后就正常了为了确保其它的IE6版本不出问题，所以建议加上gzip_disable的设置
     gzip_disable "msie6";
@@ -129,39 +152,37 @@ http {
     #no_etag - 启用压缩 ,如果header头中不包含 "ETag" 头信息
     #auth - 启用压缩 , 如果header头中包含 "Authorization" 头信息
     #any - 无条件启用压缩
-    gzip_proxied any;
+    gzip_proxied no-cache;
     #尽量发送压缩过的静态文件
     gzip_static on;
-    
-    # fastcgi调优（配合PHP引擎动态服务）
-    fastcgi_connect_timeout    300;	#指定连接到后端fastCGI的超时时间
-    fastcgi_send_timeout    300;	#向FastCGI传送请求的超时时间，这个值是指已经完成两次握手后向FastCGI传送请求的超时时间
-    fastcgi_read_timeout    300;	#指定接收FastcGI应答的超时时间，这个值是指己经完成两次握手后接收FastCGI应答的超时时间
-    fastcgi_buffer_size    32k;	#指定读取FastCGI应答第一部分需要用多大的缓冲区，这个值表示将使用1个64KB的缓冲区读取应答的第一部分（应答头），可以置为fastcgi_buffers选项指定的缓冲区大小。
-    fastcgi_buffers    8 32k;	#指定本地需要用多少和多大的缓冲区来缓冲FastCGI的应答请求。如果一个PHP脚本所产生的页面大小为256KB,为其分配4个64KB的缓冲区来缓存；如果页面大小大于256KB，那么大于256KB的部分会缓存到fastcgi_temp指定的路径中，但是这并不是好方法，因为内存中的数据处理速度要快于硬盘。一般这个值应该为站点中PHP脚本所产生的页面大小的中间值，如果站点大部分脚本所产生的页面大小为256KB，那么可以把这个值设置为"16 16k"、"16 16k" 
-    
-    #负载均衡
-	upstream static_pools {
-		server    10.1.96.3:80 weight=1 max_fails=2 fail_timeout=30s;
-        server    10.1.96.4:80 weight=1 max_fails=2 fail_timeout=30s;
-	}
-
-	include	domains/*.conf;
-}
 ```
 
+
+
 ```shell
-vim domains/*.conf
+vim /etc/nginx/conf.d/*.conf
 server {
 	(配置虚拟主机的相关参数)
-	listen       80;	#监听端口
-	server_name  www.zjswdlt.cn;	#域名可以多个，用空格隔开
-	root         /data/webapps/htdocs;
+	listen       443;	#监听端口
+	server_name  10.81.248.2;	#域名可以多个，用空格隔开
 	access.log   /var/logs/webapps_access.log main
+	
+	root         /var/www/htdocs;
+	index  index.html index.htm;
+	
+	#https证书
+	ssl on;
+    ssl_certificate /etc/ssl/xaest2019/4743589_xaest.xiaoantimes.com.pem;
+    ssl_certificate_key /etc/ssl/xaest2019/4743589_xaest.xiaoantimes.com.key;
+    ssl_session_timeout 5m;
+    ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
+    ssl_ciphers AESGCM:ALL:!DH:!EXPORT:!RC4:+HIGH:!MEDIUM:!LOW:!aNULL:!eNULL;
+    ssl_prefer_server_ciphers on;
+    
 	#配置代理
-	location / {
+	location ^~ /eureka/ {
 	    #代理的后端服务器
-		proxy_pass http://static_pools
+		proxy_pass http://lbEureka/;
 		#关闭proxy重定向
 		proxy_redirect off;
         # 要使用 nginx 代理后台获取真实的 IP 需在 nginx.conf 配置中加入配置信息
@@ -169,8 +190,10 @@ server {
         proxy_set_header X-Real-IP	$remote_addr;	 # 表示客户端真实的IP（remote_addr 是一个 Nginx 的内置变量，它获取到的是 Nginx 层前端的用户 IP 地址，这个地址是一个 4 层的 IP 地址）；
         （相对于下面的方式而言更加准确，因为 remote_addr 是直接获取第一层代理的用户 IP 地址，如果直接把这个地址传递给 X-Real，这样就会更加准确。但是它有什么劣势呢？如果是多级代理的话，用户如果不是直接请求到最终的代理层，而是在中间通过了 n 层带来转发过来的话，此时 remote_addr 可能获取的不是用户的信息，而是 Nginx 最近一层代理过来的 IP 地址，此时同样没有获取到真实的用户 IP 地址信息。）
         proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;	#在多层代理时会包含真实客户端及中间每个代理服务器的IP（加了一个转发到后端的标准 head 信息，把用户的 IP 信息通过 X-Forwarded-For  方式传递过去）
-		proxy_set_header X-Forwarded-Proto	$scheme;	# 表示客户端真实的协议（http还是https）；
+		#proxy_set_header X-Forwarded-Proto	$scheme;	# 表示客户端真实的协议（http还是https）；
 		proxy_set_header X-NginX-Proxy true;
+		proxy_next_upstream error timeout invalid_header http_500 http_502 http_503 http_504;
+        proxy_max_temp_file_size 0;
 		
 		proxy_connect_timeout 90; #nginx 跟后端服务器连接超时时间
 		proxy_send_timeout 90; #nginx向后端发送请求报文的超时时间
@@ -180,7 +203,8 @@ server {
 		proxy_buffer_size 128k;	#缓冲区大小
 		proxy_buffers 4 64k;	#缓冲区数量及每个buffer被分配的内存大小
 		proxy_busy_buffers_size 256k;	#忙碌的缓冲区大小控制同时传递给客户端的buffer数量
-		proxy_max_temp_file_size 256k;
+		#proxy_max_temp_file_size 256k;
+		proxy_temp_file_write_size 64k;
 	}
 	
 	#动静分离
@@ -210,6 +234,8 @@ server {
 	定义日志;
 }
 ```
+
+
 
 ## 日志中变量的含义
 

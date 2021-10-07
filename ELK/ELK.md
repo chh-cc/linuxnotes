@@ -1,14 +1,20 @@
 # ELK
 
+开发人员排查问题，经常上线服务器去查询项目日志
+
+服务器越来越多，项目越来越多，日志类型越来越多
+
 ## 简介
 
-ELK由`Elasticsearch`、`Logstash`和`Kibana`三部分组件组成；
+Elasticsearch：搜索、分析和存储数据，分布式数据库。
 
-Elasticsearch是个开源**分布式搜索引擎**，提供restful web接口。
+Logstash：对**日志进行收集、转换**，并将其存储到数据库中
 
-Logstash是一个完全开源的工具，它可以对你的**日志进行收集**、分析，并将其存储供以后使用
+kibana ：数据可视化
 
-kibana 是一个开源和免费的工具，它可以为 Logstash 和 ElasticSearch 提供的日志分析友好的 **Web 界面**，可以帮助您汇总、分析和搜索重要数据日志。
+Beats ：轻量型采集器的平台，从边缘机器向 Logstash 和 Elasticsearch 发送数据
+
+Filebeat：轻量型日志采集器。
 
 ELK6：默认安装它是开放访问的，需要xpack之类的才能启用认证
 ELK7 :  默认开启安全认证功能
