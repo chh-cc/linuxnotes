@@ -134,5 +134,5 @@ RewriteRule ^(.*)$ https://www.yourdomain.com/$1 [R=301,L]   #需要将yourdomai
   - 假设您已经在CLB、ALB上部署了一个单域名证书（绑定域名为`example.com`），则只有当待部署证书的绑定域名等于或包含`example.com`时（例如，待部署证书的绑定域名为`example.com`和`www.example.com`、`*.example.com`），才可以通过SSL证书服务部署证书到CLB、ALB（替换已部署证书）。
   - 假设您已经在CLB、ALB上部署了一个通配符域名证书（绑定域名为`*.example.com`），则只有当待部署证书的绑定域名等于或包含`*.example.com`时（例如，待部署证书的绑定域名为`*.example.com`和`example.com`），才可以通过SSL证书服务部署证书到CLB、ALB（替换已部署证书）。
 
-部署已签发的证书：
+
 
