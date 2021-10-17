@@ -1,4 +1,4 @@
-# 监控方式
+# agent配置
 
 Zabbix的监控分为主动和被动，这2个都是针对客户端说的。
 
@@ -76,7 +76,9 @@ Include=/etc/zabbix/zabbix_agentd.d/*.conf
 
 ​        <img src="https://gitee.com/c_honghui/picture/raw/master/img/20210425154559.png" alt="img" style="zoom:67%;" />        
 
-取消链接        <img src="https://gitee.com/c_honghui/picture/raw/master/img/20210425154605.png" alt="img" style="zoom:67%;" />        
+取消链接   
+
+​     <img src="https://gitee.com/c_honghui/picture/raw/master/img/20210425154605.png" alt="img" style="zoom:67%;" />        
 
 ​        <img src="https://gitee.com/c_honghui/picture/raw/master/img/20210425154609.png" alt="img" style="zoom:67%;" />        
 

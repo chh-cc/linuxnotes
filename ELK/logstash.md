@@ -10,6 +10,14 @@ logstash的工作流程：input插件 ---> filter ---> output插件，如无需�
 
 ![image-20210325102556762](https://gitee.com/c_honghui/picture/raw/master/img/20210429113307.png)
 
+Input：输入，输出数据可以是Stdin、File、TCP、Redis、Syslog等。 
+
+Filter：过滤，将日志格式化。有丰富的过滤插件：Grok正则捕获、Date时间处理、Json编解码、Mutate数据修改等。 
+
+Output：输出，输出目标可以是Stdout、File、TCP、Redis、ES等。
+
+https://www.elastic.co/guide/en/logstash/current/input-plugins.html
+
 ## 配置文件
 
 vim logstash.yml

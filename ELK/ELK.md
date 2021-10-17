@@ -6,6 +6,10 @@
 
 ## 简介
 
+https://www.elastic.co/cn/
+
+https://www.elastic.co/subscriptions
+
 Elasticsearch：搜索、分析和存储数据，分布式数据库。
 
 Logstash：对**日志进行收集、转换**，并将其存储到数据库中
