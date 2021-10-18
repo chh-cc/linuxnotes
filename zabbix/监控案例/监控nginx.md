@@ -20,7 +20,7 @@ server {
 状态页用于输出nginx的基本状态信息：
 
 ```shell
-curl http://10.80.244.66/nginx_status
+curl http://10.80.244.66/status
 Active connections: 291
 server accepts handled requests
 	16630948 16630948 31070465   #这三个数字分别对应accepts,handled,requests三个值
@@ -76,8 +76,13 @@ $1
 agent添加自定义监控项
 
 ```shell
+vim /etc/zabbix/zabbix_agentd.conf
+UnsafeUserParameters=1
+
 vim /etc/zabbix/zabbix_agentd.d/nginx_status.conf
 UserParameter=nginx_status[*],/opt/scripts/nginx_status.sh $1
+
+systemctl restart zabbix-agent
 ```
 
 测试监控项数据
@@ -86,7 +91,13 @@ UserParameter=nginx_status[*],/opt/scripts/nginx_status.sh $1
 zabbix_get -s 10.80.244.66 -p 10050 -k "nginx_status[active]"
 ```
 
-配置nginx监控模板
+创建nginx监控模板
 
+创建应用集
 
+创建监控项
+
+创建触发器
+
+给主机关联模板
 
