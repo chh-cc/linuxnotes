@@ -93,11 +93,17 @@ zabbix_get -s 10.80.244.66 -p 10050 -k "nginx_status[active]"
 
 创建nginx监控模板
 
-创建应用集
+<img src="https://gitee.com/c_honghui/picture/raw/master/img/20211018231421.png" alt="image-20211018231413972" style="zoom: 67%;" />
+
+创建应用集nginx
 
 创建监控项
 
+<img src="https://gitee.com/c_honghui/picture/raw/master/img/20211018231957.png" alt="image-20211018231957357" style="zoom:67%;" />
+
 创建触发器
 
-给主机关联模板
+<img src="https://gitee.com/c_honghui/picture/raw/master/img/20211018232032.png" alt="image-20211018232032881" style="zoom:67%;" />
+
+把主机关联到模板
 
