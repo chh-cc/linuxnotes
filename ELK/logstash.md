@@ -18,6 +18,10 @@ Output：输出，输出目标可以是Stdout、File、TCP、Redis、ES等。
 
 https://www.elastic.co/guide/en/logstash/current/input-plugins.html
 
+## input插件
+
+
+
 ## 配置文件
 
 vim logstash.yml

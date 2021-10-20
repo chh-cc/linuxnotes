@@ -31,7 +31,61 @@ Replicas：Index的一份或多份副本
 | document      | row                     |
 | field         | Column                  |
 
+## 数据操作
 
+curl -X<verb> '<protocol>://<host>:<port>/<path>?<query_string>' -d '<body>'
+
+| 参数         | 描述                                     |
+| ------------ | ---------------------------------------- |
+| verb         | http方法，如get、post、put、head、delete |
+| host         | es集群中的任意节点主机名                 |
+| port         | es http服务端口，默认9200                |
+| path         | 索引路径                                 |
+| query_string | 可选的查询请求参数                       |
+| -d           | 里面放一个get的json格式请求主体          |
+| body         | 自己写的json格式的请求主体               |
+
+列出所有索引：
+
+https://www.elastic.co/guide/en/elasticsearch/reference/6.2/_list_all_indices.html
+
+创建索引：
+
+https://www.elastic.co/guide/en/elasticsearch/reference/6.2/_create_an_index.html
+
+curl -X PUT "192.168.0.212:9200/logs-2021.10.20"
+
+插入和查询文档：
+
+https://www.elastic.co/guide/en/elasticsearch/reference/6.2/_index_and_query_a_document.html
+
+```shell
+curl -X PUT "192.168.0.212:9200/customer/_doc/1?pretty" -H 'Content-Type: application/json' -d' { "name": "John Doe" } '
+{
+  "_index" : "customer",
+  "_type" : "_doc",
+  "_id" : "1",
+  "_version" : 1,
+  "result" : "created",
+  "_shards" : {
+    "total" : 2,
+    "successful" : 1,
+    "failed" : 0
+  },
+  "_seq_no" : 0,
+  "_primary_term" : 1
+}
+
+curl -X GET "192.168.0.212:9200/customer/_doc/1?pretty"
+{
+  "_index" : "customer",
+  "_type" : "_doc",
+  "_id" : "1",
+  "_version" : 1,
+  "found" : true,
+  "_source" : { "name": "John Doe" }
+}
+```
 
 ## elastic-head视图插件
 
@@ -59,20 +113,31 @@ echo 'export PATH=$PATH:/usr/local/phantomjs-2.1.1-linux-x86_64/bin' >> /etc/pro
 3.elasticsearch-head安装
 
 ```shell
-git clone git://github.com/mobz/elasticsearch-head.gitcd elasticsearch-headnpm install -g cnpm --registry=https://registry.npm.taobao.orgcnpm install
+git clone git://github.com/mobz/elasticsearch-head.gitcd
+cd elasticsearch-head
+npm install
+如果报错，执行操作：
+vim Gruntfile.js
+options: {
+       port: 9100,
+       ...
+       hostname: '*' #增加这行内容
+}
 ```
 
 4.启动
 
 ```shell
-npm run startopen http://localhost:9100/
+npm run start
+open http://localhost:9100/
 ```
 
 5.elasticsearch-head发现主机 并连接
 修改elasticsearch.yml并重启
 
 ```shell
-http.cors.enabled: truehttp.cors.allow-origin: "*"
+http.cors.enabled: true
+http.cors.allow-origin: "*"
 ```
 
 ### 使用
