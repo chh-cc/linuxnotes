@@ -10,17 +10,132 @@ logstash的工作流程：input插件 ---> filter ---> output插件，如无需�
 
 ![image-20210325102556762](https://gitee.com/c_honghui/picture/raw/master/img/20210429113307.png)
 
-Input：输入，输出数据可以是Stdin、File、TCP、Redis、Syslog等。 
+Input：**输入**，输出数据可以是Stdin、File、TCP、Redis、Syslog等。 
 
-Filter：过滤，将日志格式化。有丰富的过滤插件：Grok正则捕获、Date时间处理、Json编解码、Mutate数据修改等。 
+Filter：**过滤**，将日志格式化。有丰富的过滤插件：Grok正则捕获、Date时间处理、Json编解码、Mutate数据修改等。 
 
-Output：输出，输出目标可以是Stdout、File、TCP、Redis、ES等。
+Output：**输出**，输出目标可以是Stdout、File、TCP、Redis、ES等。
 
 https://www.elastic.co/guide/en/logstash/current/input-plugins.html
 
 ## input插件
 
+[Input plugins | Logstash Reference [6.2\] | Elastic](https://www.elastic.co/guide/en/logstash/6.2/input-plugins.html)
 
+stdin示例
+
+```shell
+input {
+    stdin {
+    }
+}
+filter {
+}
+output {
+    stdout {
+        codec => rubydebug
+	}
+}
+
+[root@logstash logstash]# bin/logstash -f config/logstash.conf
+输入123
+{
+      "@version" => "1",
+          "host" => "logstash",
+    "@timestamp" => 2021-10-24T08:51:08.634Z,
+       "message" => "123"
+}
+```
+
+file示例
+
+```shell
+input {
+    file {
+    	path =>"/var/log/messages"
+    	tags =>"123"
+    	type =>"syslog"
+    }
+}
+filter {
+}
+output {
+    stdout {
+        codec => rubydebug
+	}
+}
+
+[root@logstash logstash]# bin/logstash -f config/logstash.conf
+{
+          "path" => "/var/log/messages",
+    "@timestamp" => 2021-10-24T08:55:20.108Z,
+      "@version" => "1",
+          "host" => "logstash",
+       "message" => "Oct 24 16:53:32 logstash journal: g_simple_action_set_enabled: assertion 'G_IS_SIMPLE_ACTION (simple)' failed",
+          "type" => "syslog",
+          "tags" => [
+        [0] "123"
+    ]
+}
+```
+
+tcp示例
+
+```json
+input {
+    tcp {
+    	port =>12345
+    	type =>"nc"
+    }
+}
+filter {
+}
+output {
+    stdout {
+        codec => rubydebug
+	}
+}
+```
+
+beats示例
+
+```json
+input {
+    beats {
+    	port =>5044
+    }
+}
+filter {
+}
+output {
+    stdout {
+        codec => rubydebug
+	}
+}
+```
+
+## codec插件
+
+Logstash处理流程：input->decode->filter->encode->output
+
+
+
+## fileter插件
+
+## output插件
+
+发送到elasticsearch
+
+```shell
+output {
+  elasticsearch {
+    #elasticsearch地址，多个以','隔开
+    hosts => "192.168.71.132:9200"
+    #创建的elasticsearch索引名，可以自定义也可以使用下面的默认
+    index => "%{[@metadata][beat]}-%{[@metadata][version]}-%{+YYYY.MM.dd}"
+  }
+}
+```
 
 ## 配置文件
 
@@ -56,24 +171,6 @@ pipeline.separate_logs: false
 
 
 
-vim logstash.conf
-该文件定义了**logstash从哪里获取输入，然后输出到哪里**
-
-```
-Logstash最简单配置/etc/logstash/conf.d/logstash.conf
-input{
-  stdin{}
-}
-output{
-  stdout{
-    codec=>rubydebug
-  }
-}
-Logstash的启动和测试
-/usr/share/logstash/bin/logstash -f /etc/logstash/conf.d/logstash.conf
-输入字符，查看输出
-```
-
 ```shell
 #从Beats输入，以json格式输出到Elasticsearch
 input {
@@ -82,14 +179,7 @@ input {
     codec => 'json'
   }
 }
-output {
-  elasticsearch {
-    #elasticsearch地址，多个以','隔开
-    hosts => "192.168.71.132:9200"
-    #创建的elasticsearch索引名，可以自定义也可以使用下面的默认
-    index => "%{[@metadata][beat]}-%{[@metadata][version]}-%{+YYYY.MM.dd}"
-  }
-}
+
 
 #从本地收集日志输出到Elasticsearch
 input{
@@ -100,16 +190,6 @@ input{
   }
 }
 
-output{
-  elasticsearch{
-    hosts=>["127.0.0.1:9200"]
-    index => "es-message-%{+YYYY.MM.dd}" #要输入的elasticsearch的索引，没有会自建
-  }
-  #并打印到控制台
-  stdout{
-    codec => rubydebug
-  }
-}
 
 #从kafka输入，以json格式输出到Elasticsearch
 input {
@@ -121,12 +201,6 @@ input {
     # kafka topic 名称    
     topics => 'logstash-topic' 
     codec => 'json'
-  }
-}
-output {
-  elasticsearch {
-    hosts => ["http://localhost:9200"]
-    index => "%{[@metadata][beat]}-%{[@metadata][version]}-%{+YYYY.MM.dd}"
   }
 }
 ```

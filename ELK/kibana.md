@@ -4,7 +4,7 @@
 
 **监听端口：5601**
 
-配置文件kibana.yml
+## 配置文件kibana.yml
 
 ```shell
 #####----------kibana服务相关----------#####
@@ -91,7 +91,7 @@ ops.interval: 5000
 i18n.locale: "en"
 ```
 
-
+## 访问kibana
 
 检查kibana状态：http://localhost:5601/status
 
@@ -105,21 +105,15 @@ i18n.locale: "en"
 
    （画外音：*匹配0个或多个字符； 指定索引默认是为了匹配索引，确切的说是匹配索引名字）
 
+   ![image-20211024230130390](https://gitee.com/c_honghui/picture/raw/master/img/20211024230130.png)
+
+   ![image-20211024225501714](https://gitee.com/c_honghui/picture/raw/master/img/20211024225508.png)
+
 3. 点击“**Next Step**”以选择你想要用来执行基于时间比较的包含timestamp字段的索引。如果你的索引没有基于时间的数据，那么选择“**I don’t want to use the Time Filter**”选项。
 
-4. 点击“**Create index pattern**”按钮来添加索引模式。第一个索引模式自动配置为默认的索引默认，以后当你有多个索引模式的时候，你就可以选择将哪一个设为默认。（提示：Management > Index Patterns）
+   ![image-20211024230213443](https://gitee.com/c_honghui/picture/raw/master/img/20211024230213.png)
 
-#### Discover
+4. 点击“**Create index pattern**”按钮可以再添加索引。第一个索引模式自动配置为默认的索引默认，以后当你有多个索引模式的时候，你就可以选择将哪一个设为默认。（提示：Management > Index Patterns）
 
-你可以从Discover页面交互式的探索你的数据。你可以访问与所选择的索引默认匹配的每个索引中的每个文档。你可以提交查询请求，过滤搜索结构，并查看文档数据。你也可以看到匹配查询请求的文档数量，以及字段值统计信息。如果你选择的索引模式配置了time字段，则文档随时间的分布将显示在页面顶部的直方图中。
-
-![img](https://gitee.com/c_honghui/picture/raw/master/img/20210429113408.png)
-
-#### 设置时间过滤
-
-<img src="https://gitee.com/c_honghui/picture/raw/master/img/20210325105649.png" alt="img" style="zoom:67%;" />
-
-<img src="https://gitee.com/c_honghui/picture/raw/master/img/20210325105727.png" alt="img" style="zoom:67%;" />
-
-<img src="https://gitee.com/c_honghui/picture/raw/master/img/20210325105742.png" alt="img" style="zoom:67%;" />
+   ![image-20211024230439596](https://gitee.com/c_honghui/picture/raw/master/img/20211024230439.png)
 

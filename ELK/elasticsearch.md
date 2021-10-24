@@ -6,6 +6,112 @@
 
 9300端口：分布式节点之间通信的端口
 
+## 配置文件
+
+vim elasticsearch.yml
+
+```shell
+# ---------------------------------- Cluster -----------------------------------
+#es集群名称，es会自动发现在同一网段下的es，如果在同一网段下有多个集群，就可以用这个属性来区分不同的集群
+#识别集群的标识，同一个集群名字必须相同
+cluster.name: my-application
+# ------------------------------------ Node ------------------------------------
+#该节点名称，自定义或者默认
+node.name: ${HOSTNAME}
+#该节点是否可以成为一个master节点
+node.master: true 
+#该节点是否存储数据，即是否是一个数据节点，默认true
+#node.data: true
+#节点的通用属性，用于后期集群进行碎片分配时的过滤
+#node.attr.rack: r1
+
+#index.number_of_shard: 5   【修改每个索引默认shard的数量】
+#index.number_of_replica: 1   【修改每个shard的副本有几个】
+# ----------------------------------- Paths ------------------------------------
+#配置文件路径，默认es安装目录下的config
+path.conf: /path/to/conf
+#数据存储路径，默认es安装目录下的data
+#可以设置多个存储路径，用逗号隔开
+path.data: /path/to/data
+#日志路径，默认es安装目录下的logs
+path.logs: /path/to/logs
+#临时文件路径，默认es安装目录下的work
+path.work: /path/to/work 
+#插件存放路径，默认es安装目录下的plugins
+path.plugins: /path/to/plugins 
+# ----------------------------------- Memory -----------------------------------
+#当JVM开始写入交换空间时（swapping）ElasticSearch性能会低下
+#设置为true来锁住内存,同时也要允许elasticsearch的进程可以锁住内存,linux下可以通过 `ulimit -l unlimited` 命令 
+bootstrap.memory_lock: true
+# 一般是当前cpu的2倍
+processors: 32
+
+thread_pool:
+    write:
+        # 默认是available processors，由17调整到32，一般是当前cpu的2倍
+        size: 32
+        # 由4000调整大小为1000000
+        queue_size: 1000000
+    search:
+        size: 128
+        queue_size: 5000
+        min_queue_size: 1000
+        max_queue_size: 10000
+        auto_queue_frame_size: 2000
+        target_response_time: 1s
+# ---------------------------------- Network -----------------------------------
+#该节点绑定的地址，即对外服务的地址，可以是IP，主机名
+network.host: 0.0.0.0
+#该节点对外服务的http端口，默认9200
+http.port: 9200
+#节点间交互的tcp端口,默认9300
+transport.tcp.port: 9300
+#HTTP请求的最大内容，默认100MB
+http.max_content_length: 100MB
+#HTTP URL的最大长度，默认为4KB
+http.max_initial_line_length: 4KB
+#允许的标头的最大大小，默认为8KB
+http.max_header_size: 8KB
+#压缩，默认true
+http.compression: true
+#压缩级别，有效值:1-9，默认为3
+http.compression_level: 3
+#是否开启http协议对外提供服务,默认为true
+http.enabled: true
+# --------------------------------- Discovery ----------------------------------
+#集群列表
+#port为节点间交互端口，未设置时，默认9300
+discovery.seed_hosts: ["host1:port", "ip2:port"]
+#集群节点IP列表。提供了自动组织集群，自动扫描端口9300-9305连接其他节点。无需额外配置
+discovery.zen.ping.unicast.hosts: ["192.168.1.195", "192.168.1.196", "192.168.1.197"]
+#最少主节点数,为避免脑裂应设置符合节点的法定人数：(nodes / 2 ) + 1
+discovery.zen.minimum_master_nodes: 2
+#初始主节点列表
+cluster.initial_master_nodes: ["node-1", "node-2"]
+# ---------------------------------- Gateway -----------------------------------
+#gateway的类型,默认为local，即为本地文件系统
+gateway.type: local 
+#集群中的N个节点启动后,才允许进行恢复处理，默认3
+gateway.recover_after_nodes: 3
+#设置初始化恢复过程的超时时间,超时时间从上一个配置中配置的N个节点启动后算起 
+gateway.recover_after_time: 5m 
+#设置这个集群中期望有多少个节点，一旦这N个节点启动，立即开始恢复过程
+gateway.expected_nodes: 2
+# ---------------------------------- Various -----------------------------------
+http.cors.enabled: true
+http.cors.allow-origin: "*"
+#删除索引时需要显式名称
+action.destructive_requires_name: true
+action.auto_create_index:  "*"
+xpack.security.enabled: false
+xpack.monitoring.enabled: true
+xpack.graph.enabled: false
+xpack.watcher.enabled: false
+xpack.ml.enabled: false
+```
+
+
+
 ## 概念
 
 Node：运行单个ES实例的服务器 
@@ -28,8 +134,8 @@ Replicas：Index的一份或多份副本
 | ------------- | ----------------------- |
 | index         | database                |
 | type          | table                   |
-| document      | row                     |
-| field         | Column                  |
+| document      | row（行）               |
+| field         | Column（字段）          |
 
 ## 数据操作
 
@@ -86,6 +192,10 @@ curl -X GET "192.168.0.212:9200/customer/_doc/1?pretty"
   "_source" : { "name": "John Doe" }
 }
 ```
+
+查看集群节点：
+
+curl -XGET 'http://127.0.0.1:9200/_cat/nodes?pretty'
 
 ## elastic-head视图插件
 
@@ -151,104 +261,4 @@ http.cors.allow-origin: "*"
 ![file](https://gitee.com/c_honghui/picture/raw/master/img/20210429113116.png)
 
 五星代表是主节点，圆代表是从节点
-
-## 配置文件
-
-vim elasticsearch.yml
-
-```shell
-# ---------------------------------- Cluster -----------------------------------
-#es集群名称，es会自动发现在同一网段下的es，如果在同一网段下有多个集群，就可以用这个属性来区分不同的集群
-#识别集群的标识，同一个集群名字必须相同
-cluster.name: my-application
-# ------------------------------------ Node ------------------------------------
-#该节点名称，自定义或者默认
-node.name: ${HOSTNAME}
-#该节点是否可以成为一个master节点
-node.master: true 
-#该节点是否存储数据，即是否是一个数据节点，默认true
-#node.data: true
-#节点的通用属性，用于后期集群进行碎片分配时的过滤
-#node.attr.rack: r1
-
-#index.number_of_shard: 5   【修改每个索引默认shard的数量】
-#index.number_of_replica: 1   【修改每个shard的副本有几个】
-# ----------------------------------- Paths ------------------------------------
-#配置文件路径，默认es安装目录下的config
-path.conf: /path/to/conf
-#数据存储路径，默认es安装目录下的data
-#可以设置多个存储路径，用逗号隔开
-path.data: /path/to/data
-#日志路径，默认es安装目录下的logs
-path.logs: /path/to/logs
-#临时文件路径，默认es安装目录下的work
-path.work: /path/to/work 
-#插件存放路径，默认es安装目录下的plugins
-path.plugins: /path/to/plugins 
-# ----------------------------------- Memory -----------------------------------
-#当JVM开始写入交换空间时（swapping）ElasticSearch性能会低下
-#设置为true来锁住内存,同时也要允许elasticsearch的进程可以锁住内存,linux下可以通过 `ulimit -l unlimited` 命令 
-bootstrap.memory_lock: true
-
-processors: 32
-# 一般是当前cpu的2倍
-thread_pool:
-    write:
-        size: 32
-        # 默认是available processors，由17调整到32，一般是当前cpu的2倍
-        queue_size: 1000000
-        # 由4000调整大小为1000000
-    search:
-        size: 128
-        queue_size: 5000
-        min_queue_size: 1000
-        max_queue_size: 10000
-        auto_queue_frame_size: 2000
-        target_response_time: 1s
-# ---------------------------------- Network -----------------------------------
-#该节点绑定的地址，即对外服务的地址，可以是IP，主机名
-network.host: 0.0.0.0
-#该节点对外服务的http端口，默认9200
-http.port: 9200
-#节点间交互的tcp端口,默认9300
-transport.tcp.port: 9300
-#HTTP请求的最大内容，默认100MB
-http.max_content_length: 100MB
-#HTTP URL的最大长度，默认为4KB
-http.max_initial_line_length: 4KB
-#允许的标头的最大大小，默认为8KB
-http.max_header_size: 8KB
-#压缩，默认true
-http.compression: true
-#压缩级别，有效值:1-9，默认为3
-http.compression_level: 3
-#是否开启http协议对外提供服务,默认为true
-http.enabled: true
-# --------------------------------- Discovery ----------------------------------
-#集群列表
-#port为节点间交互端口，未设置时，默认9300
-discovery.seed_hosts: ["host1:port", "ip2:port"]
-#初始主节点列表
-cluster.initial_master_nodes: ["node-1", "node-2"]
-# ---------------------------------- Gateway -----------------------------------
-#gateway的类型,默认为local，即为本地文件系统
-gateway.type: local 
-#集群中的N个节点启动后,才允许进行恢复处理，默认3
-gateway.recover_after_nodes: 3
-#设置初始化恢复过程的超时时间,超时时间从上一个配置中配置的N个节点启动后算起 
-gateway.recover_after_time: 5m 
-#设置这个集群中期望有多少个节点，一旦这N个节点启动，立即开始恢复过程
-gateway.expected_nodes: 2
-# ---------------------------------- Various -----------------------------------
-http.cors.enabled: true
-http.cors.allow-origin: "*"
-#删除索引时需要显式名称
-action.destructive_requires_name: true
-action.auto_create_index:  "*"
-xpack.security.enabled: false
-xpack.monitoring.enabled: true
-xpack.graph.enabled: false
-xpack.watcher.enabled: false
-xpack.ml.enabled: false
-```
 
