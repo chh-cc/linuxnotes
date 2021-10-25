@@ -26,6 +26,7 @@ stdin示例
 
 ```shell
 input {
+    #从控制台输入来源
     stdin {
     }
 }
@@ -33,6 +34,7 @@ filter {
 }
 output {
     stdout {
+        #将日志输出到当前终端上显示
         codec => rubydebug
 	}
 }
@@ -51,10 +53,18 @@ file示例
 
 ```shell
 input {
+    #从文件中来
     file {
+        #监听messages文件
     	path =>"/var/log/messages"
+    	#排除不想监听的文件
+    	exclude =>"1.log"
+    	#增加标签
     	tags =>"123"
+    	#定义类型
     	type =>"syslog"
+    	#监听文件的起始位置，默认是end
+    	start_position => beginning
     }
 }
 filter {
@@ -79,24 +89,6 @@ output {
 }
 ```
 
-tcp示例
-
-```json
-input {
-    tcp {
-    	port =>12345
-    	type =>"nc"
-    }
-}
-filter {
-}
-output {
-    stdout {
-        codec => rubydebug
-	}
-}
-```
-
 beats示例
 
 ```json
@@ -117,6 +109,57 @@ output {
 ## codec插件
 
 Logstash处理流程：input->decode->filter->encode->output
+
+codec是基于数据流的过滤器，它可以作为input，output的一部分配置。Codec可以帮助你轻松的分割发送过来已经被序列化的数据。
+
+json编码
+
+```shell
+input {
+	file {
+		path => "/var/log/nginx/access.log_json""
+		codec => "json"
+	}
+}
+```
+
+Multiline合并多行数据
+
+```shell
+input {
+	stdin {
+		codec => multiline {
+			pattern => "^\["
+			negate => true
+			what => "previous"
+		}
+	}
+}
+
+输入：
+[Aug/08/08 14:54:03] hello world
+[Aug/08/09 14:54:04] hello logstash
+hello best practice
+hello raochenlin
+[Aug/08/10 14:54:05] the end
+
+输出：
+{
+"@timestamp" => "2014-08-09T13:32:03.368Z",
+"message" => "[Aug/08/08 14:54:03] hello world\n",
+"@version" => "1",
+"host" => "raochenlindeMacBook-Air.local"
+}
+{
+"@timestamp" => "2014-08-09T13:32:24.359Z",
+"message" => "[Aug/08/09 14:54:04] hello logstash\n\n hello best practice\n\n hello raochenlin\n",
+"@version" => "1",
+"tags" => [
+[0] "multiline"
+],
+"host" => "raochenlindeMacBook-Air.local"
+}
+```
 
 
 
