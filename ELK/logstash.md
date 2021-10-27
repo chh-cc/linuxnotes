@@ -16,11 +16,9 @@ Filter：**过滤**，将日志格式化。有丰富的过滤插件：Grok正则
 
 Output：**输出**，输出目标可以是Stdout、File、TCP、Redis、ES等。
 
-https://www.elastic.co/guide/en/logstash/current/input-plugins.html
-
 ## input插件
 
-[Input plugins | Logstash Reference [6.2\] | Elastic](https://www.elastic.co/guide/en/logstash/6.2/input-plugins.html)
+https://www.elastic.co/guide/en/logstash/current/input-plugins.html
 
 stdin示例
 
@@ -40,7 +38,9 @@ output {
 }
 
 [root@logstash logstash]# bin/logstash -f config/logstash.conf
-输入123
+输入：
+123
+输出：
 {
       "@version" => "1",
           "host" => "logstash",
@@ -55,15 +55,15 @@ file示例
 input {
     #从文件中来
     file {
-        #监听messages文件
+        #读取messages文件
     	path =>"/var/log/messages"
-    	#排除不想监听的文件
+    	#排除不想读取的文件
     	exclude =>"1.log"
     	#增加标签
     	tags =>"123"
     	#定义类型
     	type =>"syslog"
-    	#监听文件的起始位置，默认是end
+    	#读取文件的起始位置，默认是end
     	start_position => beginning
     }
 }
@@ -76,6 +76,7 @@ output {
 }
 
 [root@logstash logstash]# bin/logstash -f config/logstash.conf
+输出：
 {
           "path" => "/var/log/messages",
     "@timestamp" => 2021-10-24T08:55:20.108Z,
@@ -91,7 +92,8 @@ output {
 
 beats示例
 
-```json
+```shell
+#从beats输入
 input {
     beats {
     	port =>5044
@@ -106,6 +108,23 @@ output {
 }
 ```
 
+redis示例
+
+```shell
+input {
+	redis {
+		host => "192.168.10.10"
+		port => 6379
+		password => "123456"
+		db => "0"
+		data_type => "list"
+		key => "filebeat"
+	}
+}
+```
+
+
+
 ## codec插件
 
 Logstash处理流程：input->decode->filter->encode->output
@@ -118,6 +137,7 @@ json编码
 input {
 	file {
 		path => "/var/log/nginx/access.log_json""
+		#输入预定好的json数据
 		codec => "json"
 	}
 }
@@ -161,9 +181,104 @@ hello raochenlin
 }
 ```
 
-
-
 ## fileter插件
+
+https://www.elastic.co/guide/en/logstash/current/filter-plugins.html
+
+### grok
+
+复杂
+
+匹配非结构化的日志然后结构化输出，使用一整行日志无法分析，需要提取单独的字段，分析哪个IP访问量大，分析Nginx的响应状态码
+
+https://github.com/logstash-plugins/logstash-patterns-core/blob/master/patterns
+
+[Grok Debugger](http://grokdebug.herokuapp.com/)
+
+```
+普通正则表达式符号
+ . 表示任意一个字符，* 表示前面一个字符出现0次或者多次
+ [abc]表示中括号内任意一个字符，[^abc]表示非中括号内的字符
+ [0-9]表示数字，[a-z]表示小写字母，[A-Z]表示大写字母，[a-zA-Z]表示所有字母，[a-zA-Z0-9]表示所有字母+数字
+ [^0-9]表示非数字
+ ^xx表示以xx开头，xx$表示以xx结尾
+ \s表示空白字符，\S表示非空白字符，\d表示数字
+```
+
+```
+扩展正则表达式，在普通正则基础上再进行扩展
+ ?表示前面字符出现0或者1次，+前面字符出现1或者多次
+ {a}表示前面字符匹配a次，{a,b}表示前面字符匹配a到b次
+ {,b}表示前面字符匹配0次到b次，{a,}前面字符匹配a或a+次
+ string1|string2表示匹配string1或者string2
+```
+
+示例：
+
+```shell
+input {
+    stdin {
+    }
+}
+filter {
+	grok {
+		match => { 
+			"message" => "%{IP:client} %{WORD:method} %{URIPATHPARAM:request} %{NUMBER:bytes} %{NUMBER:duration}" 
+		}
+	}
+}
+output {
+    stdout {
+        codec => rubydebug
+	}
+}
+
+输入：
+223.72.85.86 GET /index.html 15824 0.043
+输出：
+{
+	"@version" => "1",
+	"bytes" => "15824",
+	"client" => "223.72.85.86",
+	"@timestamp" => 2018-05-27T08:30:08.06Z,
+	"message" => "223.72.85.86 GET /index.html 15824 0.043",
+	"host" => "localhost.localdomain",
+	"request" => "/index.html",
+	"method" => "GET",
+	"duration" => "0.043",
+}
+```
+
+自定义模式：
+
+```shell
+# vi /opt/patterns
+ID [0-9A-Z]{10,11}
+
+filter {
+	grok {
+		patterns_dir =>"/opt/patterns"
+		match => {
+			"message" => "%{IP:client} %{WORD:method} %{URIPATHPARAM:request} %{NUMBER:bytes} %{NUMBER:duration} %{ID:id}" 
+		}
+	}
+}
+```
+
+多模式匹配：
+
+```shell
+filter {
+	grok {
+	patterns_dir =>"/opt/patterns"
+	#match多模式匹配
+	match => [
+		"message", "%{IP:client} %{WORD:method} %{URIPATHPARAM:request} %{NUMBER:bytes} %{NUMBER:duration} %{ID:id}",
+		"message", "%{IP:client} %{WORD:method} %{URIPATHPARAM:request} %{NUMBER:bytes} %{NUMBER:duration} %{TAG:tag}"
+	]
+	}
+}
+```
 
 ## output插件
 
@@ -214,78 +329,9 @@ pipeline.separate_logs: false
 
 
 
-```shell
-#从Beats输入，以json格式输出到Elasticsearch
-input {
-  beats {
-    port => 5044
-    codec => 'json'
-  }
-}
 
 
-#从本地收集日志输出到Elasticsearch
-input{
-  #读取文件
-  file{
-    path => "/var/log/*.log"
-    type => "system"
-  }
-}
 
-
-#从kafka输入，以json格式输出到Elasticsearch
-input {
-  kafka {
-    #kafka地址，多个用逗号','隔开
-    bootstrap_servers => ["ip1:port2","ip2:port2"]
-    #消费者组
-    group_id => 'test'       
-    # kafka topic 名称    
-    topics => 'logstash-topic' 
-    codec => 'json'
-  }
-}
-```
-
-## logstash正则提取日志
-
-为什么需要提取？使用一整行日志无法分析，需要提取单独的字段
- 分析哪个IP访问量大
- 分析Nginx的响应状态码
-
-Grok提取利器，需要掌握正则表达式。借助Kibana的Grok工具验证提取
- 自写正则提取(建议)
- 内置规则提取（简化）：/usr/share/logstash/vendor/bundle/jruby/2.5.0/gems/logstash-patterns-core-4.1.2/patterns/grok-patterns
-
-```
-Grok自写正则提取语法：(?<字段名>自写正则表达式)
-(?<remote_addr>\d+\.\d+\.\d+\.\d+)
-
-内置正则提取语法：%{内置正则表达式:字段名}
-%{IP:remote_addr} - (%{WORD:remote_user}|-) \[%{HTTPDATE:time_local}\] "%{WORD:method} %{NOTSPACE:request} HTTP/%{NUMBER}" %{NUMBER:status} %{NUMBER:body_bytes_sent} %{QS} %{QS:http_user_agent}
-
-混合语法提取
-(?<remote_addr>\d+\.\d+\.\d+\.\d+) - (%{WORD:remote_user}|-) \[%{HTTPDATE:time_local}\]
-```
-
-```
-普通正则表达式符号
- . 表示任意一个字符，* 表示前面一个字符出现0次或者多次
- [abc]表示中括号内任意一个字符，[^abc]表示非中括号内的字符
- [0-9]表示数字，[a-z]表示小写字母，[A-Z]表示大写字母，[a-zA-Z]表示所有字母，[a-zA-Z0-9]表示所有字母+数字
- [^0-9]表示非数字
- ^xx表示以xx开头，xx$表示以xx结尾
- \s表示空白字符，\S表示非空白字符，\d表示数字
-```
-
-```
-扩展正则表达式，在普通正则基础上再进行扩展
- ?表示前面字符出现0或者1次，+前面字符出现1或者多次
- {a}表示前面字符匹配a次，{a,b}表示前面字符匹配a到b次
- {,b}表示前面字符匹配0次到b次，{a,}前面字符匹配a或a+次
- string1|string2表示匹配string1或者string2
-```
 
 Logstash正则提取Nginx:
 

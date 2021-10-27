@@ -21,7 +21,7 @@ node.name: ${HOSTNAME}
 #该节点是否可以成为一个master节点
 node.master: true 
 #该节点是否存储数据，即是否是一个数据节点，默认true
-#node.data: true
+node.data: true
 #节点的通用属性，用于后期集群进行碎片分配时的过滤
 #node.attr.rack: r1
 
@@ -81,13 +81,15 @@ http.enabled: true
 # --------------------------------- Discovery ----------------------------------
 #集群列表
 #port为节点间交互端口，未设置时，默认9300
-discovery.seed_hosts: ["host1:port", "ip2:port"]
+discovery.seed_hosts: ["ip1:port", "ip2:port"]
 #集群节点IP列表。提供了自动组织集群，自动扫描端口9300-9305连接其他节点。无需额外配置
 discovery.zen.ping.unicast.hosts: ["192.168.1.195", "192.168.1.196", "192.168.1.197"]
 #最少主节点数,为避免脑裂应设置符合节点的法定人数：(nodes / 2 ) + 1
 discovery.zen.minimum_master_nodes: 2
 #初始主节点列表
-cluster.initial_master_nodes: ["node-1", "node-2"]
+cluster.initial_master_nodes: ["ip1", "ip2"]
+#单机运行
+#discovery.type: single-node
 # ---------------------------------- Gateway -----------------------------------
 #gateway的类型,默认为local，即为本地文件系统
 gateway.type: local 
@@ -109,8 +111,6 @@ xpack.graph.enabled: false
 xpack.watcher.enabled: false
 xpack.ml.enabled: false
 ```
-
-
 
 ## 概念
 
@@ -138,6 +138,8 @@ Replicas：Index的一份或多份副本
 | field         | Column（字段）          |
 
 ## 数据操作
+
+用curl操作会比较麻烦
 
 curl -X<verb> '<protocol>://<host>:<port>/<path>?<query_string>' -d '<body>'
 
@@ -193,7 +195,7 @@ curl -X GET "192.168.0.212:9200/customer/_doc/1?pretty"
 }
 ```
 
-查看集群节点：
+查看集群节点，标记为*的为master节点：
 
 curl -XGET 'http://127.0.0.1:9200/_cat/nodes?pretty'
 

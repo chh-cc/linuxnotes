@@ -1,29 +1,12 @@
 # filebeat
 
+https://www.elastic.co/guide/en/beats/filebeat/current/index.html
+
 隶属于Beats,**轻量级数据收集引擎**。
 
-不需要使用正则的时候
- 可直接用filebeat发送日志给es，用得比较少
- 用得比较多filebeat -> Logstash做一些日志的分析提取
+不需要使用正则的时候可直接用filebeat发送日志给es，用得比较少；用得比较多filebeat -> Logstash做一些日志的分析提取
 
-
-
-先创建索引模板，不然filebeat创建的索引模板无用内容较多
-
-```
-PUT _template/sjgtemplate
-{
-  "index_patterns": ["sjg*"],
-  "settings":{
-    "number_of_shards": 2,
-    "number_of_replicas": 0
-  }
-}
-```
-
-
-
-配置文件：
+## 配置文件
 
 filebeat.yml
 
@@ -33,7 +16,8 @@ filebeat.prospectors:
 #默认log，从日志文件读取每一行。stdin，从标准输入读取
 - input_type: log
 #日志文件路径列表，可用通配符，不递归
-paths:     - /var/log/*.log
+paths:
+  - /var/log/*.log
 #编码，默认无，plain(不验证或者改变任何输入), latin1, utf-8, utf-16be-bom, utf-16be, utf-16le, big5, gb18030, gbk, hz-gb-2312, euc-kr, euc-jp, iso-2022-jp, shift-jis
 encoding: plain
 #匹配行，后接一个正则表达式列表，默认无，如果启用，则filebeat只输出匹配行，如果同时指定了多行匹配，仍会按照include_lines做过滤
@@ -77,7 +61,9 @@ filebeat.registry_file: ${path.data}/registry
 filebeat.config_dir
 ```
 
+## 配置发送日志
 
+filebeat.yml
 
 Filebeat发送日志到ES:
 
@@ -87,22 +73,16 @@ filebeat.inputs:
   tail_files: true
   backoff: "1s"
   paths:
-    - /var/log/secure
+    - /var/log/nginx/access.log
+  fields:
+    type: access
+  fields_under_root: true    
     
-processors:
-- drop_fields:
-    fields: ["agent","ecs","input"]
-    
-output:
-  elasticsearch:
+output.elasticsearch:
     hosts: ["192.168.238.90:9200", "192.168.238.92:9200"]
     username: elastic
     password: sjgpwd
     index: "sjgfb-secure-%{+YYYY.MM.dd}"
-    
-setup.template.name: "sjgtemplate"
-setup.template.pattern: "sjg*"
-setup.ilm.enabled: false
 ```
 
  Filebeat发送到Logstash
@@ -114,17 +94,13 @@ filebeat.inputs:
   backoff: "1s"
   paths:
     - /var/log/secure
-
-processors:
-- drop_fields:
-    fields: ["agent","ecs","log","input"]
     
 output:
   logstash:
   hosts: ["192.168.238.90:5044"]
 ```
 
-Filebeat采集多个日志输出到文件:
+Filebeat发送日志到redis:
 
 ```
 filebeat.inputs:
@@ -132,113 +108,16 @@ filebeat.inputs:
   tail_files: true
   backoff: "1s"
   paths:
-      - /var/log/nginx/access.log
+    - /var/log/nginx/access.log
   fields:
     type: access
   fields_under_root: true
- 
-- type: log
-  tail_files: true
-  backoff: "1s"
-  paths:
-      - /var/log/secure
-  fields:
-    type: system
-  fields_under_root: true
- 
-processors:
-- drop_fields:
-    fields: ["agent","ecs","log","input"]
- 
-output.file:
-  path: "/tmp/filebeat"
-  filename: filebeat
-```
-
-
-
-output.elasticsearch
-
-```shell
-#启用模块
-enabled: true
-#ES地址
-hosts: [“localhost:9200”]
-#gzip压缩级别，默认0，不压缩，压缩耗CPU
-compression_level: 0
-#每个ES的worker数，默认1
-worker: 1
-#可选配置，ES索引名称，默认filebeat-%{+yyyy.MM.dd}
-index: “filebeat-%{+yyyy.MM.dd}”
-#可选配置，输出到ES接收节点的pipeline，默认无
-pipeline: “”
-#可选的，HTTP路径，默认无
-path: “/elasticsearch”
-#http代理服务器地址，默认无
-proxy_url: http://proxy:3128
-#ES重试次数，默认3次，超过3次后，当前事件将被丢弃
-max_retries: 3
-#对一个单独的ES批量API索引请求的最大事件数,默认50
-bulk_max_size: 50
-#到ES的http请求超时时间,默认90秒
-timeout: 90
-```
-
-output.logstash
-
-```shell
-#启用模块
-enabled: true
-#logstash地址
-hosts: [“localhost:5044”]
-#每个logstash的worker数，默认1
-worker: 1
-#压缩级别，默认3
-compression_level: 3
-#负载均衡开关，在不同的logstash间负载
-loadbalance: true
-#在处理新的批量期间，异步发送至logstash的批量次数
-pipelining: 0
-#可选配置，索引名称，默认为filebeat
-index: ‘filebeat’
-#socks5代理服务器地址
-proxy_url: socks5://user:password@socks5-server:2233
-#使用代理时是否使用本地解析，默认false
-proxy_use_local_resolver: false
-```
-
-output.redis
-
-```shell
-#启用模块
-enabled: true
-#logstash地址
-hosts: [“localhost:6379”]
-#redis地址，地址为一个列表，如果loadbalance开启，则负载到里表中的服务器，当一个redis服务器不可达，事件将被分发到可到达的redis服务器
-worker: 1
-#redis端口，如果hosts内未包含端口信息，默认6379
-port: 6379
-#事件发布到redis的list或channel，默认filebeat
-key: filebeat
-#redis密码，默认无
-password:
-#redis的db值，默认0
-db: 0
-#发布事件使用的redis数据类型，如果为list，使用RPUSH命令（生产消费模式）。如果为channel，使用PUBLISH命令{发布订阅模式}。默认为list
-datatype: list
-#为每个redis服务器启动的工作进程数，会根据负载均衡配置递增
-worker: 1
-#负载均衡，默认开启
-loadbalance: true
-#redis连接超时时间，默认5s
-timeout: 5s
-#filebeat会忽略此设置，并一直重试到全部发送为止，其他beat设置为0即忽略，默认3
-max_retries: 3
-#对一个redis请求或管道批量的最大事件数，默认2048
-bulk_max_size: 2048
-#socks5代理地址，必须使用socks5://
-proxy_url:
-#使用代理时是否使用本地解析，默认false
-proxy_use_local_resolver: false
+  
+output.redis:
+  hosts: ["192.168.10.10"]
+  password: "123456"
+  key: "filebeat"
+  db: 0
+  timeout: 5
 ```
 

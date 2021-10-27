@@ -27,7 +27,7 @@ server.name: "your-hostname"
 pid.file: /var/run/kibana.pid
 #####----------elasticsearch相关----------#####
 #kibana访问es服务器的URL,就可以有多个，以逗号","隔开
-elasticsearch.hosts: ["http://localhost:9200"]
+elasticsearch.hosts: ["http://ip1:9200","http://ip2:9200"]
 #当此值为true时，Kibana使用server.host设定的主机名
 #当此值为false时，Kibana使用连接Kibana实例的主机的主机名
 #默认ture
