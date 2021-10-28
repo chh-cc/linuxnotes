@@ -95,8 +95,7 @@ filebeat.inputs:
   paths:
     - /var/log/secure
     
-output:
-  logstash:
+output.logstash:
   hosts: ["192.168.238.90:5044"]
 ```
 

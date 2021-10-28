@@ -329,50 +329,6 @@ pipeline.separate_logs: false
 
 
 
-
-
-
-
-Logstash正则提取Nginx:
-
-```
-filter {
-  grok {
-    match => {
-      "message" => '%{IP:remote_addr} - (%{WORD:remote_user}|-) \[%{HTTPDATE:time_local}\] "%{WORD:method} %{NOTSPACE:request} HTTP/%{NUMBER}" %{NUMBER:status} %{NUMBER:body_bytes_sent} %{QS} %{QS:http_user_agent}'
-    }
-    remove_field => ["message"]
-  }
-}
-```
-
-Logstash字段特殊处理-替换或转类型:
-
-```
-http_user_agent包含双引号，需要去除
-filter {
-  grok {
-    match => {
-   "message" => '%{IP:remote_addr} - (%{WORD:remote_user}|-) \[%{HTTPDATE:time_local}\] "%{WORD:method} %{NOTSPACE:request} HTTP/%{NUMBER}" %{NUMBER:status} %{NUMBER:body_bytes_sent} %{QS} %{QS:http_user_agent}'
-    }
-    remove_field => ["message"]
-  }
-  mutate {
-    gsub => [ "http_user_agent",'"',"" ]
-  }
-}
-```
-
-Logstash字符串转整形:
-
-```
-mutate{
-  gsub => [ "http_user_agent",'"',"" ]
-  convert => { "status" => "integer" }
-  convert => { "body_bytes_sent" => "integer" }
-}
-```
-
 Logstash分析Linux系统日志:
 
 ```
