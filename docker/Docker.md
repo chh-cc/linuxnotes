@@ -4,11 +4,11 @@
 
 go语言开发的
 
-通过部署容器方式实现，每个容器之间互相隔离，每个容器有自己的文件系统 ，容器之间进程不会相互影响，能区分计算资源。相对于虚拟机，容器能快速部署，由于容器与底层设施、机器文件系统解耦的，所以它能在不同云、不同版本操作系统间进行迁移。
+通过部署容器方式实现，每个容器之间互相隔离，每个容器有自己的文件系统 ，容器之间进程不会相互影响，能区分计算资源。
 
 **docker可以实现虚拟机隔离应用环境的功能，并且开销比虚拟机小**。
 
-Docker将应用程序与该程序的依赖，打包在一个文件里面。运行这个文件，就会生成一个虚拟容器。程序在这个虚拟容器里运行，就好像在真实的物理机上运行一样。有了 Docker，就不用担心环境问题。
+把应用程序（1.jar）根据某个依赖的（java）基础镜像，生成一个应用程序镜像，这个应用程序镜像可以在任何部署了docker环境的机器上运行
 
 docker容器镜像官网：
 
@@ -31,10 +31,6 @@ docker国内加速镜像站：
 2.提供弹性的云服务。因为Docker容器可以随开随关，很适合动态扩容和缩容。
 
 3.组建微服务架构。通过多个容器，一台机器可以跑多个服务，因此在本机就可以模拟出微服务架构。
-
-### docker VS 虚拟机
-
-
 
 ### Docker应用建议
 
@@ -350,11 +346,11 @@ Hello from Docker!
 ```shell
 [root@localhost ~]# docker search centos
 NAME                      DESCRIPTION                                     STARS               OFFICIAL            AUTOMATED
------显示内容描述—
+-----显示内容描述—----
 NAME：          - 镜像名称
 DESCRIPTION：   - 镜像描述说明
 STARS：         - 收藏数量
-OFFICIAL：      - “OK”表示官方镜像
+OFFICIAL：      - “OK”表示官方镜像，一般使用官方的镜像或者自己做的
 AUTOMATED：     - “OK” 表示自助构建
 ```
 
@@ -693,11 +689,16 @@ Runtimes: runc    ## runtimes 信息
 
 Dockerfile 是一个文本文件，其内包含了一条条的指令(Instruction)，每一条指令构建一层，因此每一条指令的内容，就是描述该层应当如何构建。
 
-**生产实践中一定优先使用 Dockerfile 的方式构建镜像。** 因为使用 Dockerfile 构建镜像可以带来很多好处：
+**生产实践中一定优先使用 Dockerfile 的方式构建镜像。**用commit创建的镜像会比较大。 使用 Dockerfile 构建镜像可以带来很多好处：
 
 - 易于版本化管理，Dockerfile 本身是一个文本文件，方便存放在代码仓库做版本管理，可以很方便地找到各个版本之间的变更历史；
 - 过程可追溯，Dockerfile 的每一行指令代表一个镜像层，根据 Dockerfile 的内容即可很明确地查看镜像的完整构建过程；
 - 屏蔽构建环境异构，使用 Dockerfile 构建镜像无须考虑构建环境，基于相同 Dockerfile 无论在哪里运行，构建结果都一致。
+
+制作小镜像：
+
+- 不要使用centos镜像，首选apline，如果用到Glibc，可以是node:slim、python:slim
+- 使用多阶段构建（多个from）
 
 ### dockerfile语法
 
@@ -716,6 +717,16 @@ FROM centos:7.5                                          #or
 FROM <image>[@<digest>] [AS <name>]
 
 注意：如果是从私有仓库拉取镜像，如果有配置权限，那么需要先登录到私有仓库。
+
+多阶段构建：
+#build
+FROM golang:1.14.4-apline
+RUN go build /opt/main.go
+CMD "./opt/main"
+#create image
+FROM aline:3.8
+COPY --from=0 /opt/main /
+CMD "./main"
 ```
 
 **MAINTAINER**
@@ -757,7 +768,7 @@ ENV LANG en_us.UTF-8
 **RUN**
 
 ```dockerfile
-构建指令，RUN可以运行任何被基础image支持的命令。 这些命令包括安装软件、创建文件和目录，以及创建环境配置等。基本就是shell脚本。
+构建指令，用来执行shell命令。 这些命令包括安装软件、创建文件和目录，以及创建环境配置等。
 RUN <command>或RUN ["executable"，"param1"，"param2"]
 前者将在shell终端中运行命令，即/bin/sh -c；后者则使用exec执行，可以用来指定其它形式的shell来运行指令。
 RUN yum update && yum install -y vim \
@@ -789,7 +800,7 @@ CMD command param1 param2                 #在/bin/sh中执行，提供给需要
 **ENTRYPOINT**（无法被替换）
 
 ```dockerfile
-指定容器启动时执行的命令，并且不可被docker run提供的参数覆盖。每个Dockerfile中只能有一个ENTRYPOINT
+启动容器真正执行的命令，并且不可被docker run提供的参数覆盖。每个Dockerfile中只能有一个ENTRYPOINT
 ENTRYPOINT ["executable", "param1", "param2"] (exec form, preferred)
 例：ENTRYPOINT ["/bin/echo", "hello Ding"]
    ENTRYPOINT ["/bin/sh/", "-c", "/bin/echo hello $name" ]
@@ -811,7 +822,7 @@ LABEL maintainer="394498036@qq.com"
 **EXPOSE**
 
 ```dockerfile
-声明镜像内服务所监听的端口
+暴露的端口号
 EXPOSE <port> [<port>/<protocol>...]
 EXPOSE 22 80 8443
 注意，该指令只是起到声明作用，并不会自动完成端口映射。
@@ -902,31 +913,6 @@ CMD ["java","-version"]
 [root@Pagerduty /jdk]# docker run -it --name=jre-V1.1  jre8:1.5 bash
 bash-4.3#
 ```
-
-### 操作系统
-
-BusyBox
-
-```text
-BusyBox是一个集成了一百多个最常用Linux命令和工具（如cat、echo、grep、mount、telnet等）的精简工具箱，它只有几 MB的大小，很方便进行各种快速验证，被誉为“Linux系统的瑞士军刀”。BusyBox可运行于多款POSIX 环境的操作系统中，如Linux（包括Android）、Hurd、FreeBSD等。
-```
-
-Alpine
-
-```text
-Alpine镜像适用于更多常用场景，并且是一个优秀的可以适用于生产的基础系统/环境。
-Alpine Docker镜像的容量非常小，仅仅只有5MB左右（Ubuntu系列镜像接近200MB），且拥有非常友好的包管理机制。官方镜像来自docker-alpine项目。
-目前Docker官方已开始推荐使用Alpine替代之前的Ubuntu作为基础镜像环境。这样会带来多个好处，包括镜像下载速度加快，镜像安全性提高，主机之间的切换更方便，占用更少磁盘空间等。
-ubuntu/debian -> alpine
-python:2.7 -> python:2.7-alpine
-ruby:2.3 -> ruby:2.3-alpine
-```
-
-Debian
-
-Ubuntu
-
-CentOS
 
 ### 为镜像添加ssh服务
 
