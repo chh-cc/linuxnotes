@@ -6,6 +6,8 @@
 
 9300端口：分布式节点之间通信的端口
 
+不要用root用户启动
+
 ## 配置文件
 
 vim elasticsearch.yml
@@ -137,6 +139,8 @@ Replicas：Index的一份或多份副本
 | document      | row（行）               |
 | field         | Column（字段）          |
 
+注：在ES7之后取消了type的概念，每个index下面只有一个默认的_doc的type，即是说在ES7之后的版本中，是库表合一的
+
 ## 数据操作
 
 用curl操作会比较麻烦
@@ -156,6 +160,10 @@ curl -X<verb> '<protocol>://<host>:<port>/<path>?<query_string>' -d '<body>'
 列出所有索引：
 
 https://www.elastic.co/guide/en/elasticsearch/reference/6.2/_list_all_indices.html
+
+```shell
+curl -XGET "192.168.0.212:9200/_cat/indices?v"
+```
 
 创建索引：
 

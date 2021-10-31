@@ -67,7 +67,7 @@ filebeat.yml
 
 Filebeat发送日志到ES:
 
-```
+```shell
 filebeat.inputs:
 - type: log
   tail_files: true
@@ -75,14 +75,23 @@ filebeat.inputs:
   paths:
     - /var/log/nginx/access.log
   fields:
-    type: access
-  fields_under_root: true    
+    #区分access和error日志
+    filetype: access
+  fields_under_root: true
+- type: log
+  tail_files: true
+  backoff: "1s"
+  paths:
+    - /var/log/nginx/error.log
+  fields:
+    filetype: error
+  fields_under_root: true 
     
 output.elasticsearch:
     hosts: ["192.168.238.90:9200", "192.168.238.92:9200"]
     username: elastic
     password: sjgpwd
-    index: "sjgfb-secure-%{+YYYY.MM.dd}"
+    index: "nginx-%{+YYYY.MM.dd}"
 ```
 
  Filebeat发送到Logstash

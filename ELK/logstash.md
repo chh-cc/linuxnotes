@@ -32,7 +32,7 @@ filter {
 }
 output {
     stdout {
-        #将日志输出到当前终端上显示
+        #将日志输出到当前终端上显示,用于调试
         codec => rubydebug
 	}
 }
@@ -52,6 +52,7 @@ output {
 file示例
 
 ```shell
+vim messages.conf
 input {
     #从文件中来
     file {
@@ -75,7 +76,7 @@ output {
 	}
 }
 
-[root@logstash logstash]# bin/logstash -f config/logstash.conf
+[root@logstash logstash]# bin/logstash -f config/messages.conf
 输出：
 {
           "path" => "/var/log/messages",
@@ -93,6 +94,7 @@ output {
 beats示例
 
 ```shell
+vim logstash_from_filebeat.conf
 #从beats输入
 input {
     beats {
@@ -100,17 +102,17 @@ input {
     }
 }
 filter {
+    ...
 }
 output {
-    stdout {
-        codec => rubydebug
-	}
+    ...
 }
 ```
 
 redis示例
 
 ```shell
+vim logstash_from_redis.conf
 input {
 	redis {
 		host => "192.168.10.10"
@@ -121,13 +123,12 @@ input {
 		key => "filebeat"
 	}
 }
+...
 ```
-
-
 
 ## codec插件
 
-Logstash处理流程：input->decode->filter->encode->output
+Logstash处理流程：input->decode（解码）->filter->encode（编码）->output
 
 codec是基于数据流的过滤器，它可以作为input，output的一部分配置。Codec可以帮助你轻松的分割发送过来已经被序列化的数据。
 
@@ -217,35 +218,28 @@ https://github.com/logstash-plugins/logstash-patterns-core/blob/master/patterns
 
 ```shell
 input {
-    stdin {
+    file {
+        path => "/usr/local/nginx/logs/access.log"
+        type => "system"
+        start_position => "beginning"
     }
 }
 filter {
 	grok {
-		match => { 
-			"message" => "%{IP:client} %{WORD:method} %{URIPATHPARAM:request} %{NUMBER:bytes} %{NUMBER:duration}" 
-		}
+		match => { "message" => "%{HTTPD_COMBINEDLOG}" }
+		#@timestamp时间是指logstash读取到日志的时间而不是日志生产的时间，要用日志的真实时间戳
+	}
+	date {
+		#匹配timestamp字段
+		match => ["timestamp","dd/MMM/yyy:HH:mm:ss Z"]
+		#将匹配到的数据写到@timestamp字段中
+		target => "@timestamp"
 	}
 }
 output {
     stdout {
         codec => rubydebug
 	}
-}
-
-输入：
-223.72.85.86 GET /index.html 15824 0.043
-输出：
-{
-	"@version" => "1",
-	"bytes" => "15824",
-	"client" => "223.72.85.86",
-	"@timestamp" => 2018-05-27T08:30:08.06Z,
-	"message" => "223.72.85.86 GET /index.html 15824 0.043",
-	"host" => "localhost.localdomain",
-	"request" => "/index.html",
-	"method" => "GET",
-	"duration" => "0.043",
 }
 ```
 
@@ -289,8 +283,8 @@ output {
   elasticsearch {
     #elasticsearch地址，多个以','隔开
     hosts => "192.168.71.132:9200"
-    #创建的elasticsearch索引名，可以自定义也可以使用下面的默认
-    index => "%{[@metadata][beat]}-%{[@metadata][version]}-%{+YYYY.MM.dd}"
+    #创建的elasticsearch索引名
+    index => "%{type}-%{+YYYY.MM.dd}"
   }
 }
 ```
