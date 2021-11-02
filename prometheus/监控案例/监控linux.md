@@ -16,6 +16,8 @@ node_exporter：用于监控Linux系统的指标采集器。
 
 github：https://github.com/prometheus/node_exporter
 
+exporter列表：https://prometheus.io/docs/instrumenting/exporters
+
 ## 安装node_exporter
 
 在被监控的服务器上下载安装node exporter
@@ -214,7 +216,6 @@ irate(node_network_receive_bytes_total{nodename=~'monitor01',device=~"ens5"}[5m]
 
 irate(node_network_transmit_bytes_total{nodename=~'monitor01',device=~"ens5"}[5m])*8
 ```
-
 
 
 

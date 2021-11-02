@@ -10,6 +10,16 @@ Prometheus在2016年加入了云原生计算基金会(CNCF)，成为**继Kuberne
 
 prometheus server端口：9090
 
+监控什么？
+
+| 硬件 | 温度、硬件故障等                             |
+| ---- | -------------------------------------------- |
+| 系统 | cpu、内存、网卡流量、tcp状态、进程数         |
+| 应用 | nginx、mysql、redis                          |
+| 日志 | 系统日志、服务日志、访问日志、错误日志       |
+| api  | 可用性、接口请求、响应时间                   |
+| 业务 | 如电商网站，每分钟产生多少订单、注册多少用户 |
+
 ## 特点
 
 1、多维数据模型，Prometheus存储数据的格式是  **指标(metric)名称**和**键值对（称为标签）**的**时间序列**。
@@ -25,7 +35,7 @@ prometheus server端口：9090
 
 2、PromQL是一种灵活的查询语言，可以利用多维度数据完成复杂的查询。
 
-3、不依赖于分布式存储，单个Prometheus服务节点可直接工作。
+3、不依赖于分布式存储（zabbix需要外部的数据库），单个Prometheus服务节点可直接工作。
 
 4、使用基于HTTP的拉(pull)方式采集时间序列数据
 
@@ -51,7 +61,14 @@ prometheus server端口：9090
 
 
 
-从上述架构图我们可以知道，Prometheus通过从Jobs/exporters中拉取度量数据；而短周期的jobs在结束前可以先将度量数据推送到网关(pushgateway)，然后Prometheus再从pushgateway中获取短周期jobs的度量数据；还可以通过自动发现目标的方式来监控kubernetes集群。所有收集的数据可以存储在本地的TSDB数据库中，并在这些数据上运行规则、检索、聚合和记录新的时间序列，将产生的告警通知推送到Alertmanager组件。通过PromQL来计算指标，再结合Grafana或其他API客户端来可视化数据。
+从上述架构图可看出：
+
+- 短周期的jobs先将度量数据推送到网关(pushgateway)，然后Prometheus再从pushgateway中获取短周期jobs的度量数据
+
+- Prometheus通过从Jobs/exporters中拉取度量数据
+
+- 通过自动发现目标的方式来监控kubernetes集群。
+- 所有收集的数据可以存储在本地的TSDB数据库中，并在这些数据上运行规则、检索、聚合和记录新的时间序列，将产生的告警通知推送到Alertmanager组件。通过PromQL来计算指标，再结合Grafana或其他API客户端来可视化数据。
 
 ### 组件
 
@@ -108,6 +125,12 @@ instance：job当中的target我们一般称为instance
 
 ## 部署Prometheus
 
+### 二进制包部署
+
+[Download | Prometheus](https://prometheus.io/download/)
+
+[Getting started | Prometheus](https://prometheus.io/docs/prometheus/latest/getting_started/)
+
 安装
 
 ```shell
@@ -138,29 +161,7 @@ LISTEN      0      128                                                [::]:22   
 LISTEN      0      128                                                [::]:9090  
 ```
 
-配置文件
-
-```shell
-vim prometheus.yml
-global:
-	scrape_interval:     15s	#每隔15秒采集一次数据
-	evaluation_interval: 15s	#记录规则和报警规则的执行间隔（频率）
-	scrape_timeout: 15s	#采集数据的超时时间，该值不能大于scrape_interval的值。
-#告警规则
-rule_files:
-    ...
-#配置被监控端，称为target，每个target用job_name分组管理，又分静态配置和服务发现
-scrape_configs:
-    ...
-#告警配置
-alerting:
-    ...
-#从远程数据库读写
-remote_write:
-    ...
-remote_read:
-    ...
-```
+配置systemctl管理
 
 ```shell
 # cat > /usr/lib/systemd/system/prometheus.service <<EOF
@@ -180,6 +181,14 @@ EOF
 # systemctl enable prometheus.service 
 # systemctl start prometheus.service 
 ```
+
+### docker部署
+
+[Installation | Prometheus](https://prometheus.io/docs/prometheus/latest/installation/)
+
+### 访问web
+
+http://localhost:9090
 
 ## prometheus+grafana
 
