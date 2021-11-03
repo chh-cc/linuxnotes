@@ -1,6 +1,7 @@
 # 监控linux服务器
 
 node_exporter：用于监控Linux系统的指标采集器。
+
 常用指标：
 • CPU
 • 内存
@@ -72,11 +73,15 @@ scrape_configs:
     static_configs:
     - targets: ['localhost:9090']
   # 采集node exporter监控数据
-  - job_name: 'linux server'
+  - job_name: 'node'
     static_configs:
     - targets:
-      - 10.1.96.3:9100
+      - 192.168.31.66:9100
 ```
+
+查看所有指标：
+
+访问http://192.168.31.66:9100/metrics
 
 使用Grafana展示node_exporter数据指标，仪表盘ID： 9276
 
