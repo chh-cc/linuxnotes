@@ -18,6 +18,8 @@ https://kubernetes.io/
 
 扩缩容方便
 
+虽然K8s 1.20版本宣布将在1.23版本之后将不再维护dockershim，意味着K8s将不直接支持Docker，不过大家不必过于担心。一是在1.23版本之前我们仍然可以使用Docker，二是dockershim肯定会有人接盘，我们同样可以使用Docker，三是Docker制作的镜像仍然可以在其他Runtime环境中使用
+
 ## k8s高可用架构
 
 ![image-20210904204842750](https://gitee.com/c_honghui/picture/raw/master/img/20210904204849.png)
