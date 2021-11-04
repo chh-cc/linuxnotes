@@ -1,21 +1,6 @@
 # PromQL
 
-PromQL(Prometheus Query Language) 是 Prometheus 自己开发的数据查询 DSL 语言，语言表现力 非常丰富，支持条件查询、操作符，并且内建了大量内置函数，供我们针对监控数据的各种维度进行查询
-
-
-
-通过Node Exporter暴露的HTTP服务，Prometheus可以采集到当前主机所有监控指标的样本数据。例如：
-
-```shell
-# HELP node_cpu Seconds the cpus spent in each mode.
-# TYPE node_cpu counter
-node_cpu{cpu="cpu0",mode="idle"} 362812.7890625
-# HELP node_load1 1m load average.
-# TYPE node_load1 gauge
-node_load1 3.0703125
-```
-
-非#开头的每一行表示当前Node Exporter采集到的一个监控样本：node_cpu和node_load1表明了当前指标的名称、大括号中的标签则反映了当前样本的一些特征和维度、浮点数则是该监控样本的具体值。
+PromQL(Prometheus Query Language) 是 Prometheus 自己开发的数据查询 DSL 语言
 
 
 

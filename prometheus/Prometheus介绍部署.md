@@ -41,19 +41,7 @@ prometheus server端口：9090
 
 ![image-20210218214947697](https://gitee.com/c_honghui/picture/raw/master/img/20210218214947.png)
 
-​       prometheus从以下三种类型的目标抓取数据：
 
-​       **exporters**
-
-​       **instrumentation**
-
-​       **pushgateway**
-
-![image-20210218222629887](https://gitee.com/c_honghui/picture/raw/master/img/20210218222629.png)
-
-5、通过服务发现或静态配置发现目标。
-
-6、支持多种图形模式和仪表盘（grafana）。
 
 ## 架构
 
@@ -61,14 +49,14 @@ prometheus server端口：9090
 
 
 
-从上述架构图可看出：
+Prometheus 架构由客户端在被监控系统上利用导出器采集指标数据，在服务端配置静态目标或者动态的服务发现.
 
 - 短周期的jobs先将度量数据推送到网关(pushgateway)，然后Prometheus再从pushgateway中获取短周期jobs的度量数据
 
-- Prometheus通过从Jobs/exporters中拉取度量数据
+- Prometheus通过从exporters中拉取度量数据
 
 - 通过自动发现目标的方式来监控kubernetes集群。
-- 所有收集的数据可以存储在本地的TSDB数据库中，并在这些数据上运行规则、检索、聚合和记录新的时间序列，将产生的告警通知推送到Alertmanager组件。通过PromQL来计算指标，再结合Grafana或其他API客户端来可视化数据。
+- 所有收集的数据可以存储在本地的TSDB数据库中，同时设定记录规则(PromQL表达式)和告警规则(频率)并发送给alertmanager进行发送报警事件到运维人员手中。再利用Grafana的仪表盘展示Prometheus服务中的数据。
 
 ### 组件
 
@@ -76,19 +64,19 @@ prometheus server端口：9090
 
 **收集指标和存储时间序列数据，并提供查询接口**  
 
-Prometheus Server可以通过静态配置管理监控目标，也可以配合使用Service Discovery的方式动态管理监控目标，并从这些监控目标中获取数据。其次Prometheus Server需要对采集到的监控数据进行存储，Prometheus Server本身就是一个时序数据库，将采集到的监控数据按照时间序列的方式存储在本地磁盘当中。最后Prometheus Server对外提供了自定义的PromQL语言，实现对数据的查询以及分析。
+主要负责数据采集和存储，提供PromQL查询语言的支持 (默认端口: 9090)
 
 **Pushgateway**：
 
 **短期存储指标数据。主要用于临时性的任务**  
 
-由于Prometheus数据采集基于Pull模型进行设计，因此在网络环境的配置上必须要让Prometheus Server能够直接与Exporter进行通信。 当这种网络需求无法直接满足时，就可以利用PushGateway来进行中转。可以通过PushGateway将内部网络的监控数据主动Push到Gateway当中。而Prometheus Server则可以采用同样Pull的方式从PushGateway中获取到监控数据。
+跨网段被监控主机指标采集数据转发到网关代理等待Server的Pull。
 
 **Exporters**：
 
-**采集已有的第三方服务监控指标并暴露metrics**  
+监控指标采集器
 
-Exporter将监控数据采集的端点**通过HTTP服务的形式暴露**给Prometheus Server，Prometheus Server通过访问该Exporter提供的Endpoint端点，即可获取到需要采集的监控数据。
+Exporter将监控数据采集的端点**通过HTTP服务的形式暴露**给Prometheus Server
 
 一般来说可以将Exporter分为2类：
 
@@ -97,11 +85,7 @@ Exporter将监控数据采集的端点**通过HTTP服务的形式暴露**给Prom
 
 **Alertmanager**：
 
-在Prometheus Server中支持**基于PromQL创建告警规则**，如果满足PromQL定义的规则，则会产生一条告警，而告警的后续处理流程则由AlertManager进行管理。在AlertManager中我们可以与邮件，Slack等等内置的通知方式进行集成，也可以通过Webhook自定义告警处理方式。AlertManager即Prometheus体系中的告警处理中心。
-
-Data visualization：Grafana
-
-Service discovery：动态发现待监控的target，从而完成监控配置的重要组件，在容器化环境中很重要
+用来进行报警、prometheus_cli：命令行工具 (默认端口: 9093)
 
 ### 概念
 
@@ -114,14 +98,22 @@ target
 job（作业）和instance（实例）
 
 ```text
-job：多个具有相同功能角色的target组合在一起就构成了一个job(作业)，例如，具有相同用途的一组主机的资源监控器(node_exporter)，又或者是MySQL数据库监控器(mysqld_exporter)
-
-instance：job当中的target我们一般称为instance
+在Prometheus中，每一个暴露监控样本数据的HTTP服务称为一个实例。例如在当前主机上运行的node exporter可以被称为一个实例(Instance)，也是job中的target。
+而一组用于相同采集目的的实例，或者同一个采集进程的多个副本则通过一个一个任务(Job)进行管理。
 ```
 
 ![image-20210218235408414](https://gitee.com/c_honghui/picture/raw/master/img/20210218235408.png)
 
+## 基本原理
 
+- Prometheus Server 读取配置解析静态监控端点（static_configs），以及服务发现规则(xxx_sd_configs)自动收集需要监控的端点
+- Prometheus Server 周期刮取(scrape_interval)监控端点通过HTTP的Pull方式采集监控数据
+- Prometheus Server HTTP 请求到达 Node Exporter，Exporter 返回一个文本响应，每个非注释行包含一条完整的时序数据：Name + Labels + Samples(一个浮点数和一个时间戳构成), 数据来源是一些官方的exporter或自定义sdk或接口
+- Prometheus Server 收到响应，Relabel处理之后(relabel_configs)将其存储在TSDB中并建立倒排索引
+- Prometheus Server 另一个周期计算任务(evaluation_interval)开始执行，根据配置的Rules逐个计算与设置的阈值进行匹配，若结果超过阈值并持续时长超过临界点将进行报警，此时发送Alert到AlertManager独立组件中。
+- AlertManager 收到告警请求，根据配置的策略决定是否需要触发告警，如需告警则根据配置的路由链路依次发送告警，比如邮件、微信、Slack、PagerDuty、WebHook等等。
+- 当通过界面或HTTP调用查询时序数据利用PromQL表达式查询，Prometheus Server 处理过滤完之后返回瞬时向量(Instant vector, N条只有一个Sample的时序数据)，区间向量(Range vector，N条包含M个Sample的时序数据)，或标量数据 (Scalar, 一个浮点数) 
+- 采用Grafana开源的分析和可视化工具进行数据的图形化展示。
 
 ## 部署Prometheus
 
