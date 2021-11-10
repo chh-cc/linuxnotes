@@ -2,9 +2,7 @@
 
 PromQL(Prometheus Query Language) 是 Prometheus 自己开发的数据查询 DSL 语言
 
-
-
-样本：
+## 样本
 
 Prometheus会将所有采集到的样本数据以时间序列（time-series）的方式保存在内存数据库中，并且定时保存到硬盘上。time-series是按照时间戳和值的序列顺序存放的，我们称之为向量(vector). 每条time-series通过指标名称(metrics name)和一组标签集(labelset)命名。如下所示，可以将time-series理解为一个以时间为Y轴的数字矩阵：
 
@@ -29,10 +27,6 @@ Prometheus会将所有采集到的样本数据以时间序列（time-series）�
 http_request_total{status="200", method="GET"}@1434417560938 => 94355
 ```
 
-
-
-指标：
-
 指标格式:
 
 ```shell
@@ -42,9 +36,9 @@ http_request_total{status="200", method="GET"}@1434417560938 => 94355
 指标的名称(metric name)可以反映被监控样本的含义（比如，`http_request_total` - 表示当前系统接收到的HTTP请求总量）。
 标签(label)反映了当前样本的特征维度，通过这些维度Prometheus可以对样本数据进行过滤，聚合等。
 
-## PromQL
+## 数据类型
 
-### 瞬时向量选择器
+### 瞬时数据
 
 查询指标最新样本，称之为**瞬时向量**。
 
@@ -53,7 +47,7 @@ http_requests_total
 等同于
 http_requests_total{}
 
-可以通过附加一组标签来进一步过来这些时间序列：
+可以通过附加一组标签来进一步过滤这些时间序列：
 node_cpu_seconds_total{job="Linux Server"}
 ```
 
@@ -79,7 +73,7 @@ http_requests_total{instance="localhost:9090"}
 http_requests_total{environment=~"staging|testing|development",method!="GET"}
 ```
 
-### 范围向量选择器
+### 区间数据
 
 如果我们想过去一段时间范围内的样本数据时，我们则需要使用**区间向量表达式**。**在瞬时范围选择器后面加个`[]`进行定义。**
 
@@ -105,23 +99,10 @@ http_requests_total{}[5m]
 使用offset时间位移操作：
 
 ```shell
+#前5分钟请求总数
 http_request_total{} offset 5m
+#前1小时1天内的请求总数
 http_request_total{}[1d] offset 1d
-```
-
-### 使用聚合操作
-
-如果描述样本特征的标签(label)在并非唯一的情况下，通过PromQL查询数据，会返回多条满足这些特征维度的时间序列。而PromQL提供的聚合操作可以用来对这些时间序列进行处理，形成一条新的时间序列：
-
-```shell
-# 查询系统所有http请求的总量
-sum(http_request_total)
-
-# 按照mode计算主机CPU的平均使用时间
-avg(node_cpu) by (mode)
-
-# 按照主机查询各个主机的CPU使用率
-sum(sum(irate(node_cpu{mode!='idle'}[5m]))  / sum(irate(node_cpu[5m]))) by (instance)
 ```
 
 ### 标量和字符串
@@ -222,7 +203,7 @@ prometheus_tsdb_compaction_chunk_range_count 780
 
 
 
-#### 数学运算
+### 数学运算
 
 例如，我们可以通过指标node_memory_free_bytes_total获取当前主机可用的内存空间大小，其样本单位为Bytes。这是如果客户端要求使用MB作为单位响应数据：
 
@@ -255,7 +236,7 @@ PromQL支持的所有数学运算符如下所示：
 - `%` (求余)
 - `^` (幂运算)
 
-#### 使用布尔运算过滤时间序列
+### 使用布尔运算过滤时间序列
 
 布尔运算则支持用户根据时间序列中样本的值，对时间序列进行过滤。
 
@@ -284,7 +265,7 @@ PromQL支持的所有数学运算符如下所示：
 - `>=` (大于等于)
 - `<=` (小于等于)
 
-#### 使用bool修饰符改变布尔运算符的行为
+### 使用bool修饰符改变布尔运算符的行为
 
 例如，只需要知道当前模块的HTTP请求量是否>=1000，如果大于等于1000则返回1（true）否则返回0（false）。这时可以使用bool修饰符改变布尔运算的默认行为。 例如：
 
@@ -292,7 +273,7 @@ PromQL支持的所有数学运算符如下所示：
 http_requests_total > bool 1000
 ```
 
-#### 使用集合运算符
+### 使用集合运算符
 
 通过集合运算，可以在两个瞬时向量与瞬时向量之间进行相应的集合操作。目前，Prometheus支持以下集合运算符：
 
@@ -306,7 +287,7 @@ http_requests_total > bool 1000
 
 ***vector1 unless vector2*** 会产生一个新的向量，新向量中的元素由vector1中没有与vector2匹配的元素组成。
 
-#### 操作符优先级
+### 操作符优先级
 
 查询主机的CPU使用率，可以使用表达式：
 
@@ -323,7 +304,7 @@ http_requests_total > bool 1000
 5. `and, unless`
 6. `or`
 
-## PromQL聚合操作
+### PromQL聚合操作
 
 Prometheus还提供了下列内置的聚合操作符，这些操作符作用域瞬时向量。可以将瞬时表达式返回的样本数据进行聚合，形成一个新的时间序列。
 

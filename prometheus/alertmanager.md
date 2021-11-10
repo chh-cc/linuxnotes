@@ -1,41 +1,32 @@
 # alertmanager
 
-## 简介
-
-Prometheus发出告警时分为两部分。首先，Prometheus**按告警规则**向Alertmanager**发送**告警。然后，**由Alertmanager来管理**这些告警，包括去重(Deduplicating)、分组(Grouping)、静音(silencing)、抑制(inhibition)、聚合(aggregation )，最终将面要发出的告警通过电子邮件、webhook等方式将告警通知路由(route)给对应的联系人。
+首先，需要在Prometheus中添加告警规则,按告警规则向Alertmanager发送告警。然后，由Alertmanager来管理这些告警，包括去重(Deduplicating)、分组(Grouping)、静音(silencing)、抑制(inhibition)、聚合(aggregation )，最终将要发出的告警通过电子邮件、webhook等方式将告警通知路由(route)给对应的联系人。
 
 端口：9093
 
+## 通知管道流程
 
+降噪: 选择忽略同时出现的告警，或者发送更高级别的警告。 可利用inhibition标签。
 
-在Prometheus中一条告警规则主要由以下几部分组成：
+静默: 快速根据标签对告警进行静默处理。如果接收到的告警符合静默的配置，Alertmanager则**不会发送告警**通知。
 
-- 告警名称：用户需要为告警规则命名，当然对于命名而言，需要能够直接表达出该告警的主要内容
-- 告警规则：告警规则实际上主要由PromQL进行定义，其实际意义是当表达式（PromQL）查询结果持续多长时间（During）后出发告警
+路由: 以不同方式处理生产和开发环境的告警,并将告警其分别发送到指定的对象中。
 
+分组: 就是**将具有相同性质的告警先分类，然后当作单个通知发送出来**。比如A和B两台主机的磁盘(CPU/内存)使用率都在告警，则磁盘的告警就可以合并在一个通知中发送出来。可以想像某个服务部署了100个节点，在一次升版后因为bug，日志中均报同样一类错误，如果不合并这类通知，那就是告警风暴。
 
+抑制: 就是**某些告警触发后，则抑制（禁止）另一些告警**。比如收到一条告警提示集群故障无法访问，那么在该集群上的所有其他警告应该被抑制。
 
-**Alertmanager特性**
+通知: 将告警发送到指定的receiver标签指定的接受者，并且我们可以自定义通知模板。
 
-**分组**
+## 告警状态
 
-就是**将具有相同性质的告警先分类，然后当作单个通知发送出来**。比如A和B两台主机的磁盘(CPU/内存)使用率都在告警，则磁盘的告警就可以合并在一个通知中发送出来。可以想像某个服务部署了100个节点，在一次升版后因为bug，日志中均报同样一类错误，如果不合并这类通知，那就是告警风暴。
+Prometheus Alert 告警状态有三种状态：Inactive、Pending、Firing。
 
-**抑制**
+Inactive：非活动状态，表示正在监控，但是还未有任何警报触发。
 
-就是**某些告警触发后，则抑制（禁止）另一些告警**。比如收到一条告警提示集群故障无法访问，那么在该集群上的所有其他警告应该被抑制。
+Pending：表示这个警报必须被触发。由于警报可以被分组、压抑/抑制或静默/静音，所以等待验证，一旦所有的验证都通过，则将转到 Firing 状态。
 
-**静默**
-
-快速根据标签对告警进行静默处理。如果接收到的告警符合静默的配置，Alertmanager则**不会发送告警**通知。
-
-
-
-使用步骤：
-1. 部署Alertmanager
-2. 配置告警接收人
-3. 配置Prometheus与Alertmanager通信
-4. 在Prometheus中创建告警规则  
+Firing：将警报发送到 AlertManager，它将按照配置将警报的发送给所有接收者。一旦警报解除则将状态转到 Inactive如此循环。
 
 ## 部署AlertManager
 
@@ -52,7 +43,7 @@ tar xvf alertmanager-$VERSION.darwin-amd64.tar.gz
 mv alertmanager-$VERSION.darwin-amd64 /usr/local/alertmanager
 ```
 
-### 创建alertmanager配置文件
+### 启动alertmanager
 
 Alertmanager解压后会包含一个默认的alertmanager.yml配置文件，内容如下所示：
 
@@ -107,22 +98,11 @@ EOF
 # systemctl restart alertmanager
 ```
 
-
-
 查看运行状态
 
 Alertmanager启动后可以通过9093端口访问，http://192.168.33.10:9093
 
-
-
 ## 在prometheus中创建告警规则
-
-在Prometheus中一条告警规则主要由以下几部分组成：
-
-- 告警名称：用户需要为告警规则命名，当然对于命名而言，需要能够直接表达出该告警的主要内容
-- 告警规则：告警规则实际上主要由PromQL进行定义，其实际意义是当表达式（PromQL）查询结果持续多长时间（During）后出发告警
-
-
 
 编辑Prometheus配置文件prometheus.yml,并添加以下内容
 
