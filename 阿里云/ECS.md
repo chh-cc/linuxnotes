@@ -1,13 +1,5 @@
 # ECS
 
-配置一个四层监听（TCP协议或UDP协议），并且ECS使用的是Linux系统，确保ECS实例上/etc/sysctl.conf目录下net.ipv4.conf文件中的以下三个参数的值为零：
-
-```sh
-net.ipv4.conf.default.rp_filter = 0
-net.ipv4.conf.all.rp_filter = 0
-net.ipv4.conf.eth0.rp_filter = 0
-```
-
 阿里云ECS默认采用dhcp分配网络，重启ecs时，dhclient会更新resolv.conf文件，这样就修改掉了ecs上配置的dns服务器。
 
 禁止dhclient更新resolv.conf文件：
@@ -17,10 +9,6 @@ net.ipv4.conf.eth0.rp_filter = 0
 vim /etc/sysconfig/network-scripts/ifcfg-eth0
 PEERDNS=no
 ```
-
-升级一台ECS服务器的CPU和内存需要停机，升级一台ECS的带宽不需要停机
-
-selinux可能会禁止某些端口的使用，造成无法监视
 
 ## 地域和可用区
 
@@ -610,9 +598,13 @@ xfs_growfs /media/vdc
 
 ### 经典网络
 
-同一个地域内，不同账号下，经典网络下可以通过安全组规则设置两台云服务器之间内网互通
+经典网络ECS实例都建立在一个共用的基础网络上，不设置安全组或者安全组授权0.0.0.0/0，同一个地域内，不同账号下，经典网络下云服务器之间内网互通
+
+安全防护高度依赖安全组的权限设置
 
 ### VPC
+
+每一个VPC相当于不同维度的平行空间，即使忘记设置安全组别人也无法访问
 
 <img src="https://gitee.com/c_honghui/picture/raw/master/img/20210223224811.png" alt="image-20210223224811443" style="zoom: 80%;" />
 
