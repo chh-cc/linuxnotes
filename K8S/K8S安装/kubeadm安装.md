@@ -118,7 +118,7 @@ Master01节点免密钥登录其他节点：
 
 ```shell
 ssh-keygen -t rsa
-for i in k8s-master01 k8s-master02 k8s-master03 k8s-node01 k8s-node02;do ssh-copy-id -i .ssh/id_rsa.pub $i;done
+for i in k8s-master02 k8s-master03 k8s-node01 k8s-node02;do ssh-copy-id -i .ssh/id_rsa.pub $i;done
 ```
 
 下载安装所有的源码文件：
@@ -133,7 +133,150 @@ cd /root/ ; git clone https://github.com/dotbalo/k8s-ha-install.git
 yum update -y --exclude=kernel* && reboot
 ```
 
+centos7升级内核到4.18+
+
+master01节点下载内核然后传到其他节点
+
+```shell
+wget http://193.49.22.109/elrepo/kernel/el7/x86_64/RPMS/kernel-ml-devel-4.19.12-1.el7.elrepo.x86_64.rpm
+wget http://193.49.22.109/elrepo/kernel/el7/x86_64/RPMS/kernel-ml-4.19.12-1.el7.elrepo.x86_64.rpm
+for i in k8s-master02 k8s-master03 k8s-node01 k8s-node02;do scp kernel-ml-devel-4.19.12-1.el7.elrepo.x86_64.rpm kernel-ml-4.19.12-1.el7.elrepo.x86_64.rpm $i:/root;done
+```
+
+所有节点安装内核
+
+```shell
+cd /root && yum localinstall -y kernel-ml*
+```
+
+所有节点更改内核启动顺序
+
+```shell
+grub2-set-default 0 && grub2-mkconfig -o /etc/grub2.cfg
+grubby --args="user_namespace.enable=1" --update-kernel="$(grubby --default-kernel)"
+```
+
+检查默认内核是不是4.19
+
+```shell
+grubby --default-kernel
+```
+
+所有节点重启，然后检查内核
+
+```shell
+uname -a
+```
+
 ## 内核配置
+
+centos7需要升级内核至4.18+
+
+master01节点下载内核然后传到其他节点
+
+```shell
+wget http://193.49.22.109/elrepo/kernel/el7/x86_64/RPMS/kernel-ml-devel-4.19.12-1.el7.elrepo.x86_64.rpm
+wget http://193.49.22.109/elrepo/kernel/el7/x86_64/RPMS/kernel-ml-4.19.12-1.el7.elrepo.x86_64.rpm
+for i in k8s-master02 k8s-master03 k8s-node01 k8s-node02;do scp kernel-ml-devel-4.19.12-1.el7.elrepo.x86_64.rpm kernel-ml-4.19.12-1.el7.elrepo.x86_64.rpm $i:/root;done
+```
+
+所有节点安装内核
+
+```shell
+cd /root && yum localinstall -y kernel-ml*
+```
+
+所有节点更改内核启动顺序
+
+```shell
+grub2-set-default 0 && grub2-mkconfig -o /etc/grub2.cfg
+grubby --args="user_namespace.enable=1" --update-kernel="$(grubby --default-kernel)"
+```
+
+检查默认内核是不是4.19
+
+```shell
+grubby --default-kernel
+```
+
+所有节点重启，然后检查内核
+
+```shell
+uname -a
+```
+
+所有节点安装ipvsadm
+
+```shell
+yum install ipvsadm ipset sysstat conntrack libseccomp -y
+```
+
+所有节点配置ipvs模块，在内核4.19+版本nf_conntrack_ipv4已经改为nf_conntrack,4.18以下使用nf_conntrack_ipv4
+
+```shell
+vim /etc/modules-load.d/ipvs.conf
+ip_vs
+ip_vs_lc
+ip_vs_wlc
+ip_vs_rr
+ip_vs_wrr
+ip_vs_lblc
+ip_vs_lblcr
+ip_vs_dh
+ip_vs_sh
+ip_vs_fo
+ip_vs_nq
+ip_vs_sed
+ip_vs_ftp
+ip_vs_sh
+nf_conntrack
+ip_tables
+ip_set
+xt_set
+ipt_set
+ipt_rpfilter
+ipt_REJECT
+ipip
+
+systemctl enable --now systemd-modules-load.service
+```
+
+检查是否加载
+
+```shell
+lsmod|grep -e ip_vs -e nf_conntrack
+```
+
+所有节点开启一些k8s集群必须的内核参数
+
+```shell
+cat <<EOF > /etc/sysctl.d/k8s.conf
+net.ipv4.ip_forward = 1
+net.bridge.bridge-nf-call-iptables = 1
+net.bridge.bridge-nf-call-ip6tables = 1
+fs.may_detach_mounts = 1
+vm.overcommit_memory = 1
+vm.panic_on_oom = 0
+fs.inotify.max_user_watches=89100
+fs.file-max=52706963
+fs.nr_open=52706963
+net.netfilter.nf_conntrack_max=2310720
+net.ipv4.tcp_keepalive_time = 600
+net.ipv4.tcp_keepalive_probes = 3
+net.ipv4.tcp_keepalive_intvl = 15
+net.ipv4.tcp_max_tw_buckets = 36000
+net.ipv4.tcp_tw_reuse = 1
+net.ipv4.tcp_max_orphans = 327680
+net.ipv4.tcp_orphan_retries = 3
+net.ipv4.tcp_syncookies = 1
+net.ipv4.tcp_max_syn_backlog = 16384
+net.ipv4.ip_conntrack_max = 65536
+net.ipv4.tcp_timestamps = 0
+net.core.somaxconn = 16384
+EOF
+
+sysctl --system
+```
 
 ## 基本组件安装
 
@@ -354,7 +497,7 @@ vrrp_instance VI_1 {
 所有master节点配置KeepAlived健康检查文件：
 
 ```shell
-[root@k8s-master01 keepalived]# cat /etc/keepalived/check_apiserver.sh 
+[root@k8s-master01 keepalived]# vim /etc/keepalived/check_apiserver.sh 
 #!/bin/bash
 
 err=0
@@ -399,9 +542,11 @@ PING 192.168.101.200 (192.168.101.200) 56(84) bytes of data.
 
 ## 集群初始化
 
-Master01节点创建new.yaml配置文件如下：
+在master01节点创建kubeadm-config.yaml配置文件如下：
 
 ```yaml
+vim kubeadm-config.yaml
+
 apiVersion: kubeadm.k8s.io/v1beta2
 bootstrapTokens:
 - groups:
@@ -438,12 +583,18 @@ etcd:
     dataDir: /var/lib/etcd
 imageRepository: registry.cn-hangzhou.aliyuncs.com/google_containers
 kind: ClusterConfiguration
-kubernetesVersion: v1.22.3
+kubernetesVersion: v1.20.0
 networking:
   dnsDomain: cluster.local
-  podSubnet: 172.168.0.0/16
+  podSubnet: 172.168.0.0/12
   serviceSubnet: 10.96.0.0/12
 scheduler: {}
+```
+
+转换格式
+
+```shell
+kubeadm config migrate --old-config kubeadm-config.yaml --new-config new.yaml
 ```
 
 将new.yaml文件复制到其他master节点，之后所有Master节点提前下载镜像，可以节省初始化时间：
@@ -452,15 +603,315 @@ scheduler: {}
 kubeadm config images pull --config /root/new.yaml 
 ```
 
-所有节点设置开机自启动kubelet
-
-```shell
-systemctl enable --now kubelet（如果启动失败无需管理，初始化成功以后即可启动）
-```
-
 Master01节点初始化，初始化以后会在/etc/kubernetes目录下生成对应的证书和配置文件，之后其他Master节点加入Master01即可：
 
 ```shell
 kubeadm init --config /root/new.yaml  --upload-certs
+
+...
+Your Kubernetes control-plane has initialized successfully!
+
+To start using your cluster, you need to run the following as a regular user:
+
+  mkdir -p $HOME/.kube
+  sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+  sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+Alternatively, if you are the root user, you can run:
+
+  export KUBECONFIG=/etc/kubernetes/admin.conf
+
+You should now deploy a pod network to the cluster.
+Run "kubectl apply -f [podnetwork].yaml" with one of the options listed at:
+  https://kubernetes.io/docs/concepts/cluster-administration/addons/
+
+You can now join any number of the control-plane node running the following command on each as root:
+
+  kubeadm join 192.168.101.200:16443 --token 7t2weq.bjbawausm0jaxury \
+    --discovery-token-ca-cert-hash sha256:3ed23f68bbf38cbb4850cc778f840c647c238d21af6cc433ab3a97b1af3940f3 \
+    --control-plane --certificate-key 3843c20e75ef54198c28d5051ef8a5a158bc5953329d47041bf9d29881a2bcb9
+
+Please note that the certificate-key gives access to cluster sensitive data, keep it secret!
+As a safeguard, uploaded-certs will be deleted in two hours; If necessary, you can use
+"kubeadm init phase upload-certs --upload-certs" to reload certs afterward.
+
+Then you can join any number of worker nodes by running the following on each as root:
+
+kubeadm join 192.168.101.200:16443 --token 7t2weq.bjbawausm0jaxury \
+    --discovery-token-ca-cert-hash sha256:3ed23f68bbf38cbb4850cc778f840c647c238d21af6cc433ab3a97b1af3940f3 
 ```
 
+Master01节点配置环境变量，用于访问Kubernetes集群：
+
+```shell
+cat <<EOF >> /root/.bashrc
+export KUBECONFIG=/etc/kubernetes/admin.conf
+EOF
+source /root/.bashrc
+```
+
+查看节点状态：
+
+```shell
+[root@k8s-master01 ~]# kubectl get node
+NAME           STATUS     ROLES                  AGE     VERSION
+k8s-master01   NotReady   control-plane,master   6m12s   v1.20.0
+```
+
+初始化其他master加入集群
+
+```shell
+kubeadm join 192.168.101.200:16443 --token 7t2weq.bjbawausm0jaxury \
+    --discovery-token-ca-cert-hash sha256:3ed23f68bbf38cbb4850cc778f840c647c238d21af6cc433ab3a97b1af3940f3 \
+    --control-plane --certificate-key 3843c20e75ef54198c28d5051ef8a5a158bc5953329d47041bf9d29881a2bcb9
+```
+
+添加node节点
+
+```shell
+kubeadm join 192.168.101.200:16443 --token 7t2weq.bjbawausm0jaxury \
+    --discovery-token-ca-cert-hash sha256:3ed23f68bbf38cbb4850cc778f840c647c238d21af6cc433ab3a97b1af3940f3 
+```
+
+注：如果token过期，可以重新生成新的token
+
+```shell
+kubeadm token create --print-join-command
+
+#master需要生成新的certificate-key
+kubeadm init phase upload-certs --upload-certs
+```
+
+查看节点状态
+
+```shell
+[root@k8s-master01 ~]# kubectl get node
+NAME           STATUS     ROLES                  AGE     VERSION
+k8s-master01   NotReady   control-plane,master   16m     v1.20.0
+k8s-master02   NotReady   control-plane,master   7m33s   v1.20.0
+k8s-master03   NotReady   control-plane,master   2m1s    v1.20.0
+k8s-node01     NotReady   <none>                 26s     v1.20.0
+k8s-node02     NotReady   <none>                 13s     v1.20.0
+```
+
+## calico安装
+
+以下步骤只在master01执行
+
+```shell
+cd /root/k8s-ha-install && git checkout manual-installation-v1.20.x && cd calico/
+```
+
+修改calico-etcd.yaml的以下位置
+
+```shell
+sed -i 's#etcd_endpoints: "http://<ETCD_IP>:<ETCD_PORT>"#etcd_endpoints: "https://192.168.101.145:2379,https://192.168.101.146:2379,https://192.168.101.147:2379"#g' calico-etcd.yaml
+
+
+ETCD_CA=`cat /etc/kubernetes/pki/etcd/ca.crt | base64 | tr -d '\n'`
+ETCD_CERT=`cat /etc/kubernetes/pki/etcd/server.crt | base64 | tr -d '\n'`
+ETCD_KEY=`cat /etc/kubernetes/pki/etcd/server.key | base64 | tr -d '\n'`
+sed -i "s@# etcd-key: null@etcd-key: ${ETCD_KEY}@g; s@# etcd-cert: null@etcd-cert: ${ETCD_CERT}@g; s@# etcd-ca: null@etcd-ca: ${ETCD_CA}@g" calico-etcd.yaml
+
+
+sed -i 's#etcd_ca: ""#etcd_ca: "/calico-secrets/etcd-ca"#g; s#etcd_cert: ""#etcd_cert: "/calico-secrets/etcd-cert"#g; s#etcd_key: "" #etcd_key: "/calico-secrets/etcd-key" #g' calico-etcd.yaml
+
+POD_SUBNET=`cat /etc/kubernetes/manifests/kube-controller-manager.yaml | grep cluster-cidr= | awk -F= '{print $NF}'`
+
+sed -i 's@# - name: CALICO_IPV4POOL_CIDR@- name: CALICO_IPV4POOL_CIDR@g; s@#   value: "192.168.0.0/16"@  value: '"${POD_SUBNET}"'@g' calico-etcd.yaml
+```
+
+创建calico
+
+```shell
+kubectl apply -f calico-etcd.yaml
+```
+
+查看容器状态
+
+```shell
+kubectl get po -n kube-system
+
+NAME                                       READY   STATUS    RESTARTS   AGE
+calico-kube-controllers-5f6d4b864b-hwrzb   1/1     Running   0          5m45s
+calico-node-4fqgc                          1/1     Running   0          5m45s
+calico-node-68bvf                          1/1     Running   0          5m45s
+calico-node-72nzj                          1/1     Running   0          5m45s
+calico-node-nj2hf                          1/1     Running   0          5m45s
+calico-node-svh89                          1/1     Running   0          5m45s
+coredns-54d67798b7-6l74h                   1/1     Running   0          33m
+coredns-54d67798b7-vj556                   1/1     Running   0          33m
+etcd-k8s-master01                          1/1     Running   0          33m
+etcd-k8s-master02                          1/1     Running   0          23m
+etcd-k8s-master03                          1/1     Running   0          18m
+kube-apiserver-k8s-master01                1/1     Running   0          33m
+kube-apiserver-k8s-master02                1/1     Running   0          23m
+kube-apiserver-k8s-master03                1/1     Running   0          18m
+kube-controller-manager-k8s-master01       1/1     Running   1          33m
+kube-controller-manager-k8s-master02       1/1     Running   0          23m
+kube-controller-manager-k8s-master03       1/1     Running   0          18m
+kube-proxy-64hw8                           1/1     Running   0          16m
+kube-proxy-h4kh5                           1/1     Running   0          33m
+kube-proxy-jcxmt                           1/1     Running   0          18m
+kube-proxy-pcsl4                           1/1     Running   0          23m
+kube-proxy-vz46h                           1/1     Running   0          16m
+kube-scheduler-k8s-master01                1/1     Running   1          33m
+kube-scheduler-k8s-master02                1/1     Running   0          23m
+kube-scheduler-k8s-master03                1/1     Running   0          18m
+```
+
+## Mertics部署
+
+通过Metrics采集节点和Pod的内存、磁盘、CPU和网络的使用率。
+
+将Master01节点的front-proxy-ca.crt复制到所有Node节点
+
+```shell
+scp /etc/kubernetes/pki/front-proxy-ca.crt k8s-node01:/etc/kubernetes/pki/front-proxy-ca.crt
+scp /etc/kubernetes/pki/front-proxy-ca.crt k8s-node02:/etc/kubernetes/pki/front-proxy-ca.crt
+```
+
+安装metrics server
+
+```shell
+cd /root/k8s-ha-install/metrics-server-0.4.x-kubeadm/
+
+[root@k8s-master01 metrics-server-0.4.x-kubeadm]# kubectl  create -f comp.yaml 
+serviceaccount/metrics-server created
+clusterrole.rbac.authorization.k8s.io/system:aggregated-metrics-reader created
+clusterrole.rbac.authorization.k8s.io/system:metrics-server created
+rolebinding.rbac.authorization.k8s.io/metrics-server-auth-reader created
+clusterrolebinding.rbac.authorization.k8s.io/metrics-server:system:auth-delegator created
+clusterrolebinding.rbac.authorization.k8s.io/system:metrics-server created
+service/metrics-server created
+deployment.apps/metrics-server created
+apiservice.apiregistration.k8s.io/v1beta1.metrics.k8s.io created
+```
+
+等待kube-system命令空间下的Pod全部启动后，查看状态
+
+```shell
+[root@k8s-master01 metrics-server-0.4.x-kubeadm]# kubectl  top node
+NAME           CPU(cores)   CPU%   MEMORY(bytes)   MEMORY%   
+k8s-master01   117m         5%     1269Mi          67%       
+k8s-master02   110m         5%     1268Mi          67%       
+k8s-master03   92m          4%     1249Mi          66%       
+k8s-node01     55m          2%     939Mi           50%       
+k8s-node02     54m          2%     947Mi           50%       
+```
+
+## 安装dashboard(可以换成kuboard)
+
+```shell
+cd /root/k8s-ha-install/dashboard/
+
+[root@k8s-master01 dashboard]# kubectl  create -f .
+```
+
+更改dashboard的svc为NodePort：
+
+```shell
+kubectl edit svc kubernetes-dashboard -n kubernetes-dashboard
+
+...
+type: NodePort
+...
+```
+
+查看端口号
+
+```shell
+[root@k8s-master01 dashboard]# kubectl get svc kubernetes-dashboard -n kubernetes-dashboard
+NAME                   TYPE       CLUSTER-IP    EXTERNAL-IP   PORT(S)         AGE
+kubernetes-dashboard   NodePort   10.111.4.67   <none>        443:30543/TCP   3m51s
+```
+
+访问Dashboard：[https://192.168.101.200:30543](https://192.168.0.236:18282/)（请更改18282为自己的端口），选择登录方式为令牌（即token方式）
+
+![image-20211113165825242](https://gitee.com/c_honghui/picture/raw/master/img/20211113165832.png)
+
+查看token值：
+
+```shell
+[root@k8s-master01 dashboard]# kubectl -n kube-system describe secret $(kubectl -n kube-system get secret | grep admin-user | awk '{print $1}')
+Name:         admin-user-token-g67vp
+Namespace:    kube-system
+Labels:       <none>
+Annotations:  kubernetes.io/service-account.name: admin-user
+              kubernetes.io/service-account.uid: ed264087-b89e-44cd-8d42-944d34a72085
+
+Type:  kubernetes.io/service-account-token
+
+Data
+====
+ca.crt:     1066 bytes
+namespace:  11 bytes
+token:      eyJhbGciOiJSUzI1NiIsImtpZCI6InJNQ3NDN1dqbU9KTXV0OFBHa1pCSVBPS1RieGE0WUgyRW1LdHRKczZyU3MifQ.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJrdWJlLXN5c3RlbSIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VjcmV0Lm5hbWUiOiJhZG1pbi11c2VyLXRva2VuLWc2N3ZwIiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9zZXJ2aWNlLWFjY291bnQubmFtZSI6ImFkbWluLXVzZXIiLCJrdWJlcm5ldGVzLmlvL3NlcnZpY2VhY2NvdW50L3NlcnZpY2UtYWNjb3VudC51aWQiOiJlZDI2NDA4Ny1iODllLTQ0Y2QtOGQ0Mi05NDRkMzRhNzIwODUiLCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6a3ViZS1zeXN0ZW06YWRtaW4tdXNlciJ9.wH1a59vVNkGRaaGWccVleZO3YR9MAvSBxFZ7F64TY_adoA9pWGLae02Cz9KESgSIbi6Cex8wjUQ6QwfYBgViwzjVAuY2N9qLQfAxy6xqm_xEWe1pfQaHi_6vAfT5RmgRqtSakO8ewy22GESo6FfFHq2YnKq4F9ijeSZNmUABksMtARpQBDF9juqU3ZX4dyQCD-qQ5cqSK5TDBd-OGEeQSuQE7VjiyQLk7WONLSc15EX35wGqbkAYUGEP7eLev2OL0C9Rjz3w800IAZnRp8f33bfeOGEBavM6RSyEELT7O6aSWUSfOIWQ7ZQg5DKbzDigNfwv0TcrYRcd7WlgDrX3Bg
+```
+
+把token输入然后登录
+
+-----
+
+安装kuboard
+
+```shell
+kubectl apply -f https://kuboard.cn/install-script/kuboard-beta.yaml
+```
+
+查看端口号
+
+```shell
+kubectl get svc -n kube-system
+```
+
+获取token
+
+```shell
+echo $(kubectl -n kube-system get secret $(kubectl -n kube-system get secret | grep ^kuboard-user | awk '{print $1}') -o go-template='{{.data.token}}' | base64 -d)
+```
+
+## 更改一些配置
+
+把kube-proxy改成ipvs模式
+
+```shell
+kubectl edit cm kube-proxy -n kube-system
+mode:"ipvs"
+```
+
+更新kube-proxy的pod
+
+```shell
+kubectl patch daemonset kube-proxy -p "{\"spec\":{\"template\":{\"metadata\":{\"annotations\":{\"date\":\"`date +'%s'`\"}}}}}" -n kube-system
+```
+
+验证kube-proxy模式
+
+```shell
+curl 127.0.0.1:10249/proxyMode
+ipvs
+```
+
+## 注意事项
+
+kubeadm安装的集群，证书有效期默认是一年。master 节点的 kubenapiserver、kube-scheduler、kube-controller-manager-etcd 都是以容器运行的。可以通过 kubectl get po -n kube-system 查看。
+
+启动和二进制不同的是，kubelet 的配置文件在/etc/sysconfig/kubelet 和/var/lib/kubelet/config.yaml
+其他组件的配置文件在/etc/Kubernetes/manifests 目录下，比如 kube-apiserver.yaml，该 yaml 文件更改后，kubelet 会自动刷新配置，也就是会重启 pod。不能再次创建该文件
+
+## 集群验证
+
+查看所有namespace的容器
+
+kubectl get po --all-namespaces [-owide]
+
+查看监控数据
+
+kubectl top po --all-namespaces
+
+查看svc
+
+kubectl get svc
+
+kubectl get svc -n kube-system
