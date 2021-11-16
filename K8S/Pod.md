@@ -32,7 +32,7 @@ Pod是k8s最小的单元，由一组、一个或多个容器组成，每个Pod�
 
 ### 探针种类
 
-StartupProbe：k8s1.16版本新加的探测方式，用于判断容器内的应用程序是否已经启动，如果配置了StartupProbe，就会先禁止其他的探针，直到它成功为止，成功后将不再进行探测。
+StartupProbe：k8s1.16版本新加的探测方式，用于判断容器内的应用程序是否已经启动，如果配置了StartupProbe，就会先禁止其他的探针，直到它成功为止，成功后将不再进行探测。（程序启动慢可以配这个）
 
 LivenessProbe：用于探测容器是否运行，如果探测失败，kubelet会根据配置的重启策略进行相应处理，若没有配置该探针，默认就是success。
 
@@ -48,4 +48,66 @@ TCPSocketAction：通过TCP连接检查容器内的端口是否是通的，如�
 
 ### 探针检查参数
 
-![image-20211114231619131](https://gitee.com/c_honghui/picture/raw/master/img/20211114231642.png)
+```yaml
+initialDelay：10 #初始化时间
+timeoutSeconds: 2 #超时时间
+periodSeconds: 10 #检测间隔
+successThreshold: 1 #检查成功1次表示就绪
+failureThreshold: 1 #检查失败1次表示未就绪
+```
+
+### 为什么用StartupProbe
+
+startupProbe 和 livenessProbe 最大的区别就是startupProbe在探测成功之后就不会继续探测了，而livenessProbe在pod的生命周期中一直在探测。
+
+假如配置了如下LivenessProbe
+
+```yaml
+livenessProbe:
+  httpGet:
+    path: /test
+    prot: 80
+  failureThreshold: 1
+  initialDelay：10
+  periodSeconds: 10
+```
+
+上面配置的意思是容器启动10s后每10s检查一次，允许失败的次数是1次。如果失败次数超过1则会触发restartPolicy。
+
+但如果服务启动很慢的话比如60s，这个时候如果还是用上面的探针就会进入死循环，因为上面的探针10s后就开始探测，这时候我们服务并没有起来，发现探测失败就会触发restartPolicy。
+
+如果改成如下配置
+
+```yaml
+livenessProbe:
+  httpGet:
+    path: /test
+    prot: 80
+  failureThreshold: 4
+  initialDelay：30
+  periodSeconds: 10
+```
+
+确实这样pod能够启动起来了，但在后期的探测中，你需要10*4=40s才能发现这个pod不可用。
+
+在这时候我们把`startupProbe`和`livenessProbe`结合起来使用就可以很大程度上解决我们的问题。
+
+```yaml
+livenessProbe:
+  httpGet:
+    path: /test
+    prot: 80
+  failureThreshold: 1
+  initialDelay：10
+  periodSeconds: 10
+
+startupProbe:
+  httpGet:
+    path: /test
+    prot: 80
+  failureThreshold: 10
+  initialDelay：10
+  periodSeconds: 10
+```
+
+`startupProbe`配置的是10s\*10+10s，也就是说只要应用在110s内启动都是OK的，一旦启动探针探测成功之后，就会被livenessProbe接管，这样应用挂掉了10s就会发现问题。
