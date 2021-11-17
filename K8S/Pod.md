@@ -111,3 +111,13 @@ startupProbe:
 ```
 
 `startupProbe`配置的是10s\*10+10s，也就是说只要应用在110s内启动都是OK的，一旦启动探针探测成功之后，就会被livenessProbe接管，这样应用挂掉了10s就会发现问题。
+
+## Pod退出流程
+
+用户执行删除操作，发送delete pod命令
+
+执行`pod get` 命令显示pod状态变为Terminating，Endpoint删除该Pod的IP地址
+
+如果pod中的一个容器定义了 preStop hook，就在容器中调用它。如果过了宽限期（terminationGracePeriodSeconds）preStop还在运行，则延长一个短的宽限期（2秒）。如果要延长preStop，你要修改terminationGracePeriodSeconds
+
+宽限期过期时，pod中所有运行的进程被SIGKILL杀死
