@@ -217,13 +217,6 @@ Server: Docker Engine – Community      ### Docker 服务端
    是容器运行时的载体，我们在Docker宿主机上看到的shim也正是代表着一个个通过调用containerd启动的docker容器。
    containerd-shim 的主要作用是将 containerd 和真正的容器进程解耦，使用 containerd-shim 作为容器进程的父进程，从而实现重启 containerd 不影响已经启动的容器进程。
    ```
-```
-   
-容器运行时相关的组件：runc
-   
-   ```text
-   用来运行容器，通过调用namespace、cgroups等系统接口，实现容器的创建和销毁
-```
 
 
 ### 核心底层技术
@@ -438,7 +431,7 @@ dockerhub显示的镜像大小是压缩的
 ```shell
 [root@node1 ~]# docker save centos > /opt/centos.tar.gz    #导出镜像
 或
-[root@node1 ~]# docker save -o /opt/centos.tar.gz centos
+[root@node1 ~]# docker save centos -o /opt/centos.tar.gz
 
 [root@node1 ~]# docker load < /opt/centos.tar.gz           #导入镜像
 或
