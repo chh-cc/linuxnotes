@@ -1,34 +1,55 @@
 # Nginx配置
 
-## 配置文件结构
+## nginx.conf
+
+全局参数(配置影响nginx全局的指令。)
 
 ```shell
-vim nginx.conf
-
-#全局参数(配置影响nginx全局的指令。一般有运行nginx服务器的用户组，nginx进程pid存放路径，日志存放路径，配置文件引入，允许生成worker process数等。)
 user nginx nginx	#定义nginx运行的用户和组
 pid /run/nginx.pid;	#pid文件位置
 error_log /var/log/nginx/error.log notice;	#全局日志输出位置,notice是日志级别
 worker_processes auto;	#开启的工作进程数量,和cpu核心数量相等
 worker_rlimit_nofile 65535;	#一个nginx 进程打开的最多文件描述符数目，理论值应该是最多打开文件数（ulimit -n）与进程数相除，但是nginx分配请求并不是那么均匀，所以最好与ulimit -n值一致
+```
 
-#events块(配置影响nginx服务器或与用户的网络连接。有每个进程的最大连接数，选取哪种事件驱动模型处理连接请求，是否允许同时接受多个网路连接，开启多个网络连接序列化等。)
+events块
+
+```shell
 events {
 	use epoll;
 	worker_connections	65535;	#每个work进程最大的连接数,并发限定总数是 worker_processes 和 worker_connections 的乘积;在设置了反向代理的情况下，max_clients = worker_processes * worker_connections / 2  因为作为反向代理服务器，每个并发会建立与客户端的连接和与后端服务的连接，会占用两个连接。
 }
+```
 
-# http 服务相关设置(可以嵌套多个server，配置代理，缓存，日志定义等绝大多数功能和第三方模块的配置。)
+日志格式
+
+```shell
 http {
-	
-	#日志格式
 	log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
                       '$status $body_bytes_sent "$http_referer" '
                       '"$http_user_agent" "$http_x_forwarded_for"';
     access_log  /var/log/nginx/access.log  main;
     error_log /var/log/nginx/error.log info;
+}
+```
+
+基础配置
+
+```shell
+http {
+    #隐藏版本号
+    server_tokens off;
+    #编码格式
+    charset UTF-8;
     
-    #limit限制
+    include	/etc/nginx/conf.d/*.conf;
+}
+```
+
+limit
+
+```shell
+http {
     #设置用于保存各种 key（比如当前连接数）的共享内存的参数。 5m 就是 5兆字节，这个值应该被设置的足够大以存储（32K*5） 32byte 状态或者（16K*5） 64byte 状态。
     limit_conn_zone $binary_remote_addr zone=addr:5m;
     #我们设置的值是 100，也就是说我们允许每一个 IP 地址最多同时打开有 100 个连接。
@@ -37,30 +58,37 @@ http {
     limit_rate_after 3m;
     #限速模块
     limit_rate 512k;
-    
-    #基础设置
-    #禁用ssi
-    ssi off;
-    #开启目录列表访问,适合下载服务器,默认关闭
-    autoindex off;
-    #媒体类型,标准
-    include       mime.types;
-    #默认文件类型，默认为text/plain
-    default_type  application/octet-stream;
-    #隐藏版本号
-    server_tokens off;
-    #编码格式
-    charset UTF-8;
-    
-    #信息传输
+}
+```
+
+信息传输
+
+```shell
+http {
     #开启高效文件传输模式，sendfile指令指定nginx是否调用sendfile函数来输出文件，对于普通应用设为 on，如果用来进行下载等应用磁盘IO重负载应用，可设置为off，以平衡磁盘与网络I/O处理速度，降低系统的负载。如果图片显示不正常把这个改成off。
     sendfile        on;
     #必须在sendfile开启模式才有效，告诉nginx在一个数据包里发送所有头文件，而不一个接一个的发送。
     tcp_nopush     on;
     #必须在sendfile开启模式才有效告诉nginx不要缓存数据，而是一段一段的发送--当需要及时发送数据时，就应该给应用设置这个属性，这样发送一小块数据信息时就不能立即得到返回值。
     tcp_nodelay on;
-    
-    #超时设置
+}
+```
+
+server_name
+
+```shell
+http {
+	#保存服务器名字的hash表是由指令server_names_hash_max_size 和server_names_hash_bucket_size所控制的。参数hash bucket size总是等于hash表的大小，并且是一路处理器缓存大小的倍数。在减少了在内存中的存取次数后，使在处理器中加速查找hash表键值成为可能。如果hash bucket size等于一路处理器缓存的大小，那么在查找键的时候，最坏的情况下在内存中查找的次数为2。第一次是确定存储单元的地址，第二次是在存储单元中查找键 值。因此，如果Nginx给出需要增大hash max size 或 hash bucket size的提示，那么首要的是增大前一个参数的大小
+    server_names_hash_bucket_size 64;
+    #存储服务器名字的值大小，默认512kb，如果一个server对应多个域名，就要加大此值
+    server_names_hash_max_size 256;
+}
+```
+
+超时设置
+
+```shell
+http {
     #客户端连接保持会话超时时间，超过这个时间，服务器断开这个链接，对于后端是php，可以低一些，因为php解析快，java的话要长一些，java解析慢
     keepalive_timeout  30;
     #设置请求头的超时时间。我们也可以把这个设置低些，如果超过这个时间没有发送任何数据，nginx将返回request time out的错误
@@ -71,20 +99,25 @@ http {
     send_timeout 10;
     #告诉nginx关闭不响应的客户端连接。这将会释放那个客户端所占有的内存空间。
     reset_timedout_connection on;
-	
-	#server_name控制
-	#对虚拟主机服务器名字(server_name www.xx.com这种)在内存中做hash，如果名字太长，就需要将如下值变大为64
-	#保存服务器名字的hash表是由指令server_names_hash_max_size 和server_names_hash_bucket_size所控制的。参数hash bucket size总是等于hash表的大小，并且是一路处理器缓存大小的倍数。在减少了在内存中的存取次数后，使在处理器中加速查找hash表键值成为可能。如果hash bucket size等于一路处理器缓存的大小，那么在查找键的时候，最坏的情况下在内存中查找的次数为2。第一次是确定存储单元的地址，第二次是在存储单元中查找键 值。因此，如果Nginx给出需要增大hash max size 或 hash bucket size的提示，那么首要的是增大前一个参数的大小
-    server_names_hash_bucket_size 64;
-    #存储服务器名字的值大小，默认512kb，如果一个server对应多个域名，就要加大此值
-    server_names_hash_max_size 256;
-    
-    #提交缓存
+}
+```
+
+请求缓存
+
+```shell
+http {
     #nginx 会将整个请求头都放在一个 buffer 里面，如果用户的请求头太大，这个 buffer 装不下，那 nginx 就会重新分配一个新的更大的 buffer来装请求头，这个大 buffer 可以通过 large_client_header_buffers 来设置，比如配置 4 8k，就是表示有四个 8k 大小的buffer 可以用。
     #客户端请求头部的缓冲区大小。这个可以根据你的系统分页大小来设置，一般一个请求的头部大小不会超过1k，不过由于一般系统分页都要大于1k，所以这里设置为分页大小。分页大小可以用命令getconf PAGESIZE取得。
     client_header_buffer_size 32k;
     #此指令规定了用于读取大型客户端请求头的缓冲区的最大数量和大小。 这些缓冲区仅在缺省缓冲区不足时按需分配。 当处理请求或连接转换到保持活动状态时，释放缓冲区。如下例子：
     large_client_header_buffers 4 64k;
+}
+```
+
+上传、打开文件
+
+```shell
+http {
     #NGINX上传文件最大限制。 如果请求大于指定的大小，则NGINX发回HTTP 413（Request Entity too large）错误。如果在上传大文件，可以将此值设置大一些
     client_max_body_size 20m;
     
@@ -96,27 +129,33 @@ http {
     open_file_cache_min_uses 2;
     #指定了当搜索一个文件时是否缓存错误信息，也包括再次给配置中添加文件。我们也包括了服务器模块，这些是在不同文件中定义的。如果你的服务器模块不在这些位置，你就得修改这一行来指定正确的位置
     open_file_cache_errors off;
-    
+}
+```
 
-    
-    # fastcgi调优（配合PHP引擎动态服务）
+fastcgi调优（配合PHP引擎动态服务）
+
+```shell
+http {
     fastcgi_connect_timeout    300;	#指定连接到后端fastCGI的超时时间
     fastcgi_send_timeout    300;	#向FastCGI传送请求的超时时间，这个值是指已经完成两次握手后向FastCGI传送请求的超时时间
     fastcgi_read_timeout    300;	#指定接收FastcGI应答的超时时间，这个值是指己经完成两次握手后接收FastCGI应答的超时时间
     fastcgi_buffer_size    32k;	#指定读取FastCGI应答第一部分需要用多大的缓冲区，这个值表示将使用1个64KB的缓冲区读取应答的第一部分（应答头），可以置为fastcgi_buffers选项指定的缓冲区大小。
     fastcgi_buffers    8 32k;	#指定本地需要用多少和多大的缓冲区来缓冲FastCGI的应答请求。如果一个PHP脚本所产生的页面大小为256KB,为其分配4个64KB的缓冲区来缓存；如果页面大小大于256KB，那么大于256KB的部分会缓存到fastcgi_temp指定的路径中，但是这并不是好方法，因为内存中的数据处理速度要快于硬盘。一般这个值应该为站点中PHP脚本所产生的页面大小的中间值，如果站点大部分脚本所产生的页面大小为256KB，那么可以把这个值设置为"16 16k"、"16 16k" 
-    
-    #负载均衡
+}
+```
+
+负载均衡
+
+```shell
+http {
 	upstream lbEureka {
 		server    10.1.96.3:80 weight=1 max_fails=2 fail_timeout=30s;
         server    10.1.96.4:80 weight=1 max_fails=2 fail_timeout=30s;
 	}
-
-	include	/etc/nginx/conf.d/*.conf;
 }
 ```
 
-
+压缩
 
 ```shell
 vim /etc/nginx/conf.d/gzip.conf
@@ -157,12 +196,14 @@ vim /etc/nginx/conf.d/gzip.conf
     gzip_static on;
 ```
 
+## 虚拟主机
 
+vim /etc/nginx/conf.d/*.conf
+
+基础配置
 
 ```shell
-vim /etc/nginx/conf.d/*.conf
 server {
-	(配置虚拟主机的相关参数)
 	listen       443;	#监听端口
 	server_name  10.81.248.2;	#域名可以多个，用空格隔开
 	access.log   /var/logs/webapps_access.log main
@@ -172,14 +213,19 @@ server {
 	
 	#https证书
 	ssl on;
-    ssl_certificate /etc/ssl/xaest2019/4743589_xaest.xiaoantimes.com.pem;
-    ssl_certificate_key /etc/ssl/xaest2019/4743589_xaest.xiaoantimes.com.key;
+    ssl_certificate /etc/ssl/xaest2019/4743589_xxx.xxx.com.pem;
+    ssl_certificate_key /etc/ssl/xaest2019/4743589_xxx.xxx.com.key;
     ssl_session_timeout 5m;
     ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
     ssl_ciphers AESGCM:ALL:!DH:!EXPORT:!RC4:+HIGH:!MEDIUM:!LOW:!aNULL:!eNULL;
     ssl_prefer_server_ciphers on;
-    
-	#配置代理
+}
+```
+
+反向代理
+
+```shell
+server {
 	location ^~ /eureka/ {
 	    #代理的后端服务器
 		proxy_pass http://lbEureka/;
@@ -206,6 +252,16 @@ server {
 		#proxy_max_temp_file_size 256k;
 		proxy_temp_file_write_size 64k;
 	}
+}
+```
+
+
+
+```shell
+
+server {
+
+
 	
 	#动静分离
 	location ~ .*\.(gif|jpg|jpeg|svg|bmp|png|ico|txt|js|css|html)$ {
