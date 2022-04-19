@@ -53,10 +53,10 @@ Prometheus 架构由客户端在被监控系统上利用导出器采集指标数
 
 - 短周期的jobs先将度量数据推送到网关(pushgateway)，然后Prometheus再从pushgateway中获取短周期jobs的度量数据
 
-- Prometheus通过从exporters中拉取度量数据
+- Prometheus通过从exporters中**拉取**度量数据
 
 - 通过自动发现目标的方式来监控kubernetes集群。
-- 所有收集的数据可以存储在本地的TSDB数据库中，同时设定记录规则(PromQL表达式)和告警规则(频率)并发送给alertmanager进行发送报警事件到运维人员手中。再利用Grafana的仪表盘展示Prometheus服务中的数据。
+- 所有收集的数据可以存储在本地的TSDB数据库中，同时设定记录规则(PromQL表达式)和告警规则(频率)并发送给alertmanager进行**发送报警**事件到运维人员手中。再利用Grafana的仪表盘展示Prometheus服务中的数据。
 
 ### 组件
 

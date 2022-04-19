@@ -1,14 +1,19 @@
 # Docker
 
+理解容器的几个基本点
+
+- 容器技术的兴起源于 PaaS 技术的普及；
+- Docker 公司发布的 Docker 项目具有里程碑式的意义；
+- Docker 项目通过“容器镜像”，解决了应用打包这个根本性难题。
+- 容器本身没有价值，有价值的是“容器编排”
+
+因此容器技术生态才爆发了一场关于“容器编排”的“战争”。而这次战争，最终以 Kubernetes 项目和 CNCF 社区的胜利而告终
+
 ## 简介
 
-go语言开发的
+容器其实是一种**沙盒技术**，沙盒就是能够像一个个集装箱，把你的应用**“装”**起来的技术，这样应用与应用之间就有了**边界**而不互相干扰，而被装进集装箱的应用也方便**搬动**，这也是PASS最理想的状态。
 
-通过部署容器方式实现，每个容器之间互相隔离，每个容器有自己的文件系统 ，容器之间进程不会相互影响，能区分计算资源。
 
-**docker可以实现虚拟机隔离应用环境的功能，并且开销比虚拟机小**。
-
-把应用程序（1.jar）根据某个依赖的（java）基础镜像，生成一个应用程序镜像，这个应用程序镜像可以在任何部署了docker环境的机器上运行
 
 docker容器镜像官网：
 
@@ -24,41 +29,6 @@ docker国内加速镜像站：
 清华大学镜像站：mirrors.tuna.tsinghua.edu.cn
 ```
 
-### 用途
-
-1.提供一次性的环境。比如，本地测试他人的软件、持续集成的时候提供单元测试和构建的环境。
-
-2.提供弹性的云服务。因为Docker容器可以随开随关，很适合动态扩容和缩容。
-
-3.组建微服务架构。通过多个容器，一台机器可以跑多个服务，因此在本机就可以模拟出微服务架构。
-
-### Docker应用建议
-
-1）不要在容器中存储数据 – 容器可能被停止，销毁，或替换。一个运行在容器中的程序版本1.0，应该很容易被1.1的版本替换且不影响或损失数据。有鉴于此，如果你需要存储数据，**请存在卷中**，并且注意如果两个容器在同一个卷上写数据会导致崩溃。确保你的应用被设计成在共享数据存储上写入。
-
- 2）不要将你的应用发布两份 – 一些人将容器视为虚拟机。他们中的大多数倾向于认为他们应该在现有的运行容器里发布自己的应用。在开发阶段这样是对的，此时你需要不断地部署与调试；但对于质量保证与生产中的一个连续部署的管道，你的应用本该成为镜像的一部分。记住：容器应该保持不变。
-
- 3）不要创建超大镜像 – 一个超大镜像只会难以分发。确保你仅有运行你应用/进程的必需的文件和库。不要安装不必要的包或在创建中运行更新（yum更新）。
-
- 4）不要使用单层镜像 – 要对分层文件系统有更合理的使用，始终为你的操作系统创建你自己的基础镜像层，另外一层为安全和用户定义，一层为库的安装，一层为配置，最后一层为应用。这将易于重建和管理一个镜像，也易于分发。
-
- 5）不要为运行中的容器创建镜像 – 换言之，**不要使用“docker commit”命令来创建镜像**。这种创建镜像的方法是不可重现的也不能版本化，应该彻底避免。始终使用Dockerfile或任何其他的可完全重现的S2I（源至镜像）方法。
-
- 6）不要只使用“最新”标签 – 最新标签就像Maven用户的“快照”。标签是被鼓励使用的，尤其是当你有一个分层的文件系统。你总不希望当你2个月之后创建镜像时，惊讶地发现你的应用无法运行，因为最顶的分层被非向后兼容的新版本替换，或者创建缓存中有一个错误的“最新”版本。在生产中部署容器时应避免使用最新。
-
- 7）不要在单一容器中运行超过一个进程－容器能完美地运行单个进程（http守护进程，应用服务器，数据库），但是如果你不止有一个进程，管理、获取日志、独立更新都会遇到麻烦。
-
- 8）不要在镜像中存储凭据。使用环境变量 –不要将镜像中的任何用户名/密码写死。使用环境变量来从容器外部获取此信息。
-
- 9）**使用非root用户运行进程** – “docker容器默认以root运行。（…）随着docker的成熟，更多的安全默认选项变得可用。现如今，请求root对于其他人是危险的，可能无法在所有环境中可用。你的镜像应该使用USER指令来指令容器的一个非root用户来运行。”
-
-```shell
-让用户拥有docker权限
-usermod -G docker 用户名
-```
-
- 10）不要依赖IP地址 – 每个容器都有自己的内部IP地址，如果你启动并停止它地址可能会变化。如果你的应用或微服务需要与其他容器通讯，使用任何命名与（或者）环境变量来从一个容器传递合适信息到另一个。
-
 ## 架构和原理
 
 ### **镜像（Image）**
@@ -66,6 +36,16 @@ usermod -G docker 用户名
 镜像是一个**只读**的文件和文件夹组合。它包含了容器运行时所需要的所有基础文件和配置信息，是容器启动的基础。
 
 实际上image是由**一层层的文件系统组成**的，这种层级的文件系统称为UnionFS。
+
+docker相关的本地资源都存放在/var/lib/docker目录下，其中containers目录下每个序列都是一个镜像
+
+```shell
+[root@docker containers]# ll
+total 0
+drwx------ 4 root root 237 Apr  8 23:35 01cd68ccc61b021dba0e20e226ac7db40e62ba9233522445b29f1fa1a7669113
+drwx------ 4 root root 237 Apr  8 23:35 32d661fd565451624446149dde18500f0e1ca702f93a286ad84b6c86e67985d7
+drwx------ 4 root root 237 Apr  8 23:22 408136b5a5aeddef2e7368d4106f8b3040875538d9f872a8291fbbf0dcb058f6
+```
 
 Docker image来源：
 
@@ -76,10 +56,16 @@ Docker image来源：
 （4）甚至也可以直接下载别人的image。
 ```
 
-镜像名称组成：
+镜像名称——registry/repository:tag
 
-```text
-registry/repo:tag
+```shell
+docker images
+REPOSITORY          TAG                 IMAGE ID            CREATED             SIZE
+ubuntu     			latest              2c4c54db1c77        4 months ago        192 MB
+
+#ubuntu是一个repository，同时这个repository下有一系列打了tag的image，iamge的标记是GUID，为了方便可以通过repository:tag来引用
+#registry：存储镜像数据，提供镜像的拉取和上传功能
+#registry中镜像是通过repository来组织的，而每个repository又包含了若干个image
 ```
 
 基础镜像：
@@ -88,69 +74,13 @@ registry/repo:tag
 ⼀个没有任何⽗镜像的镜像，谓之基础镜像
 ```
 
-镜像ID：
-
-```text
-所有镜像都是通过⼀个 64 位⼗六进制字符串 （内部是⼀个 256 bit 的值）来标识的。 为简化使⽤，前12 个字符可以组成⼀个短ID，可以在命令⾏中使⽤。短ID还是有⼀定的碰撞机率，所以服务器总是返回⻓ID
-```
-
-分层存储机制：
-
-```text
-***docker采用分层构建机制，最底层为bootfs，其之为rootfs***
-
-***bootfs***：用于系统引导的文件系统，包括bootloader和kernel，容器启动完成后会被卸载以节约内存资源；
-
-***rootfs***：位于bootfs之上，表现为docker容器的根文件系统。传统模式中，系统启动时，内核挂载rootfs时会首先将其挂载为只读模式，完整性自检完成后将其重新挂载为只读模式：docker中，rootfs由内核挂载为只读模式，而后通过联合挂载技术额外挂载一个可写层。
-
-位于下层的镜像称之为父镜像，最底层的称之为基础镜像；最上层为可读写层，其下的均为只读层。
-
-为了能启动容器（Containers），需要在本地拥有镜像文件（images）,镜像文件存储在本地特殊的存储位置，此存储位置必须支持一种特殊的文件系统分层挂载或称为联合挂载技术（因为镜像是分层构建的）
-
-***目前支持分层存放的文件系统有：***
-
-1. aufs：advanced multi-layered unification filesystem 高级多层统一文件系统，aufs是之前的UnionFS的重新实现，2006年由Junjiro Okajima开发
-
-2. overlayfs2：高级叠加文件系统。从3.18版后被合并到linux内核
-
-3. dm：devicemapper，稳定性和性能不佳
-
-此外，docker的分层镜像还支持btrfs、vfs等。
-
-在Ubuntu系统下，docker默认Ubuntu的aufs，而在Centos7上用的是devicemapper
-```
-
 ### **容器（Container）**
 
-![image-20210304112100778](https://gitee.com/c_honghui/picture/raw/master/img/20210304112100.png)
-
 容器是镜像的运行实体。镜像是静态的只读文件，而容器带有运行时需要的可写文件层，并且容器中的进程属于运行状态。即**容器运行着真正的应用进程。容器有初建、运行、停止、暂停和删除五种状态。**
-
-容器的实质是进程，但与直接在宿主执行的进程不同，容器进程运行于**属于自己的独立的 命名空间**。因此容器可以拥有自己的 root 文件系统、自己的网络配置、自己的进程空间，甚至自己的用户 ID 空间。容器内的进程是运行在一个隔离的环境里，使用起来，就好像是在一个独立于宿主的系统下操作一样。
-
-我们可以⽤同⼀个镜像启动多个Docker容器，这些容器启动后都是活动的，彼此还是相互隔离的。我们
-对其中⼀个容器所做的变更只会局限于那个容器本身。
-
-如果对容器的底层镜像进⾏修改，那么当前正在运⾏的容器是不受影响的，不会发⽣⾃动更新现象。
-
-如果想更新容器到其镜像的新版本，那么必须当⼼，确保我们是以正确的⽅式构建了数据结构，否则我
-们可能会导致损失容器中所有数据的后果。
 
 ### **仓库（Repository）**
 
 我们需要一个仓库来存放镜像，Docker官方提供了公共的镜像仓库；从安全和效率的角度考虑我们也可以部署私有环境的Registry或者是Harbor。
-
-----------------------------------------
-
-layer: 在Dockerfile中每一步都会产生一层layer，每一步的结果产出变成文件。
-
-dockerfile: 一种构建image的文件的DSL。
-
-docker-compose: Python写的一个docker编排工具。
-
-docker swarm: docker公司推出的容器调度平台。
-
-kubernetes: google主导的容器调度平台。
 
 ### 架构
 
@@ -218,26 +148,56 @@ Server: Docker Engine – Community      ### Docker 服务端
    containerd-shim 的主要作用是将 containerd 和真正的容器进程解耦，使用 containerd-shim 作为容器进程的父进程，从而实现重启 containerd 不影响已经启动的容器进程。
    ```
 
+## 核心底层技术
 
-### 核心底层技术
+容器的核心在于**通过对进程的隔离和限制，从而为其创造出一个边界。**
 
-Docker使用的核心底层技术：Namespace、Control Groups和Union FS。
+### Namespaces（隔离）
 
-**Namespaces**
+进入一个容器，执行ps：
 
-简单来说，Namespace 是 Linux 内核的一个特性，可以实现在同一主机系统中，对进程 ID、主机名、用户 ID、文件名、网络和进程间通信等资源的隔离。Docker 利用 Linux 内核的 Namespace 特性，实现了每个容器的**资源相互隔离**，从而保证容器内部只能访问到自己 Namespace 的资源。
+```shell
+/ # ps
+PID   USER     TIME  COMMAND
+    1 root      0:00 /bin/sh
+    6 root      0:00 ps
+```
 
-namespace         系统调用参数            隔离内容                  内核版本
-	（1）UTS              CLONE_NEWUTS	       主机名和域名                  2.6.19
-	（2）IPC               CLONE_NEWIPC         信息量，消息队列和共享内存    2.6.19
-	（3）PID               CLONE_NEWPID	       进程编号                      2.6.24
-	（4）Network      CLONE_NEWNET	       网络设备、网络栈、端口等      2.6.29
-	（5）Mount         CLONE_NEWNS	       挂载点（文件系统）            2.4.19
-	（6）User             CLONE_NEWUSER	       用户和用户组                  3.8
+通过Linux的namespace机制， 容器里这两个进程已经**被docker隔离在一个跟宿主机完全不同的世界中**。实际上它们在宿主机的操作系统里，进程号不是1和6。
 
-**Control groups**
 
-Control groups（Cgroups）中文称为控制组。Docker利用Cgroups实现了对**资源的配额**和度量。Cgroups可以限制CPU、内存、磁盘读写速率、网络带宽等系统资源。
+
+简单说，**namespace是linux创建进程的可选参数。**
+
+在 Linux 系统中**创建线程**的系统调用是 **clone()**，这个系统调用就会为我们创建一个新的进程，并且返回它的进程号 pid。而当我们用 clone() 系统调用创建一个新进程时，就可以在参数中指定 CLONE_NEWPID 参数这时，**新创建的这个进程将会“看到”一个全新的进程空间**，在这个进程空间里，它的 PID 是 1。之所以说“看到”，是因为这只是一个“障眼法”，在宿主机真实的进程空间里，这个进程的 PID 还是真实的数值，比如 100。
+
+多次执行上面的 clone() 调用，这样就会创建多个 PID Namespace，而每个 Namespace 里的应用进程，都会认为自己是当前容器里的第 1 号进程。它们既看不到宿主机里真正的进程空间，也看不到其他 PID Namespace 里的具体情况。
+
+除了我们刚刚用到的 PID Namespace，Linux 操作系统还提供了 Mount、UTS、IPC、Network 和 User 这些 Namespace，用来对各种不同的进程上下文进行“障眼法”操作。
+
+| namespace | 系统调用参数  | 隔离内容                   | 内核版本 |
+| --------- | ------------- | -------------------------- | -------- |
+| UTS       | CLONE_NEWUTS  | 主机名和域名               | 2.6.19   |
+| IPC       | CLONE_NEWIPC  | 信息量，消息队列和共享内存 | 2.6.19   |
+| PID       | CLONE_NEWPID  | 进程编号                   | 2.6.24   |
+| Network   | CLONE_NEWNET  | 网络设备、网络栈、端口等   | 2.6.29   |
+| Mount     | CLONE_NEWNS   | 挂载点（文件系统）         | 2.4.19   |
+| User      | CLONE_NEWUSER | 用户和用户组               | 3.8      |
+
+​                       
+
+Docker 容器其实就是**在创建容器进程时，指定了这个进程所需要启用的一组 Namespace 参数**。这样，容器就只能“看”到**当前 Namespace 所限定的资源、文件、设备、状态，或者配置**。而对于宿主机以及其他不相关的程序，它就完全看不到了。
+
+**所以说，容器，其实是一种特殊的进程而已。**一般不推荐在一个容器运行多个进程，如果有类似需求，可以通过额外 的进程管理机制，比如 supervisord 来管理所运行的进程。
+
+在 Linux 内核中，有很多资源和对象是不能被 Namespace 化的，最典型的例子就是：时间。
+
+### Control groups（限制）
+
+**Linux Cgroups 就是 Linux 内核中用来限制进程能使用的资源上限**，包括CPU、内存、磁盘读写速率、网络带宽等。
+
+- Cgroups以文件系统的方式暴露给用户使用，/sys/fs/cgroup 下面有很多诸如 cpuset、cpu、 memory 这样的子目录，也叫子系统
+- 使用时，在每个子系统下新建一个控制组（子目录下新建一个目录，操作系统会自动为其填充资源限制文件），将需要限制的进程的PID填写入tasks文件中
 
 	blkio：块设备IO；
 	cpu：CPU；
@@ -255,25 +215,109 @@ docker run -d --name mysql --cpus=".5"
 docker run -d --name mysql --cpus="1.5
 ```
 
-**Union file systems**（联合文件系统，**Contaner和image的分层**）
+### rootfs（文件系统）
 
-将镜像多层文件联合挂载到容器文件系统：
+**关于mount namespace：**
 
-![image-20210509225853719](https://gitee.com/c_honghui/picture/raw/master/img/20210509225853.png)
+Mount Namespace和其他Namespace的不同：如果只是启用Mount Namespace，容器进程仍能看到宿主机上全部文件
 
-Docker目前支持的UnionFS种类包括AUFS,btrfs,vfs和 DeviceMapper。
+因为Mount Namespace 修改的，是容器进程对文件系统“挂载点”的认知。而宿主机无法感知容器的挂载行为。**它对容器进程视图的改变，一定是伴随着挂载操作（mount）才能生效。**
 
-采用分层构建机制，最底层是bootfs，其之为rootfs；
-		bootfs：用于系统引导的文件系统，包括bootloader和kernel，容器启动完成后会被卸载以节约内存资源；
-		rootfs：位于bootfs之上，表现为docker容器的根文件系统；
-		传统模式中，系统启动之时，内核挂载rootfs时会首先将其挂载为"只读"模式，完整性自检完成后将其重新挂载为读写模式；
-		docker中，rootfs由内核挂载为"只读"模式，而后通过"联合挂载"技术额外挂载一个"可写"层
-
-![img](https://gitee.com/c_honghui/picture/raw/master/img/20210217232523.webp)
-
-在Docker中，上层的image依赖下层的image， 因此Docker中把下层的image称作父image，没有父image的image称作Base image。比如上图中Debian就是Base image，执行add emacs后生成的image就是执行add Apache后生成的image的父image。因此，当想要从一个image启动一个容器，Docker会先逐次加载其父image直到Base image，用户的进程运行在Writeable的文件系统层中。
+但总不能每个目录都使用mount namespace然后再挂载一遍？ 这个太麻烦了
 
 
+
+**关于容器镜像：**
+
+- 容器进程启动后，使用pivot_root或者chroot命令重新挂载进程的根目录"/"，一般会在根目录下挂载**完整操作系统的\*文件系统\***
+- 挂载在容器根目录上、用来为容器进程提供隔离后执行环境的文件系统就是**容器镜像**，也叫做**根文件系统（rootfs）**
+- rootfs只包含操作系统的文件、配置和目录，不含操作系统内核
+- rootfs提供了容器运行的所有依赖，故才有它的的重要特性——一致性。
+
+
+
+所以，一个最常见的 rootfs，或者说容器镜像，会包括如下所示的一些目录和文件
+
+```shell
+#在容器中执行ls
+$ ls /
+bin dev etc home lib lib64 mnt opt proc root run sbin sys tmp usr var
+```
+
+
+
+**通过结合使用 Mount Namespace 和 rootfs，容器就能够为进程构建出一个完善的文件系统隔离环境。**
+
+对docker来说，它最核心的原理实际上就是为待创建的用户进程：
+
+1. 启用 Linux Namespace 配置；
+2. 设置指定的 Cgroups 参数；
+3. 切换进程的根目录（Change Root）。
+
+
+
+**关于联合文件系统：**
+
+在 rootfs 的基础上，Docker 公司创新性地提出了使用多个增量 rootfs 联合挂载一个完整 rootfs 的方案，这就是容器镜像中**“层”**的概念。
+
+
+
+联合挂载(union mount)：将多个不同位置目录A、B挂载到同一个目录C下，原目录A、B下所有内容都会合并到新目录C下，在C中的修改会在A、B中生效
+
+- `mount -t aufs -o dirs=./A:./B none ./C`
+
+常见的有vfs、deviceMapper、overlay、overlay2、aufs，通过`docker info`命令可以查看docker采用的是哪种union fs，目前新版本docker一般都用overlay2
+
+
+
+容器镜像的分层结构：
+
+- Dockerfile中的每一条指令，都会为镜像生成一个层，即一个增量rootfs
+
+- 用命令`docker image insepct <image-name>:<tag-name>`可以看到“RootFS”字段下镜像的分层信息
+
+```shell
+$ docker image inspect ubuntu:latest
+...
+     "RootFS": {
+      "Type": "layers",
+      "Layers": [
+        "sha256:f49017d4d5ce9c0f544c...",
+        "sha256:8f2b771487e9d6354080...",
+        "sha256:ccd4d61916aaa2159429...",
+        "sha256:c01d74f99de40e097c73...",
+        "sha256:268a067217b5fe78e000..."
+      ]
+    }
+    
+#可以看到，这个 Ubuntu 镜像，实际上由五个层组成。这五个层就是五个增量 rootfs，每一层都是 Ubuntu 操作系统文件与目录的一部分；而在使用镜像时，Docker 会把这些增量联合挂载在一个统一的挂载点上，这个挂载点就是 /var/lib/docker/aufs/mnt/
+```
+
+
+
+镜像的多个层会被联合挂载成为一个完整的文件系统，分为三部分：
+
+<img src="https://gitee.com/c_honghui/picture/raw/master/img/20220322003004.png" alt="在这里插入图片描述" style="zoom:67%;" />
+
+**第一部分，只读层（镜像层）。**
+
+它是这个容器的 rootfs 最下面的五层，对应的正是 ubuntu:latest 镜像的五层。不希望被程序修改的内容，**以只读方式挂载**（ro+wh，即 readonly+whiteout，至于什么是 whiteout，我下面马上会讲到）。
+
+**第二部分，可读写层。**
+
+用户的增删改操作都记录在这里
+
+修改操作只作用在本层，不会实际修改只读层的内容，要修改的文件会先被复制到可读写层然后再修改。被联合挂载时，只读层的相同文件会被可读写层覆盖，这叫做copy-on-write
+
+其中的删除动作不会真正删除文件，而只是标记某文件不可见，术语叫做whiteout，从而不影响只读层的内容
+
+**第三部分，Init 层。**
+
+夹在只读层和读写层之间。Init 层专门用来存放 /etc/hosts、/etc/resolv.conf 等信息。
+
+用户执行 docker commit 只会提交可读写层，所以是不包含该层内容。
+
+最终，这 7 个层都被联合挂载到 /var/lib/docker/aufs/mnt 目录下，表现为一个完整的 Ubuntu 操作系统供容器使用。
 
 ## 安装
 
@@ -331,8 +375,6 @@ Hello from Docker!
 ## 命令
 
 ### 镜像
-
-![image-20210304105957479](https://gitee.com/c_honghui/picture/raw/master/img/20210304105957.png)
 
 搜索镜像：docker search
 
@@ -440,8 +482,6 @@ dockerhub显示的镜像大小是压缩的
 
 ### 容器
 
-![image-20210304112246217](https://gitee.com/c_honghui/picture/raw/master/img/20210304112246.png)
-
 #### 创建、运行
 
 创建并运行一个容器：
@@ -538,6 +578,12 @@ docker kill $(docker ps -q)
 #当Docker容器中指定的应用终结时，容器也会自动终止。
 ```
 
+删除后台所有停止的容器
+
+```shell
+sudo docker rm $(sudo docker ps -a -q)
+```
+
 重启容器：docker restart id或名字
 
 删除处于终止或退出状态的容器：docker rm id
@@ -568,7 +614,7 @@ root@68656158eb8e:/[root@qfedu.com ~]# ls
 
 #### 监控容器的运行
 
-logs命令来查看容器的运⾏⽇志，其中--tail选项可以指定查看最后⼏条⽇志，⽽-t选项则可以对⽇志条⽬附加时间戳。使⽤-f选项可以跟踪⽇志的输出，直到⼿动停⽌。
+logs命令来查看后台容器的输出和⽇志，其中--tail选项可以指定查看最后⼏条⽇志，⽽-t选项则可以对⽇志条⽬附加时间戳。使⽤-f选项可以跟踪⽇志的输出，直到⼿动停⽌。
 
 ```shell
 [root@qfedu.com ~]# docker logs App_Container
@@ -676,315 +722,89 @@ Runtimes: runc    ## runtimes 信息
 
 登录登出仓库：docker login/docker logout
 
-
-
-## dockerfile
-
-Dockerfile 是一个文本文件，其内包含了一条条的指令(Instruction)，每一条指令构建一层，因此每一条指令的内容，就是描述该层应当如何构建。
-
-**生产实践中一定优先使用 Dockerfile 的方式构建镜像。**用commit创建的镜像会比较大。 使用 Dockerfile 构建镜像可以带来很多好处：
-
-- 易于版本化管理，Dockerfile 本身是一个文本文件，方便存放在代码仓库做版本管理，可以很方便地找到各个版本之间的变更历史；
-- 过程可追溯，Dockerfile 的每一行指令代表一个镜像层，根据 Dockerfile 的内容即可很明确地查看镜像的完整构建过程；
-- 屏蔽构建环境异构，使用 Dockerfile 构建镜像无须考虑构建环境，基于相同 Dockerfile 无论在哪里运行，构建结果都一致。
-
-制作小镜像：
-
-- 不要使用centos镜像，首选apline，如果用到Glibc，可以是node:slim、python:slim
-- 使用多阶段构建（多个from）
-
-### dockerfile语法
-
-Dockerfile 由一行行命令语句组成，并且支持以#开头的注释行。
-一般而言，Dockerfile分为四部分：基础镜像信息、维护者信息、镜像操作指令和容器启动时执行指令。
-
-**FROM**
-
-```dockerfile
-指定所创建镜像的基础镜像，如果本地不存在，则默认会去 Docker Hub下载指定镜像
-任何Dockerfile 中的第一条指令必须为 FROM指令
-FROM <image> [AS <name>] 
-FROM centos:latest                                       #or
-FROM <image>[:<tag>] [AS <name>]                        
-FROM centos:7.5                                          #or
-FROM <image>[@<digest>] [AS <name>]
-
-注意：如果是从私有仓库拉取镜像，如果有配置权限，那么需要先登录到私有仓库。
-
-多阶段构建：
-#build
-FROM golang:1.14.4-apline
-RUN go build /opt/main.go
-CMD "./opt/main"
-#create image
-FROM aline:3.8
-COPY --from=0 /opt/main /
-CMD "./main"
-```
-
-**MAINTAINER**
-
-```dockerfile
-用于将image的制作者相关的信息写入image中
-LABEL maintainer="SvenDowideit@home.org.au"
-LABEL version=0.1
-LABEL deacription="Dev Basic PHP 5.3/5.6/7.2"
-```
-
-USER
-
-```dockerfile
-指定运行容器的用户，默认是root
-
-指令memcached的运行用户
-USER = su – user11(centos)
-ENTRYPOINT [“memcached”]
-USER daemon
-ENTRYPOINT [“memached”,”-u”,”daemon”]
-```
-
-ENV
-
-```dockerfile
-指定环境变量，后续 RUN 指令可以使用，container启动后，可以通过docker inspect查看这个环境变量，也可以通过docker run - -env key=value时设置或修改环境变量。
-环境变量可用于ADD、COPY、ENV、EXPOSE、FROM、LABEL、USER、VOLUME、WORKDIR、ONBUILD指令中。
-ENV <key> <value>
-ENV <key>=<value> ...
-
-假如你安装了JAVA程序，需要设置JAVA_HOME，那么你可以在Dockerfile中这样写：
-ENV JAVA_HOME /path/to/java/dirent
-ENV JAVA_HOME /usr/java/latest
-ENV PATH $JAVA_HOME/bin:$PATH
-ENV LANG en_us.UTF-8
-```
-
-**RUN**
-
-```dockerfile
-构建指令，用来执行shell命令。 这些命令包括安装软件、创建文件和目录，以及创建环境配置等。
-RUN <command>或RUN ["executable"，"param1"，"param2"]
-前者将在shell终端中运行命令，即/bin/sh -c；后者则使用exec执行，可以用来指定其它形式的shell来运行指令。
-RUN yum update && yum install -y vim \
-    python-dev #反斜线换行
-    
-注意初学docker容易出现的2个关于RUN命令的问题：
-1.RUN代码没有合并。
-2.每一层构建的最后一定要清理掉无关文件。
-
-注：容器在启动时，会挂载三个配置文件
-/etc/hostname
-/etc/hosts
-/etc/resolv.conf
-Dockerfile每执行一个run会临时创建一个容器（镜像层），每次从头创建都会重新挂载这三个配置文件。所以有对于次三个配置文件有依赖操作的命令需要处于同一个RUN
-```
-
-CMD（容易被替换）
-
-```dockerfile
-用来指定启动容器时默认执行的命令。它支持三种格式：
-CMD ["executable","param1","param2"]      #使用exec执行，推荐方式；exec 可以保证我们的业务进程就是 1 号进程，这对于需要处理 SIGTERM 信号量实现优雅终止十分重要。
-CMD ["param1","param2"]                   #提供给ENTRYPOINT的默认参数； 
-CMD command param1 param2                 #在/bin/sh中执行，提供给需要交互的应用；
-
-每个Dockerfile只能有一条CMD命令
-如果用户启动容器时手动指定了运行的命令（作为 run 的参数），则会覆盖掉CMD指定的命令。
-```
-
-**ENTRYPOINT**（无法被替换）
-
-```dockerfile
-启动容器真正执行的命令，并且不可被docker run提供的参数覆盖。每个Dockerfile中只能有一个ENTRYPOINT
-ENTRYPOINT ["executable", "param1", "param2"] (exec form, preferred)
-例：ENTRYPOINT ["/bin/echo", "hello Ding"]
-   ENTRYPOINT ["/bin/sh/", "-c", "/bin/echo hello $name" ]
-ENTRYPOINT command param1 param2 (shell form)
-
-该指令的使用分为两种情况一种独自使用，另一种和CMD指令配合使用。
-当独自使用时，如果你还使用了CMD命令且CMD是一种完整的可执行的命令，那么CMD指令和ENTRYPOINT会相互覆盖只有最后一个CMD或者ENTRYPOINT有效。并且被覆盖的CMD指令将不会被执行，只有ENTRYPOINT指令被执行。
-```
-
-LABEL
-
-```text
-给镜像添加信息。使用docker inspect可查看镜像的相关信息
-LABEL <key>=<value> <key>=<value> <key>=<value> ...
-LABEL version="1.0"
-LABEL maintainer="394498036@qq.com"
-```
-
-**EXPOSE**
-
-```dockerfile
-暴露的端口号
-EXPOSE <port> [<port>/<protocol>...]
-EXPOSE 22 80 8443
-注意，该指令只是起到声明作用，并不会自动完成端口映射。
-```
-
-**ADD**
-
-```dockerfile
-将复制指定的 <src>路径下的内容到容器中的<dest>路径下，<src>可以是dockerfile所在目录的相对路径、一个URL、还可以是tar文件（会自动解压）
-ADD [--chown=<user>:<group>] <src>... <dest>
-ADD [--chown=<user>:<group>] ["<src>",... "<dest>"] (this form is required for paths containing whitespace)
-```
-
-**COPY**
-
-```dockerfile
-复制本地主机的<src>（为 Dockerfile 所在目录的相对路径、文件或目录）下的内容到镜像中的 <dest> 下。目标路径不存在时，会自动创建。
-尽量使用COPY不使用ADD.
-COPY [--chown=<user>:<group>] <src>... <dest>
-COPY [--chown=<user>:<group>] ["<src>",... "<dest>"] (this form is required for paths containing whitespace)
-```
-
-**WORKDIR**
-
-```text
-为后续的RUN、CMD和ENTRYPOINT 指令配置工作目录，类似cd，可多次切换
-用WORKDIR，不要用RUN cd 尽量使用绝对目录！
-WORKDIR /path/to/workdir
-```
-
-VOLUME
-
-```dockerfile
-创建一个可以从本地主机或其他容器挂载的挂载点，一般用来存放数据库和需要保持的数据等
-VOLUME ["/data"]
-
-注意：
-host机器的目录路径必须为全路径(准确的说需要以/或~/开始的路径)，不然docker会将其当做volume而不是volume处理
-如果host机器上的目录不存在，docker会自动创建该目录
-如果container中的目录不存在，docker会自动创建该目录
-如果container中的目录已经有内容，那么docker会使用host上的目录将其覆盖掉
-```
-
-### docker build语法
-
-```shell
-[root@qfedu.com ~]# docker build [OPTIONS] dockerfile所在路径
-#选项说明
--t, --tag list # 镜像名称
--f, --file string # 指定Dockerfile文件位置
-docker build -t shykes/myapp .
-docker build -t shykes/myapp -f /path/Dockerfile /path
-docker build -t shykes/myapp http://www.example.com/Dockerfile
-```
-
-编译jdk dockerfile
-
-```dockerfile
-[root@Pagerduty ~]# mkdir /jdk
-[root@Pagerduty /jdk]#  cat Dockerfile 
-FROM docker.io/jeanblanchard/alpine-glibc
-MAINTAINER Mengfei
-RUN echo "https://mirror.tuna.tsinghua.edu.cn/alpine/v3.4/main/" > /etc/apk/repositories
-RUN apk add --no-cache bash
-ADD jre1.8.0_211.tar.gz /usr/java/jdk/
-ENV JAVA_HOME /usr/java/jdk/jre1.8.0_211
-ENV PATH ${PATH}:${JAVA_HOME}/bin
-RUN chmod +x /usr/java/jdk/jre1.8.0_211/bin/java
-RUN mkdir /zz
-USER root
-VOLUME ["/tmp/data"]
-WORKDIR /opt
-#EXPOSE 22
-CMD ["java","-version"]
-# ENTRYPOINT ["java", "-version"]
-```
-
-编译镜像
-
-```shell
-[root@Pagerduty /jdk]# docker build -t jre8:1.5 .
-//注意：需要把jre8:1.5的软件包，放入当前目录中
-```
-
-启动容器
-
-```shell
-[root@Pagerduty /jdk]# docker run -it --name=jre-V1.1  jre8:1.5 bash
-bash-4.3#
-```
-
-### 为镜像添加ssh服务
-
-创建工作目录,并编写run.sh脚本和authorized_keys文件
-
-```shell
-[root@localhost ~]# mkdir sshd_ubuntu
-[root@localhost ~]# cd sshd_ubuntu/
-[root@localhost sshd_ubuntu]# vim run.sh
-#!/bin/bash
-/usr/sbin/sshd -D
-[root@localhost sshd_ubuntu]# ssh-keygen -t rsa
-[root@localhost sshd_ubuntu]# cat ~/.ssh/id_rsa.pub >authorized_keys
-```
-
-编写dockerfile
-
-```shell
-[root@localhost sshd_ubuntu]# vim Dockerfile
-#设置继承镜像
-FROM ubuntu:14.04
-#提供一些作者的信息
-MAINTAINER docker_user (user@docker.com)
-#下面开始运行更新命令
-RUN apt-get update
-#安装ssh服务
-RUN apt-get install -y openssh-server
-RUN mkdir -p /var/run/sshd
-RUN mkdir -p /root/.ssh
-#取消pam限制
-RUN sed -ri 's/session    required     pam_loginuid.so/#session    required     pam_loginuid.so/g' /etc/pam.d/sshd
-#复制配置文件到相应位置,并赋予脚本可执行权限
-ADD authorized_keys /root/.ssh/authorized_keys
-ADD run.sh /run.sh
-RUN chmod 755 /run.sh
-#开放端口
-EXPOSE 22
-#设置自启动命令
-CMD ["/run.sh"]
-```
-
-创建镜像
-
-```shell
-[root@localhost sshd_ubuntu]# docker build -t sshd:Dockerfile .
-```
-
-运行镜像
-
-```shell
-[root@localhost sshd_ubuntu]# docker run -d -p 10122:22 sshd:Dockerfile
-```
-
-### dockerfile封装nginx
-
-```shell
-mkdir  nginx
-cd nginx
-wget  http://nginx.org/download/nginx-1.15.2.tar.gz
-vim Dockerfile
-FROM centos	//使用官方的centos镜像作为基础镜像
-MAINTAINER NGINX Docker Maintainers "docker-maint@nginx.com"	//指定维护者信息
-RUN yum -y install gcc make pcre-devel zlib-devel tar zlib	//运行命令
-ADD nginx-1.15.2.tar.gz /usr/src/	//把nginx压缩包复制到/usr/src/
-RUN cd /usr/src/nginx-1.15.2 \
-	&& mkdir /usr/local/nginx \
-    && ./configure --prefix=/usr/local/nginx && make && make install \
-    && ln -s /usr/local/nginx/sbin/nginx /usr/local/sbin/ \
-    && nginx
-RUN rm -rf /usr/src/nginx-1.15.2
-EXPOSE 80	//允许外界访问容器的 80 端⼝
-ENTRYPOINT [ "nginx", "-g", "daemon off;"]	#nginx默认是以后台模式启动的，Docker未执行自定义的CMD之前，nginx的pid是1，执行到CMD之后，nginx就在后台运行，bash或sh脚本的pid变成了1。所以一旦执行完自定义CMD，nginx容器也就退出了。为了保持nginx的容器不退出，应该关闭nginx后台运行
-#构建镜像
-docker build -t nginx:2020 .
-#启动镜像
-docker run -itd -p 88:80  -v /home/anhao1226/:/usr/local/nginx/html nginx:20201020
-```
-
 ## 网络
+
+所谓“网络栈”，即容器自己的network namespace，包括了：网卡(Network Interface)、回环设备(Loopback Device)、路由表(Routing Table)和 iptables 规则。
+
+容器直接共享宿主机网络，监听的就是宿主机的80端口：
+
+```shell
+$ docker run –d –net=host --name nginx-host nginx
+```
+
+虽然可以为容器提供良好的网络性能，但也会不可避免地引入共享网络资源的问题，比如端口冲突。所以， **在大多数情况下，我们都希望容器进程能使用自己 Network Namespace 里的网络栈，即：拥有属于自己的 IP 地址和端口。**
+
+那么这个被隔离的容器进程，该如何跟其他 Network Namespace 里的容器进程进行交互呢？
+
+
+
+而为了实现上述目的， Docker 项目会默认在宿主机上创建一个名叫 **docker0 的网桥**，凡是连接在 docker0 网桥上的容器，就可以通过它来进行通信。
+
+这时候，我们就需要使用一种名叫 **Veth Pair的虚拟设备**了，用作连接不同 Network Namespace 的“网线”。
+
+当启动了一个容器后，可以在宿主机查看网络设备信息：
+
+```shell
+# 在宿主机上
+$ ifconfig
+...
+#网桥
+docker0   Link encap:Ethernet  HWaddr 02:42:d8:e4:df:c1  
+          inet addr:172.17.0.1  Bcast:0.0.0.0  Mask:255.255.0.0
+          inet6 addr: fe80::42:d8ff:fee4:dfc1/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:309 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:372 errors:0 dropped:0 overruns:0 carrier:0
+ collisions:0 txqueuelen:0 
+          RX bytes:18944 (18.9 KB)  TX bytes:8137789 (8.1 MB)
+          
+#容器的Veth Pair
+veth9c02e56 Link encap:Ethernet  HWaddr 52:81:0b:24:3d:da  
+          inet6 addr: fe80::5081:bff:fe24:3dda/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:288 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:371 errors:0 dropped:0 overruns:0 carrier:0
+ collisions:0 txqueuelen:0 
+          RX bytes:21608 (21.6 KB)  TX bytes:8137719 (8.1 MB)
+          
+$ brctl show
+bridge name bridge id  STP enabled interfaces
+docker0  8000.0242d8e4dfc1 no  veth9c02e56
+```
+
+同宿主机不同容器通信：
+
+![img](https://gitee.com/c_honghui/picture/raw/master/img/20220325111520.png)
+
+
+
+宿主机访问容器：
+
+数据包根据路由规则转发到docker0，然后被转发到对应的Veth Pair，最后出现在容器里
+
+![img](https://gitee.com/c_honghui/picture/raw/master/img/20220325112435.png)
+
+
+
+容器连接另外一台宿主机：
+
+![img](https://gitee.com/c_honghui/picture/raw/master/img/20220325113212.png)
+
+
+
+所以说， **当你遇到容器连不通“外网”的时候，你都应该先试试 docker0 网桥能不能 ping 通，然后查看一下跟 docker0 和 Veth Pair 设备相关的 iptables 规则是不是有异常，往往就能够找到问题的答案了。**
+
+
+
+跨主机容器间通信：
+
+不同宿主机的docker0网桥是无法互通的，所以连接在这些网桥的容器也没法互通。
+
+我们可以通过Overlay Network(覆盖网络)技术，创建一个整个集群”公用“的网桥，把集群所有容器都接进来，就可以互相通信。
+
+![img](https://gitee.com/c_honghui/picture/raw/master/img/20220325142210.png)
+
+
 
 网络模式主要有四种，这四种网络模式基本满足了我们单机容器的所有场景。：
 
@@ -994,143 +814,6 @@ bridge 桥接模式：可以打通容器与容器间网络通信的需求。
 host 主机网络模式：可以让容器内的进程共享主机网络，从而监听或修改主机网络。
 container 网络模式：可以将两个容器放在同一个网络命名空间内，让两个业务通过 localhost 即可实现访问。
 ```
-
-#### （1）null 空网络模式
-
-获取独立的network namespace，但不为容器进行任何网络配置，需要我们手动配置。
-
-添加 --net=none 参数启动一个空网络模式的容器
-
-```shell
-$ docker run --net=none -it busybox
-/ #
-```
-
-查看一下容器内网络配置信息
-
-```shell
-/ # ifconfig
-lo        Link encap:Local Loopback
-          inet addr:127.0.0.1  Mask:255.0.0.0
-          UP LOOPBACK RUNNING  MTU:65536  Metric:1
-          RX packets:0 errors:0 dropped:0 overruns:0 frame:0
-          TX packets:0 errors:0 dropped:0 overruns:0 carrier:0
-          collisions:0 txqueuelen:1000
-          RX bytes:0 (0.0 B)  TX bytes:0 (0.0 B)
-/ # route -n
-Kernel IP routing table
-Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
-```
-
-#### （2）bridge 桥接模式（docker默认的网络模式）
-
-实现容器与容器的互通，主机与容器的互通
-
-Bridge 模式是Docker默认的网络设置，此模式会为每一个容器分配Network Namespace、设置IP等，并将一个主机上的Docker容器连接一个虚拟网卡。
-
-![image-20210304163014916](https://gitee.com/c_honghui/picture/raw/master/img/20210304163015.png)
-
-
-
-#### （3）host 主机网络模式（共享主机的网络模式）
-
-容器不会获得一个独立的network namespace，而是与宿主机共用一个。这就意味着容器不会有自己的网卡信息，而是使用宿主 机的。容器除了网络，其他都是隔离的。
-
-注意：如果是host模式，命令行参数不能带-p/-P主机端口：容器端口
-
-场景：组建集群，对网络要求比较高的话，可以用host模式。
-
-```shell
-$ docker run -it --net=host busybox
-/ #
-
-/ # ip a
-1: lo: <LOOPBACK,UP,LOWER\_UP> mtu 65536 qdisc noqueue qlen 1000
-link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
-inet 127.0.0.1/8 scope host lo
-valid\_lft forever preferred\_lft forever
-inet6 ::1/128 scope host
-valid\_lft forever preferred\_lft forever
-2: eth0: <BROADCAST,MULTICAST,UP,LOWER\_UP> mtu 1500 qdisc pfifo\_fast qlen 1000
-link/ether 02:11:b0:14:01:0c brd ff:ff:ff:ff:ff:ff
-inet 172.20.1.11/24 brd 172.20.1.255 scope global dynamic eth0
-valid\_lft 85785286sec preferred\_lft 85785286sec
-inet6 fe80::11:b0ff:fe14:10c/64 scope link
-valid\_lft forever preferred\_lft forever
-3: docker0: \<NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc noqueue
-link/ether 02:42:82:8d:a0:df brd ff:ff:ff:ff:ff:ff
-inet 172.17.0.1/16 scope global docker0
-valid\_lft forever preferred\_lft forever
-inet6 fe80::42:82ff:fe8d:a0df/64 scope link
-valid\_lft forever preferred\_lft forever
-```
-
-可以看到容器内的网络环境与主机完全一致。
-
-#### （4）container 网络模式（容器之间的共享模式，学习k8s这个很重要）
-
-container 网络模式允许一个容器共享另一个容器的网络命名空间。当两个容器需要共享网络，但其他资源仍然需要隔离时就可以使用 container 网络模式
-
-```shell
-$ docker exec -it busybox1 sh
-/ # ifconfig
-eth0 Link encap:Ethernet HWaddr 02:42:AC:11:00:02
-inet addr:172.17.0.2 Bcast:172.17.255.255 Mask:255.255.0.0
-UP BROADCAST RUNNING MULTICAST MTU:1500 Metric:1
-RX packets:11 errors:0 dropped:0 overruns:0 frame:0
-TX packets:0 errors:0 dropped:0 overruns:0 carrier:0
-collisions:0 txqueuelen:0
-RX bytes:906 (906.0 B) TX bytes:0 (0.0 B)
-$ docker run -it --net=container:busybox1 --name=busybox2 busybox sh
-/ # ifconfig
-eth0 Link encap:Ethernet HWaddr 02:42:AC:11:00:02
-inet addr:172.17.0.2 Bcast:172.17.255.255 Mask:255.255.0.0
-UP BROADCAST RUNNING MULTICAST MTU:1500 Metric:1
-RX packets:14 errors:0 dropped:0 overruns:0 frame:0
-TX packets:0 errors:0 dropped:0 overruns:0 carrier:0
-collisions:0 txqueuelen:0
-RX bytes:1116 (1.0 KiB) TX bytes:0 (0.0 B)
-```
-
-container模式存在如下特点：
-
-1、两个容器间通过127.0.0.1可以实现高效快速通信。
-
-2、可能存在端口冲突情况。
-
-**自定义网络**
-
-创建新的bridge网络
-
-```shell
-docker network create --driver bridge --subnet 172.50.0.0/16 --gateway 172.50.0.1 --opt"com.docker.network.bridge.name"="docker1000" my_bridge
-
-docker network inspect my_bridge1
-```
-
-使用创建的网络
-
-```shell
-docker run -itd --name mysql1 --network=my_bridge mysql /bin/bash
-```
-
-不同网络中的容器如何访问？
-
-把容器加到同一个网络中来
-
-```shell
-docker network connect my_bridge mysql2
-```
-
-自定义的bridge网络可以删除，默认bridge网络不可删除
-
-```shell
-docker network rm my_bridge
-```
-
-默认bridge网络中所有容器间只能用IP相互访问。使用自定义bridge网络的容器间既可以通过ip访问，也可以通过容器名访问。原因在于Docker从1.10版本内嵌了了一个DNS服务，使得容器间可以直接通过容器名通信。
-
-docker run指定容器ip启动时仅适用于自定义网络。
 
 ## 数据卷管理
 

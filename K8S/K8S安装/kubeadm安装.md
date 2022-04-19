@@ -14,7 +14,7 @@
 | ----------- | -------------- |
 | 系统版本    | CentOS 7.4     |
 | Docker版本  | 19.03.x        |
-| K8s版本     | 1.22.x         |
+| K8s版本     | 1.20.0         |
 | Pod网段     | 172.168.0.0/16 |
 | Service网段 | 10.96.0.0/12   |
 
@@ -915,3 +915,91 @@ kubectl top po --all-namespaces
 kubectl get svc
 
 kubectl get svc -n kube-system
+
+## k8s证书
+
+建K8S集群 kubeadm 会生成的很多证书
+
+```shell
+[root@k8s-master01 ~]# cd /etc/kubernetes/pki/
+[root@k8s-master01 pki]# tree 
+.
+├── apiserver.crt
+├── apiserver-etcd-client.crt
+├── apiserver-etcd-client.key
+├── apiserver.key
+├── apiserver-kubelet-client.crt
+├── apiserver-kubelet-client.key
+├── ca.crt
+├── ca.key
+├── etcd
+│   ├── ca.crt
+│   ├── ca.key
+│   ├── healthcheck-client.crt
+│   ├── healthcheck-client.key
+│   ├── peer.crt
+│   ├── peer.key
+│   ├── server.crt
+│   └── server.key
+├── front-proxy-ca.crt
+├── front-proxy-ca.key
+├── front-proxy-client.crt
+├── front-proxy-client.key
+├── sa.key
+└── sa.pub
+```
+
+k8s集群一共有多少证书：
+
+```shell
+先从Etcd算起：
+1、Etcd对外提供服务，要有一套etcd server证书
+2、Etcd各节点之间进行通信，要有一套etcd peer证书
+3、Kube-APIserver访问Etcd，要有一套etcd client证书
+
+再算kubernetes：
+4、Kube-APIserver对外提供服务，要有一套kube-apiserver server证书
+5、kube-scheduler、kube-controller-manager、kube-proxy、kubelet和其他可能用到的组件，
+   需要访问kube-APIserver，要有一套kube-APIserver client证书
+6、kube-controller-manager要生成服务的service account，要有一对用来签署service account的证书(CA证书)
+7、kubelet对外提供服务，要有一套kubelet server证书
+8、kube-APIserver需要访问kubelet，要有一套kubelet client证书
+```
+
+公钥私钥：
+
+```shell
+公钥和私钥是成对的，它们互相解密。
+公钥加密，私钥解密。
+```
+
+数字签名：
+
+![img](https://gitee.com/c_honghui/picture/raw/master/img/20220305174925.jpeg)
+
+1.通过接收方公钥来进行加密得到密文。
+
+为什么要接收方的公钥来加密? 因为只有接收方的私钥可以解开接受方公钥加过的密，保证只有接受方可以解密。
+
+2.对hello kitty哈希得到摘要，接着再经过发送方私匙进行签名，签名后得出的数字签名和密文一起发给接受方。
+
+为什么要用发送方的私钥签名？因为这种方式，才能让接收方确认这条信息是发送方发出来的。只有发送方的公钥才能解开发送方的签名。
+
+接收方同样对接收到的信息（密文及数字签名）进行以下步骤处理：
+
+1.用自己的私匙解开密文，得到hello kitty.
+
+2.对hello kitty哈希得到摘要。
+
+3.通过发送方的公钥解开发送方签名，得到摘要‚。
+
+4.对解密密文的摘要和解密数字签名的摘要‚进行对比，若摘要一致，则可确认信息为发送方所发，及信息的完整性。
+
+根证书和证书：
+
+```shell
+ca.pem是CA证书,ca-key.pem是ca的私钥
+```
+
+
+
