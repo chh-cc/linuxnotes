@@ -20,89 +20,32 @@ prometheus server端口：9090
 | api  | 可用性、接口请求、响应时间                   |
 | 业务 | 如电商网站，每分钟产生多少订单、注册多少用户 |
 
-## 特点
-
-1、多维数据模型，Prometheus存储数据的格式是  **指标(metric)名称**和**键值对（称为标签）**的**时间序列**。
-
-```text
-时序数据是在一段时间通过重复测量而获得的观测数据的集合；将这些观测数据绘制于图形上，会有一个数据轴和时间轴
-
-具有相同度量名称以及标签属于同一指标，通过标签查询指定指标
-指标格式：<mertic name>{<label name>=<label value>,...}
-```
-
-<img src="https://gitee.com/c_honghui/picture/raw/master/img/20210602231330.png" alt="image-20210602231323197" style="zoom:67%;" />
-
-2、PromQL是一种灵活的查询语言，可以利用多维度数据完成复杂的查询。
-
-3、不依赖于分布式存储（zabbix需要外部的数据库），单个Prometheus服务节点可直接工作。
-
-4、使用基于HTTP的拉(pull)方式采集时间序列数据
-
-![image-20210218214947697](https://gitee.com/c_honghui/picture/raw/master/img/20210218214947.png)
-
-
-
 ## 架构
 
-<img src="https://gitee.com/c_honghui/picture/raw/master/img/20210218215507.webp" alt="img" style="zoom: 67%;" />
-
-
+<img src="D:%5Clinuxnotes%5CK8S%5C19.Prometheus%E7%9B%91%E6%8E%A7.assets%5Cimage-20220525210958560.png" alt="image-20220525210958560" style="zoom: 50%;" />
 
 Prometheus 架构由客户端在被监控系统上利用导出器采集指标数据，在服务端配置静态目标或者动态的服务发现.
 
-- 短周期的jobs先将度量数据推送到网关(pushgateway)，然后Prometheus再从pushgateway中获取短周期jobs的度量数据
-
-- Prometheus通过从exporters中**拉取**度量数据
-
-- 通过自动发现目标的方式来监控kubernetes集群。
-- 所有收集的数据可以存储在本地的TSDB数据库中，同时设定记录规则(PromQL表达式)和告警规则(频率)并发送给alertmanager进行**发送报警**事件到运维人员手中。再利用Grafana的仪表盘展示Prometheus服务中的数据。
-
-### 组件
-
-**Prometheus server**：
-
-**收集指标和存储时间序列数据，并提供查询接口**  
-
-主要负责数据采集和存储，提供PromQL查询语言的支持 (默认端口: 9090)
-
-**Pushgateway**：
-
-**短期存储指标数据。主要用于临时性的任务**  
-
-跨网段被监控主机指标采集数据转发到网关代理等待Server的Pull。
-
-**Exporters**：
-
-监控指标采集器
-
-Exporter将监控数据采集的端点**通过HTTP服务的形式暴露**给Prometheus Server
-
-一般来说可以将Exporter分为2类：
-
-- **直接采集**：这一类Exporter直接**内置**了对Prometheus监控的支持，比如cAdvisor，Kubernetes，Etcd，Gokit等，都直接内置了用于向Prometheus暴露监控数据的端点。
-- **间接采集**：间接采集，原有监控目标并**不直接支持**Prometheus，因此我们需要通过Prometheus提供的Client Library编写该监控目标的监控采集程序。例如： Mysql Exporter，JMX Exporter，Consul Exporter等。
-
-**Alertmanager**：
-
-用来进行报警、prometheus_cli：命令行工具 (默认端口: 9093)
+- 短周期的jobs先将度量数据推给pushgateway，然后Prometheus从pushgateway获取短周期的度量数据；跨网段被监控主机指标采集数据转发到网关代理等待Server的Pull。
+- **通过自动发现目标的方式来监控kubernetes集群。**
+- **通过exporters拉取度量数据**
+  - 直接采集：这一类Exporter直接**内置**了对Prometheus监控的支持，比如cAdvisor，Kubernetes，Etcd，Gokit等，都直接内置了用于向Prometheus暴露监控数据的端点。curl .../metrics
+  - 间接采集：原有监控目标并**不直接支持**Prometheus，因此我们需要通过Prometheus提供的Client Library编写该监控目标的监控采集程序。例如： Mysql Exporter，JMX Exporter，Consul Exporter等。
+- Prometheus把告警信息发送到alertmanager，alertmanager再通过邮件、微信等发送到运维和开发人员
+- 用Grafana的仪表盘展示Prometheus服务中的数据。
 
 ### 概念
 
-target
+- target
 
-```text
-每个被监控的组件称为target
-```
+  每个被监控的组件称为target
 
-job（作业）和instance（实例）
+- job（作业）和instance（实例）
 
-```text
-在Prometheus中，每一个暴露监控样本数据的HTTP服务称为一个实例。例如在当前主机上运行的node exporter可以被称为一个实例(Instance)，也是job中的target。
-而一组用于相同采集目的的实例，或者同一个采集进程的多个副本则通过一个一个任务(Job)进行管理。
-```
+  在Prometheus中，**每一个暴露监控样本数据的HTTP服务称为一个实例**。例如在当前主机上运行的node exporter可以被称为一个实例(Instance)，也是job中的target。
+  而一组用于相同采集目的的实例，或者同一个采集进程的多个副本则通过一个一个任务(Job)进行管理。
 
-![image-20210218235408414](https://gitee.com/c_honghui/picture/raw/master/img/20210218235408.png)
+<img src="D:%5Clinuxnotes%5Cprometheus%5CPrometheus%E4%BB%8B%E7%BB%8D%E9%83%A8%E7%BD%B2.assets%5Cimage-20220525213455530.png" alt="image-20220525213455530" style="zoom: 67%;" />
 
 ## 基本原理
 
