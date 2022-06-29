@@ -102,13 +102,74 @@
 
 13. k8s数据持久化的方式有哪些
 
-    emptydir：挂载在pod的一个空目录，适合容器之间临时共享文件
+    emptydir：挂载在pod的一个空目录，生命周期跟pod同步，适合容器之间临时共享文件
 
-    hostpath：挂载宿主机的目录到pod，
+    hostpath：挂载宿主机的目录到pod
 
-    configmap
-
-    secret
+    configmap：存放容器的配置文件、环境变量、命令参数；secret：存放敏感信息比如密码、密钥、token等；以subpath或env挂载的话不支持热更新
 
     PV/PVC：PV是一块抽象的存储空间，生命周期独立于pod，PVC是申请PV的接口
 
+14. Requests和Limits如何影响Pod的调度?
+
+    当一个pod创建成功后，scheduler会为该pod选择一个合适的节点执行，调度器在调度时，首先要确保节点的上所有pod的cpu和内存总和不能超过该节点能提供给pod的cpu和内存的最大容量。
+
+    在整个集群的资源分配调度中，可能某节点的实际资源使用量非常低，但是已运行 Pod 配置的总 Requests 值的总和非常高， 再加上需要调度的 Pod 的 Requests 值， 会超过该节点提供给 Pod 的资源容量上限， 这时 Kubernetes 任然不会将 Pod调度到该节点上。
+
+15. k8s的网络模型？
+
+    Kubernetes网络模型中每个Pod都拥有一个独立的IP地址，并假定所有Pod都在一个可以直接连通的、扁平的网络空间中。所以不管它们是否运行在同一个Node（宿主机）中，都要求它们可以直接通过对方的IP进行访问。
+
+    一个 Pod 内部的所有容器共享一个网络堆栈。
+
+16. k8s的CNI模型？
+
+    k8s的扁平网络空间是由CNI插件建立的，常见的有flannel和calico
+    
+    flannel能协助k8s给每一个节点的容器都分配不相互冲突的IP地址，它能在这些ip地址建立一个覆盖网络，容器可以在这个网络中通信。
+    
+17. k8s的网络策略？
+
+    网络策略的主要功能是对pod间的网络通信进行限制和准入控制，设置方式是将pod的label作为查询条件，设置允许或禁止访问的pod列表；默认所有pod没有隔离；网络策略功能由第三方网络插件提供，如calico
+
+18. PV和PVC的生命周期
+
+    手动创建底层存储和PV；
+
+    创建PVC，k8s根据PVC声明去寻找PV并与其绑定，如果找不到，PVC则无限处于pending状态
+
+    PV一旦被绑定，就不会与其他PVC进行绑定
+
+    在pod中像volume一样把PVC挂载到容器中的某个路径
+
+    使用完毕后删除PVC，与其绑定的PV 会被标记为已释放，但还不能与其他PVC立刻绑定，k8s会根据回收策略对PV进行回收，只有PV的存储空间完成回收PV才能再次使用
+
+19. PV的状态
+
+    available：可用状态，还没跟pvc绑定
+
+    bound：已与某个pvc绑定
+
+    released：绑定的pvc已经删除，资源已经释放，但还没有被集群回收
+
+    failed：自动资源回收失败
+
+20. 存储供应模式
+
+    静态模式：手工创建许多PV，在定义PV时需要将后端存储的特性进行设置。
+
+    动态模式：无须手工创建PV，而是通过StorageClass的设置对后端存储进行描述，标记为某种类型。此时要求PVC对存储的类型进行声明，系统将自动完成PV的创建及与PVC的绑定。
+
+21. k8s的CSI模型
+
+    Kubernetes CSI是Kubernetes推出与容器对接的存储接口标准，存储提供方只需要基于标准接口进行存储插件的实现，就能使用Kubernetes的原生存储机制为容器提供存储服务。CSI使得存储提供方的代码能和Kubernetes代码彻底解耦，部署也与Kubernetes核心组件分离，显然，存储插件的开发由提供方自行维护，就能为Kubernetes用户提供更多的存储功能，也更加安全可靠。
+
+    CSI包括CSI Controller和CSI Node：
+
+    CSI Controller的主要功能是提供存储服务视角对存储资源和存储卷进行管理和操作。
+
+    CSI Node的主要功能是对主机（Node）上的Volume进行管理和操作。
+
+    
+
+    
