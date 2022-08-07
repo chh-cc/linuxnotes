@@ -39,11 +39,13 @@ COPY --from=0 /opt/main /
 CMD "./main"
 ```
 
-**MAINTAINER**
+LABEL
 
-```dockerfile
-用于将image的制作者相关的信息写入image中
-maintainer = "SvenDowideit@home.org.au"
+```text
+没有实际作用。常用于声明镜像作者
+LABEL <key>=<value> <key>=<value> <key>=<value> ...
+LABEL maintainer="SvenDowideit@home.org.au"
+之前直接通过指令MAINTAINER指定，这种写法已经废弃掉了
 ```
 
 USER
@@ -114,18 +116,19 @@ ENTRYPOINT ["executable", "param1", "param2"] (exec form, preferred)
    ENTRYPOINT ["/bin/sh/", "-c", "/bin/echo hello $name" ]
 ENTRYPOINT command param1 param2 (shell form)
 
-该指令的使用分为两种情况一种独自使用，另一种和CMD指令配合使用。
-当独自使用时，如果你还使用了CMD命令且CMD是一种完整的可执行的命令，那么CMD指令和ENTRYPOINT会相互覆盖只有最后一个CMD或者ENTRYPOINT有效。并且被覆盖的CMD指令将不会被执行，只有ENTRYPOINT指令被执行。
+如果指定了ENTRYPOINT，则CMD将只是提供参数，传递给ENTRYPOINT
 ```
 
-LABEL
+官方有一段关于`CMD`和`ENTRYPOINT`组合出现时的结果：
 
-```text
-给镜像添加信息。使用docker inspect可查看镜像的相关信息
-LABEL <key>=<value> <key>=<value> <key>=<value> ...
-LABEL version="1.0"
-LABEL maintainer="394498036@qq.com"
-```
+https://docs.docker.com/engine/reference/builder/#understand-how-cmd-and-entrypoint-interact
+
+|                                | 没有 ENTRYPOINT            | ENTRYPOINT exec_entry p1_entry | ENTRYPOINT [“exec_entry”, “p1_entry”]          |
+| :----------------------------- | :------------------------- | :----------------------------- | :--------------------------------------------- |
+| **没有 CMD**                   | 报错                       | /bin/sh -c exec_entry p1_entry | exec_entry p1_entry                            |
+| **CMD [“exec_cmd”, “p1_cmd”]** | exec_cmd p1_cmd            | /bin/sh -c exec_entry p1_entry | exec_entry p1_entry exec_cmd p1_cmd            |
+| **CMD [“p1_cmd”, “p2_cmd”]**   | p1_cmd p2_cmd              | /bin/sh -c exec_entry p1_entry | exec_entry p1_entry p1_cmd p2_cmd              |
+| **CMD exec_cmd p1_cmd**        | /bin/sh -c exec_cmd p1_cmd | /bin/sh -c exec_entry p1_entry | exec_entry p1_entry /bin/sh -c exec_cmd p1_cmd |
 
 **EXPOSE**
 
@@ -216,9 +219,16 @@ docker run -itd -p 88:80  -v /home/anhao1226/:/usr/local/nginx/html nginx:202010
 ## 优化dockerfile
 
 - 从Docker 1.10起，`COPY`、`ADD`和`RUN`语句会在镜像中添加新层。
-  - 可以把几个RUN命令合并成一句
-
+  
+- 可以把几个RUN命令合并成一句
+  
 - 使用多阶段构建（多个from）
+
+  多阶段构建的应用场景及优势就是为了降低复杂性并减少依赖，避免镜像包含不必要的软件包
+
+  简单来说，多阶段构建就是允许一个`Dockerfile`中出现多条`FROM`指令，只有最后一条`FROM`指令中指定的基础镜像作为本次构建镜像的基础镜像，其它的阶段都可以认为是只为中间步骤
+
+  每一条`FROM`指令都表示着多阶段构建过程中的一个构建阶段，后面的构建阶段可以拷贝利用前面构建阶段的产物
 
   - 单阶段构建
 

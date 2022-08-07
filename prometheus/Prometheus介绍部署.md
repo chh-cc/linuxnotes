@@ -24,38 +24,46 @@ prometheus server端口：9090
 
 <img src="D:%5Clinuxnotes%5CK8S%5C19.Prometheus%E7%9B%91%E6%8E%A7.assets%5Cimage-20220525210958560.png" alt="image-20220525210958560" style="zoom: 50%;" />
 
-Prometheus 架构由客户端在被监控系统上利用导出器采集指标数据，在服务端配置静态目标或者动态的服务发现.
+- 服务端：
 
-- 短周期的jobs先将度量数据推给pushgateway，然后Prometheus从pushgateway获取短周期的度量数据；跨网段被监控主机指标采集数据转发到网关代理等待Server的Pull。
-- **通过自动发现目标的方式来监控kubernetes集群。**
-- **通过exporters拉取度量数据**
-  - 直接采集：这一类Exporter直接**内置**了对Prometheus监控的支持，比如cAdvisor，Kubernetes，Etcd，Gokit等，都直接内置了用于向Prometheus暴露监控数据的端点。curl .../metrics
-  - 间接采集：原有监控目标并**不直接支持**Prometheus，因此我们需要通过Prometheus提供的Client Library编写该监控目标的监控采集程序。例如： Mysql Exporter，JMX Exporter，Consul Exporter等。
-- Prometheus把告警信息发送到alertmanager，alertmanager再通过邮件、微信等发送到运维和开发人员
-- 用Grafana的仪表盘展示Prometheus服务中的数据。
+  Prometheus Server：抓取目标端监控数据，生成聚合数据，存储时间序列数据
+
+  默认监听端口9090
+
+- 服务发现：
+
+  自动发现新集群中有哪些新机器及哪些新服务可以被监控
+
+- 客户端：
+
+  客户端安装exporter暴露metrics给Prometheus用pull方式（http get）拉取
+
+  pushgateway则是push给Prometheus
+
+- 报警：
+
+  Alertmanager从 Prometheus server 端接收到 alerts 后，会进行去除重复数据，分组，并路由到对收的接受方式，发出报警
+
+  Grafana也有报警功能
 
 ### 概念
 
-- target
+- target和instance（实例）
 
-  每个被监控的组件称为target
+  在Prometheus中，**每一个暴露监控样本数据的HTTP服务称为一个实例**。例如在当前主机上运行的node exporter可以被称为一个实例(Instance)，**也是配置文件中job中的target**。
 
-- job（作业）和instance（实例）
+- job（作业）
 
-  在Prometheus中，**每一个暴露监控样本数据的HTTP服务称为一个实例**。例如在当前主机上运行的node exporter可以被称为一个实例(Instance)，也是job中的target。
-  而一组用于相同采集目的的实例，或者同一个采集进程的多个副本则通过一个一个任务(Job)进行管理。
+  job就是**一组用于相同采集目的的实例**
 
 <img src="D:%5Clinuxnotes%5Cprometheus%5CPrometheus%E4%BB%8B%E7%BB%8D%E9%83%A8%E7%BD%B2.assets%5Cimage-20220525213455530.png" alt="image-20220525213455530" style="zoom: 67%;" />
 
 ## 基本原理
 
 - Prometheus Server 读取配置解析静态监控端点（static_configs），以及服务发现规则(xxx_sd_configs)自动收集需要监控的端点
-- Prometheus Server 周期刮取(scrape_interval)监控端点通过HTTP的Pull方式采集监控数据
-- Prometheus Server HTTP 请求到达 Node Exporter，Exporter 返回一个文本响应，每个非注释行包含一条完整的时序数据：Name + Labels + Samples(一个浮点数和一个时间戳构成), 数据来源是一些官方的exporter或自定义sdk或接口
-- Prometheus Server 收到响应，Relabel处理之后(relabel_configs)将其存储在TSDB中并建立倒排索引
+- Prometheus Server 周期性地拉取metrics，Relabel处理之后(relabel_configs)将其存储在TSDB中并建立倒排索引
 - Prometheus Server 另一个周期计算任务(evaluation_interval)开始执行，根据配置的Rules逐个计算与设置的阈值进行匹配，若结果超过阈值并持续时长超过临界点将进行报警，此时发送Alert到AlertManager独立组件中。
 - AlertManager 收到告警请求，根据配置的策略决定是否需要触发告警，如需告警则根据配置的路由链路依次发送告警，比如邮件、微信、Slack、PagerDuty、WebHook等等。
-- 当通过界面或HTTP调用查询时序数据利用PromQL表达式查询，Prometheus Server 处理过滤完之后返回瞬时向量(Instant vector, N条只有一个Sample的时序数据)，区间向量(Range vector，N条包含M个Sample的时序数据)，或标量数据 (Scalar, 一个浮点数) 
 - 采用Grafana开源的分析和可视化工具进行数据的图形化展示。
 
 ## 部署Prometheus

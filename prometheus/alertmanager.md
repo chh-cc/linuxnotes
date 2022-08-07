@@ -1,32 +1,8 @@
 # alertmanager
 
-首先，需要在Prometheus中添加告警规则,按告警规则向Alertmanager发送告警。然后，由Alertmanager来管理这些告警，包括去重(Deduplicating)、分组(Grouping)、静音(silencing)、抑制(inhibition)、聚合(aggregation )，最终将要发出的告警通过电子邮件、webhook等方式将告警通知路由(route)给对应的联系人。
+Alertmanager处理从Prometheus服务器发来的警报。然后，Alertmanager对这些告警进行去重(Deduplicating)、分组(Grouping)、静音(silencing)、抑制(inhibition)、聚合(aggregation )，然后路由到不同的接收器，如电子邮件、短信等给对应的联系人。
 
 端口：9093
-
-## 通知管道流程
-
-降噪: 选择忽略同时出现的告警，或者发送更高级别的警告。 可利用inhibition标签。
-
-静默: 快速根据标签对告警进行静默处理。如果接收到的告警符合静默的配置，Alertmanager则**不会发送告警**通知。
-
-路由: 以不同方式处理生产和开发环境的告警,并将告警其分别发送到指定的对象中。
-
-分组: 就是**将具有相同性质的告警先分类，然后当作单个通知发送出来**。比如A和B两台主机的磁盘(CPU/内存)使用率都在告警，则磁盘的告警就可以合并在一个通知中发送出来。可以想像某个服务部署了100个节点，在一次升版后因为bug，日志中均报同样一类错误，如果不合并这类通知，那就是告警风暴。
-
-抑制: 就是**某些告警触发后，则抑制（禁止）另一些告警**。比如收到一条告警提示集群故障无法访问，那么在该集群上的所有其他警告应该被抑制。
-
-通知: 将告警发送到指定的receiver标签指定的接受者，并且我们可以自定义通知模板。
-
-## 告警状态
-
-Prometheus Alert 告警状态有三种状态：Inactive、Pending、Firing。
-
-Inactive：非活动状态，表示正在监控，但是还未有任何警报触发。
-
-Pending：表示这个警报必须被触发。由于警报可以被分组、压抑/抑制或静默/静音，所以等待验证，一旦所有的验证都通过，则将转到 Firing 状态。
-
-Firing：将警报发送到 AlertManager，它将按照配置将警报的发送给所有接收者。一旦警报解除则将状态转到 Inactive如此循环。
 
 ## 部署AlertManager
 
@@ -101,6 +77,87 @@ EOF
 查看运行状态
 
 Alertmanager启动后可以通过9093端口访问，http://192.168.33.10:9093
+
+## Alertmanager配置
+
+在Alertmanager中通过路由(Route)来定义告警的处理方式。路由是一个基于标签匹配的树状匹配结构。根据接收到告警的标签匹配相应的处理方式。
+
+在Alertmanager配置中一般会包含以下几个主要部分：
+
+- 全局配置（global）：用于定义一些全局的公共参数，如全局的SMTP配置，Slack配置等内容；
+- 模板（templates）：用于定义通知模板；
+- 告警路由（route）：根据标签匹配，确定当前告警应该如何处理；
+- 接收人（receivers）：接收人是一个抽象的概念，它可以是一个邮箱也可以是微信，Slack或者Webhook等，接收人一般配合告警路由使用；
+- 抑制规则（inhibit_rules）：合理设置抑制规则可以减少垃圾告警的产生
+
+其完整配置格式如下：
+
+```yaml
+global:
+  # 当Alertmanager持续多长时间未接收到告警后标记告警状态为resolved（已解决）
+  [ resolve_timeout: <duration> | default = 5m ]
+  
+  [ smtp_from: <tmpl_string> ] 
+  [ smtp_smarthost: <string> ] 
+  [ smtp_hello: <string> | default = "localhost" ]
+  [ smtp_auth_username: <string> ]
+  [ smtp_auth_password: <secret> ]
+  [ smtp_auth_identity: <string> ]
+  [ smtp_auth_secret: <secret> ]
+  [ smtp_require_tls: <bool> | default = true ]
+  [ slack_api_url: <secret> ]
+  [ victorops_api_key: <secret> ]
+  [ victorops_api_url: <string> | default = "https://alert.victorops.com/integrations/generic/20131114/alert/" ]
+  [ pagerduty_url: <string> | default = "https://events.pagerduty.com/v2/enqueue" ]
+  [ opsgenie_api_key: <secret> ]
+  [ opsgenie_api_url: <string> | default = "https://api.opsgenie.com/" ]
+  [ hipchat_api_url: <string> | default = "https://api.hipchat.com/" ]
+  [ hipchat_auth_token: <secret> ]
+  [ wechat_api_url: <string> | default = "https://qyapi.weixin.qq.com/cgi-bin/" ]
+  [ wechat_api_secret: <secret> ]
+  [ wechat_api_corp_id: <string> ]
+  [ http_config: <http_config> ]
+
+templates:
+  [ - <filepath> ... ]
+
+route: <route>
+
+receivers:
+  - <receiver> ...
+
+inhibit_rules:
+  [ - <inhibit_rule> ... ]
+```
+
+## 告警分组
+
+将类似的指标分组，比如说监控linux服务器会监控其负载，资源负载就是一个分组，这个分组下面会有cpu的指标，内存的指标。
+
+每一个告警都会从配置文件中顶级的route进入路由树，需要注意的是顶级的route必须匹配所有告警(即不能有任何的匹配设置match和match_re)，每一个路由都可以定义自己的接受人以及匹配规则。
+
+```yaml
+# 所有报警信息进入后的根路由，用来设置报警的分发策略
+route:
+  receiver: 'default-receiver' # 默认情况下所有的告警都会发送给集群管理员default-receiver
+  group_wait: 10s # 组告警等待时间。也就是告警产生后等待10s，如果有同组告警一起发出
+  group_interval: 5m # 如果有不同的组，两组告警的间隔时间
+  repeat_interval: 4h # 重复告警的间隔时间，减少相同邮件的发送频率
+  group_by: ['alertname', 'cluster'] # 这里的标签列表是接收到报警信息后的重新分组标签，例如，接收到的报警信息里面有许多具有 cluster=A 和 alertname=LatncyHigh 这样的标签的报警信息将会批量被聚合到一个分组里面
+  
+  # 上面所有的属性都由所有子路由继承，并且可以在每个子路由上进行覆盖。
+  routes:
+  - receiver: 'database-pager' # 如果告警中包含service标签，并且service为MySQL或者Cassandra,则向database-pager发送告警通知，由于这里没有定义group_by等属性，这些属性的配置信息将从上级路由继承，database-pager将会接收到按cluster和alertname进行分组的告警通知。
+    group_wait: 10s
+    match_re: #可以用正则
+      service: mysql|cassandra
+  - receiver: 'frontend-pager'
+    group_by: [product, environment] #按照标签product和environment对告警进行分组
+    match:
+      team: frontend
+```
+
+![img](assets/7efb9a62d6bf40b7b5aa7c90fc060ef8.png)
 
 ## 在prometheus中创建告警规则
 
@@ -250,133 +307,17 @@ ALERTS{alertname="<alert name>", alertstate="pending|firing", <additional alert 
 
 样本值为1表示当前告警处于活动状态（pending或者firing），当告警从活动状态转换为非活动状态时，样本值则为0。
 
-## Alertmanager配置
+## 告警状态
 
-在Alertmanager中通过路由(Route)来定义告警的处理方式。路由是一个基于标签匹配的树状匹配结构。根据接收到告警的标签匹配相应的处理方式。
+Prometheus Alert 告警状态有三种状态：Inactive、Pending、Firing。
 
-在Alertmanager配置中一般会包含以下几个主要部分：
+**Inactive**：这里什么都没有发生。
 
-- 全局配置（global）：用于定义一些全局的公共参数，如全局的SMTP配置，Slack配置等内容；
-- 模板（templates）：用于定义告警通知时的模板，如HTML模板，邮件模板等；
-- 告警路由（route）：根据标签匹配，确定当前告警应该如何处理；
-- 接收人（receivers）：接收人是一个抽象的概念，它可以是一个邮箱也可以是微信，Slack或者Webhook等，接收人一般配合告警路由使用；
-- 抑制规则（inhibit_rules）：合理设置抑制规则可以减少垃圾告警的产生
+**Pending**：已触发阈值，但未满足告警持续时间，也就是for字段
 
-其完整配置格式如下：
+**Firing**：已触发阈值且满足告警持续时间。警报发送给接受者。
 
-```yaml
-global:
-  [ resolve_timeout: <duration> | default = 5m ]
-  [ smtp_from: <tmpl_string> ] 
-  [ smtp_smarthost: <string> ] 
-  [ smtp_hello: <string> | default = "localhost" ]
-  [ smtp_auth_username: <string> ]
-  [ smtp_auth_password: <secret> ]
-  [ smtp_auth_identity: <string> ]
-  [ smtp_auth_secret: <secret> ]
-  [ smtp_require_tls: <bool> | default = true ]
-  [ slack_api_url: <secret> ]
-  [ victorops_api_key: <secret> ]
-  [ victorops_api_url: <string> | default = "https://alert.victorops.com/integrations/generic/20131114/alert/" ]
-  [ pagerduty_url: <string> | default = "https://events.pagerduty.com/v2/enqueue" ]
-  [ opsgenie_api_key: <secret> ]
-  [ opsgenie_api_url: <string> | default = "https://api.opsgenie.com/" ]
-  [ hipchat_api_url: <string> | default = "https://api.hipchat.com/" ]
-  [ hipchat_auth_token: <secret> ]
-  [ wechat_api_url: <string> | default = "https://qyapi.weixin.qq.com/cgi-bin/" ]
-  [ wechat_api_secret: <secret> ]
-  [ wechat_api_corp_id: <string> ]
-  [ http_config: <http_config> ]
-
-templates:
-  [ - <filepath> ... ]
-
-route: <route>
-
-receivers:
-  - <receiver> ...
-
-inhibit_rules:
-  [ - <inhibit_rule> ... ]
-```
-
-在全局配置中需要注意的是`resolve_timeout`，该参数定义了当Alertmanager持续多长时间未接收到告警后标记告警状态为resolved（已解决）。该参数的定义可能会影响到告警恢复通知的接收时间，读者可根据自己的实际场景进行定义，其默认值为5分钟。
-
-### 基于标签的告警处理路由
-
-route中则主要定义了告警的路由匹配规则，以及Alertmanager需要将匹配到的告警发送给哪一个receiver，一个最简单的route定义如下所示：
-
-```yaml
-route:
-  group_by: ['alertname']
-  receiver: 'web.hook'
-  
-receivers:
-- name: 'web.hook'
-  webhook_configs:
-  - url: 'http://127.0.0.1:5001/'
-```
-
-如上所示：在Alertmanager配置文件中，我们只定义了一个路由，那就意味着所有由Prometheus产生的告警在发送到Alertmanager之后都会通过名为`web.hook`的receiver接收。这里的web.hook定义为一个webhook地址。当然实际场景下，告警处理可不是这么简单的一件事情，对于不同级别的告警，我们可能会有完全不同的处理方式，因此在route中，我们还可以定义更多的子Route，这些Route通过标签匹配告警的处理方式，route的完整定义如下：
-
-```yaml
-[ receiver: <string> ]
-[ group_by: '[' <labelname>, ... ']' ]
-[ continue: <boolean> | default = false ]
-
-match:
-  [ <labelname>: <labelvalue>, ... ]
-
-match_re:
-  [ <labelname>: <regex>, ... ]
-
-[ group_wait: <duration> | default = 30s ]
-[ group_interval: <duration> | default = 5m ]
-[ repeat_interval: <duration> | default = 4h ]
-
-routes:
-  [ - <route> ... ]
-```
-
-**路由匹配**
-
-每一个告警都会从配置文件中顶级的route进入路由树，需要注意的是顶级的route必须匹配所有告警(即不能有任何的匹配设置match和match_re)，每一个路由都可以定义自己的接受人以及匹配规则。默认情况下，告警进入到顶级route后会遍历所有的子节点，直到找到最深的匹配route，并将告警发送到该route定义的receiver中。但如果route中设置**continue**的值为false，那么告警在匹配到第一个子节点之后就直接停止。如果**continue**为true，报警则会继续进行后续子节点的匹配。如果当前告警匹配不到任何的子节点，那该告警将会基于当前路由节点的接收器配置方式进行处理。
-
-其中告警的匹配有两种方式可以选择。一种方式基于字符串验证，通过设置**match**规则判断当前告警中是否存在标签labelname并且其值等于labelvalue。第二种方式则基于正则表达式，通过设置**match_re**验证当前告警标签的值是否满足正则表达式的内容。
-
-如果警报已经成功发送通知, 如果想设置发送告警通知之前要等待时间，则可以通过**repeat_interval**参数进行设置。
-
-**告警分组**
-
-例如，当使用Prometheus监控多个集群以及部署在集群中的应用和数据库服务，并且定义以下的告警处理路由规则来对集群中的异常进行通知。
-
-基于告警中包含的标签，如果满足**group_by**中定义标签名称，那么这些告警将会合并为一个通知发送给接收器。
-有的时候为了能够一次性收集和发送更多的相关信息时，可以通过**group_wait**参数设置等待时间。
-**group_interval**配置，则用于定义相同的Group之间发送告警通知的时间间隔。
-
-```yaml
-route:
-  receiver: 'default-receiver'
-  group_wait: 30s
-  group_interval: 5m
-  repeat_interval: 4h
-  group_by: [cluster, alertname]
-  routes:
-  - receiver: 'database-pager'
-    group_wait: 10s
-    match_re:
-      service: mysql|cassandra
-  - receiver: 'frontend-pager'
-    group_by: [product, environment]
-    match:
-      team: frontend
-```
-
-默认情况下所有的告警都会发送给集群管理员default-receiver，因此在Alertmanager的配置文件的根路由中，对告警信息按照集群以及告警的名称对告警进行分组。
-如果告警中包含service标签，并且service为MySQL或者Cassandra,则向database-pager发送告警通知，由于这里没有定义group_by等属性，这些属性的配置信息将从上级路由继承，database-pager将会接收到按cluster和alertname进行分组的告警通知。
-如果匹配到告警中包含标签team，并且team的值为frontend，Alertmanager将会按照标签product和environment对告警进行分组。
-
-### 使用Receiver接收告警信息
+## 使用Receiver接收告警信息
 
 每一个receiver具有一个全局唯一的名称，并且对应一个或者多个通知方式：
 
@@ -402,7 +343,7 @@ victorops_configs:
 
 目前官方内置的第三方通知集成包括：邮件、 即时通讯软件（如Slack、Hipchat）、移动应用消息推送(如Pushover)和自动化运维工具（例如：Pagerduty、Opsgenie、Victorops）。Alertmanager的通知方式中还可以支持Webhook，通过这种方式开发者可以实现更多个性化的扩展支持。
 
-#### 集成邮箱系统
+### 集成邮箱系统
 
 在Alertmanager使用邮箱通知，用户只需要定义好SMTP相关的配置，并且在receiver中定义接收方的邮件地址即可。
 
@@ -472,7 +413,7 @@ receivers:
         send_resolved: true
 ```
 
-#### 集成企业微信
+### 集成企业微信
 
 Alertmanager已经内置了对企业微信的支持
 

@@ -44,8 +44,7 @@ tmpdir = /data/tmpdate
 
 ```shell
 #允许最大连接数，默认100，最大16384
-#根据需求来看，一般2核4G机器填写1000，16核64G填写5000。
-max_connections = 5000
+max_connections = 3000
 #当客户端连接延迟次数超过该值会报错
 max_connect_errors = 6000
 #建立三次握手的超时时间
@@ -67,6 +66,7 @@ max_allowed_packet = 500M
 
 max_heap_table_size = 64M
 tmp_table_size = 256M
+
 #对表进行顺序扫描的请求将分配一个读入缓冲区
 read_buffer_size = 8M
 
@@ -76,6 +76,7 @@ sort_buffer_size = 8M
 #当使用join命令时，为了减少参与join的“被驱动表”的读取次数以提高性能，需要使用到join buffer来协助完成join操作
 join_buffer_size = 8M
 #指定索引缓冲区的大小，它决定索引处理的速度，尤其是索引读的速度。
+
 #SHOW VARIABLES LIKE '%key_buffer_size%';
 key_buffer_size = 256M
 #每个客户端连接线程被创建时，MySQL给它分配的内存大小。
@@ -143,8 +144,8 @@ max_binlog_cache_size = 15M
 #开启慢查询日志
 #show variables like '%slow%';
 slow_query_log=1
-#指定超过多少秒返回查询的结果为慢查询，单位秒
-long_query_time=2
+#指定超过多少秒返回查询的结果为慢查询，单位秒，0.01到0.1
+long_query_time=0.01
 #指定保存路径及文件名
 slow_query_log_file=/data/hostname-slow.log
 #记录所有没有使用到索引的查询语句，但可能会导致日志激增。
@@ -162,20 +163,25 @@ innodb:
 innodb_file_per_table = 1
 #限制Innodb能打开的表的数据，默认为300
 innodb_open_files = 1000
-#这个是Innodb最重要的参数，主要作用是缓存innodb表的索引，数据，插入数据时的缓冲
-innodb_buffer_pool_size = 48G
 
+#这个是Innodb最重要的参数，主要作用是缓存innodb表的索引，数据，插入数据时的缓冲，可以动态调整，不够用再加，内存x0.75
+innodb_buffer_pool_size = 48
+
+#不对innodb线程做限制，一旦并发线程超过这个设定，其他新的请求就会进入排队状态
 innodb_thread_concurrency = 0
+
 innodb_purge_threads = 1
 innodb_flush_log_at_trx_commit = 1
 #事务在内存中的缓冲，也就是日志缓冲区的大小，默认设置即可
 innodb_log_buffer_size = 128M
 #指定在一个日志组中，每个log的大小
 #innodb的logfile就是事务日志，用来在mysql crash后的恢复。所以设置合理的大小对于mysql的性能非常重要，直接影响数据库的写入速度，事务大小，异常重启后的恢复。
-innodb_log_file_size = 128M
+innodb_log_file_size = 2G
 #当系统中 脏页 所占百分比超过这个值，INNODB就会进行写操作以把页中的已更新数据写入到磁盘文件中
 innodb_max_dirty_pages_pct = 85
-innodb_lock_wait_timeout = 120
+
+#行锁等待时间，5到20秒
+innodb_lock_wait_timeout = 5
 innodb_flush_method = O_DIRECT
 innodb_data_file_path = ibdata1:10M:autoextend
 innodb_autoinc_lock_mode  = 2
@@ -214,11 +220,14 @@ log-error=/var/log/mysql/mysql.log
 pid-file=/usr/local/mysql/mysql.pid
 
 #扩展设置
-max_connections = 5000
+max_connections = 3000
 max_connect_errors = 6000
 connect_timeout=10
+
+#程序连接和交互连接的超时时间
 wait_timeout = 300
 interactive_timeout = 300
+
 back_log = 300
 open_files_limit = 65535
 table_open_cache = 16000

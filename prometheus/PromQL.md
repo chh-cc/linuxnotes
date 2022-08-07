@@ -2,6 +2,29 @@
 
 PromQL(Prometheus Query Language) 是 Prometheus 自己开发的数据查询 DSL 语言
 
+用curl命令可以看到metrics数据以k/v形式展现
+
+```powershell
+$ curl http://10.244.1.132:9090/metrics
+...
+# HELP promhttp_metric_handler_requests_total Total number of scrapes by HTTP status code.
+# TYPE promhttp_metric_handler_requests_total counter
+promhttp_metric_handler_requests_total{code="200"} 149
+promhttp_metric_handler_requests_total{code="500"} 0
+promhttp_metric_handler_requests_total{code="503"} 0
+```
+
+其中#号开头的两行分别为：
+
+- HELP开头说明该行为指标的帮助信息，通常解释指标的含义
+- TYPE开头是指明了指标的类型
+  - counter 计数器
+  - guage 测量器
+  - histogram 柱状图
+  - summary 采样点分位图统计
+
+其中非#开头的每一行表示当前采集到的一个监控样本
+
 ## 样本
 
 Prometheus会将所有采集到的样本数据以时间序列（time-series）的方式保存在内存数据库中，并且定时保存到硬盘上。
@@ -42,14 +65,19 @@ http_request_total{status="200", method="GET"}@1434417560938 => 94355
 
 该时间序列中最新的一个样本值
 
-```shell
-http_requests_total
-等同于
-http_requests_total{}
+例如：选择指标名称为 http_requests_total 的所有时间序列：
 
-可以通过附加一组标签来进一步过滤这些时间序列：
-node_cpu_seconds_total{job="Linux Server"}
+```promql
+http_requests_total
 ```
+
+可以通过向花括号（{}）里附加一组标签来进一步过滤时间序列。
+
+```promql
+http_requests_total{job="prometheus",group="canary"}
+```
+
+
 
 PromQL还支持用户根据时间序列的标签匹配模式来对时间序列进行过滤，目前主要支持两种匹配模式：完全匹配和正则匹配。
 
@@ -60,25 +88,24 @@ PromQL还支持用户根据时间序列的标签匹配模式来对时间序列�
 =~	匹配
 !~	不匹配
 
-正则匹配：http_request_total{handler=~".*login.*"}
-剔除某个label：http_request_total{handler=!~".*login.*"}
-匹配两个值：http_request_total{handler=~"/login/password"}
+选择指标名称为 http_requests_total，环境为 staging、testing 或 development，HTTP 方法为 GET 的时间序列：
+http_requests_total{environment=~"staging|testing|development",method="GET"}
+
+
 
 #数学运算：+ - * / %(余) ^(幂)
 使用MB作为单位响应数据：node_memory_free_bytes_total / (1024 * 1024)
 ```
 
-例如，如果我们只需要查询所有http_requests_total时间序列中满足标签instance为localhost:9090的时间序列:
+所有的 PromQL 表达式必须至少包含一个指标名称，或者一个不会匹配到空字符串的标签过滤器。
 
-```shell
-http_requests_total{instance="localhost:9090"}
+```promql
+{job=~".*"} # 非法！
+{job=~".+"}              # 合法！
+{job=~".*",method="get"} # 合法！
 ```
 
-例如，如果想查询多个环节下的时间序列序列可以使用如下表达式：
 
-```shell
-http_requests_total{environment=~"staging|testing|development",method!="GET"}
-```
 
 ### 区间向量
 
@@ -111,6 +138,15 @@ http_request_total{} offset 5m
 #前1小时1天内的请求总数
 http_request_total{}[1d] offset 1d
 ```
+
+offset 关键字需要紧跟在选择器（{}）后面。
+
+```promql
+sum(http_requests_total{method="GET"} offset 5m) // GOOD.
+sum(http_requests_total{method="GET"}) offset 5m // INVALID.
+```
+
+
 
 ### 标量和字符串
 
@@ -154,38 +190,49 @@ predict_linear(node_filesystem_free{job="node"}[1h], 4 * 3600) #预测系统磁�
 
 ### Histogram和Summary
 
-用于统计和分析样本的分布情况
+**用于统计和分析样本的分布情况**
 
-Histogram：
+Histogram（直方图）：
 
-柱状图，举个例子，想要获取北京十天内的温度分布情况，我们可以用histogram这个数据类型：
+有些情况下计算出来的平均值是不能反应出少部分的特殊情况，比如用户的响应时间，这时候就可以用histogram，可以分别统计~=0.05秒的量有多少，0~0.05秒有多少，>2秒有多少，>10秒有多少
 
-<img src="D:%5Clinuxnotes%5Cprometheus%5CPromQL.assets%5Cimage-20220525224357799.png" alt="image-20220525224357799" style="zoom:67%;" />
 
-当我们配置了Histogram数据类型后，我们能得到：
 
-- 每个桶中累积值的数量。这里的“桶”就是上面横轴的数值（5,10,15,20），而累计值不是上面的竖轴的值，而是一个累积计数，上图中5的桶对应的累积值是2,10的桶对应的累积值是4,15的桶对应的累积值对应的是8,20的桶对应的是10
-- 所有样本值的总和，比如上图中在形成柱状图之前，我们的数据应该是10天的温度（假设温度只在5,10,15,20中取值）,然后统计出对应温度的天数而形成柱状图。此处的总和就是10天温度的总和
-- 样本数量，对应上图就是10了
+1. 对每个采样点进行统计（**并不是一段时间的统计**），打到各个桶(bucket)中（0.05秒以下多少，2秒以下多少，10秒以下多少）
+2. 对每个采样点值累计和(sum) （请求总时间）
+3. 对采样点的次数累计和(count) （请求的总次数）
+
+
+
+度量指标名称: [basename]的柱状图, 上面三类的作用度量指标名称
+
+1. [basename]_bucket{le=“上边界”}, 这个值为小于等于上边界的所有采样点数量
+2. [basename]_sum
+3. [basename]_count
+
+
+
+![Histogram 采集整理数据过程实例](assets/20190704155237697.png)
 
 ```text
-beijing_temperature_bucket{le="0"} 0
-beijing_temperature_bucket{le="10"} 4
-beijing_temperature_bucket{le="20"} 8
-beijing_temperature_bucket{le="+Inf"} 10
-beijing_temperature_sum 135
-beijing_temperature_count 10
+如上表，设置bucket=[1,5,10]，当实际采样数据如是采样点所示, Observe表示采样点落在该bucket中的数量，即落在[-,1]的样点数为2，即落在[1,5]的样点数为3，即落在[5,10]的样点数为1，write是得到的最终结果（histogram的最终结果bucket计数是向下包含的）：
+[basename]_bucket{le=“1”} = 2
+[basename]_bucket{le=“5”} =5
+[basename]_bucket{le=“10”} =6
+[basename]_bucket{le="+Inf"} = 6
+[basename]_count =6
+[basename]_sum =18.8378745
 ```
 
-Summary：
 
-因为histogram在客户端就是简单的分桶和分桶计数，在prometheus服务端基于这么有限的数据做百分位估算，所以的确不是很准确，summary就是解决百分位准确的问题而来的。summary直接存储了 quantile 数据，而不是根据统计区间计算出来的。
 
-Prometheus的分为数称为quantile，其实叫percentile更准确。百分位数是指小于某个特定数值的采样点达到一定的百分比
+Summary（摘要）：
+
+用于**记录某些东西的平均大小**，可能是计算所需的时间或处理的文件大小，摘要显示两个相关的信息：**`count`（事件发生的次数）和 `sum`（所有事件的总大小）**
 
 作用：
 
-1. 在客户端对于**一段时间内**（默认是10分钟）的每个采样点进行统计，并形成分位图。（如：正态分布一样，统计低于60分不及格的同学比例，统计低于80分的同学比例，统计低于95分的同学比例）
+1. 在客户端对于**一段时间内**（默认是10分钟）的每个采样点进行统计，并形成分位图。（中位数的成绩为多少，9分位数的成绩为多少）
 2. 统计班上所有同学的总成绩(sum)
 3. 统计班上同学的考试总人数(count)
 
@@ -222,6 +269,17 @@ prometheus_tsdb_wal_fsync_duration_seconds_count 216
 
 ### 数学运算
 
+PromQL支持的所有数学运算符如下所示：
+
+- `+` (加法)
+- `-` (减法)
+- `*` (乘法)
+- `/` (除法)
+- `%` (求余)
+- `^` (幂运算)
+
+
+
 例如，我们可以通过指标node_memory_free_bytes_total获取当前主机可用的内存空间大小，其样本单位为Bytes。这是如果客户端要求使用MB作为单位响应数据：
 
 ```shell
@@ -244,18 +302,22 @@ node_disk_bytes_written + node_disk_bytes_read
 {device="sdb",instance="localhost:9100",job="node_exporter"}=>0@1518146427.807 + 1744384@1518146427.807
 ```
 
-PromQL支持的所有数学运算符如下所示：
 
-- `+` (加法)
-- `-` (减法)
-- `*` (乘法)
-- `/` (除法)
-- `%` (求余)
-- `^` (幂运算)
 
 ### 使用布尔运算过滤时间序列
 
 布尔运算则支持用户根据时间序列中样本的值，对时间序列进行过滤。
+
+目前，Prometheus支持以下布尔运算符如下：
+
+- `==` (相等)
+- `!=` (不相等)
+- `>` (大于)
+- `<` (小于)
+- `>=` (大于等于)
+- `<=` (小于等于)
+
+
 
 当前所有主机节点的内存使用率：
 
@@ -273,14 +335,7 @@ PromQL支持的所有数学运算符如下所示：
 
 瞬时向量与瞬时向量直接进行布尔运算时，同样遵循默认的匹配模式：依次找到与左边向量元素匹配（标签完全一致）的右边向量元素进行相应的操作，如果没找到匹配元素，则直接丢弃。
 
-目前，Prometheus支持以下布尔运算符如下：
 
-- `==` (相等)
-- `!=` (不相等)
-- `>` (大于)
-- `<` (小于)
-- `>=` (大于等于)
-- `<=` (小于等于)
 
 ### 使用bool修饰符改变布尔运算符的行为
 
@@ -321,9 +376,9 @@ http_requests_total > bool 1000
 5. `and, unless`
 6. `or`
 
-### PromQL聚合操作
+### 聚合操作
 
-Prometheus还提供了下列内置的聚合操作符，这些操作符作用域瞬时向量。可以将瞬时表达式返回的样本数据进行聚合，形成一个新的时间序列。
+Prometheus还提供了下列内置的聚合操作符，这些操作符**作用于瞬时向量**。可以将瞬时表达式返回的样本数据进行聚合，形成一个新的时间序列。
 
 - `sum` (求和)
 - `min` (最小值)
@@ -393,52 +448,82 @@ quantile(0.5, http_requests_total)
 
 https://prometheus.io/docs/prometheus/latest/querying/functions/
 
-```shell
-1、increase()函数，该函数结合counter数据类型使用，获取区间向量中的第一个和最后一个样本并返回其增长量。如果除以[区间]时间(秒)就可以获取该时间内的平均增长率。
+### 使用频率最高的函数
 
-# 获取近1分钟内网卡接收的字节数，如果不除以时间，则为区间内累计增量。
-increase(node_network_receive_bytes_total{device=~"ens.*",nodename=~"monitor01"}[1m])
+rate
 
-2-1、rate()函数，该函数配置counter数据类型使用，用于获取在这个时间段内的平均每秒增量。
+该函数配置counter数据类型使用，用于获取在**这个时间段内的平均每秒增量**。该函数的返回结果**不带有度量指标**，只有标签列表。
 
-# 通过rate()函数获取在1分钟时间内网卡每秒接收字节数，如果再乘以区间时间，则同increase()函数。
-rate(node_network_receive_bytes_total{device=~"ens.*",nodename=~"monitor01"}[1m])
+当将 `rate()` 函数与[聚合运算符](https://prometheus.io/docs/prometheus/latest/querying/operators/#aggregation-operators)（例如 `sum()`）或随时间聚合的函数（任何以 `_over_time` 结尾的函数）一起使用时，**必须先执行 rate 函数，然后再进行聚合操作**，否则当采样目标重新启动时 **rate() 无法检测到计数器是否被重置。** 
 
-# 以下查询结果同increase()函数。
-rate(node_network_receive_bytes_total{device=~"ens.*",nodename=~"monitor01"}[1m]) * 60
+例如，以下[表达式](https://so.csdn.net/so/search?q=表达式&spm=1001.2101.3001.7020)返回区间向量中每个时间序列过去 5 分钟内 HTTP 请求数的每秒增长率： 
 
-2-2、irate()函数，用于计算指定时间范围内每秒瞬时增长率，是基于该时间范围内最后两个数据点来计算。rate和irate函数都用于计算某个指标在一定时间间隔内的变化速率。但是它们的计算方法有所不同：irate取的是在指定时间范围内的最后两个数据点来算速率，而rate会取指定时间范围内所有数据点，算出一组速率，然后取平均值作为结果。
+```yaml
+rate(http_requests_total[5m])
+ 
+结果：
+{code="200",handler="label_values",instance="120.77.65.193:9090",job="prometheus",method="get"} 0
+{code="200",handler="query_range",instance="120.77.65.193:9090",job="prometheus",method="get"}  0
+{code="200",handler="prometheus",instance="120.77.65.193:9090",job="prometheus",method="get"}   0.2
+...
+```
 
-所以官网文档说：irate适合快速变化(fast-moving)的计数器（counter），而rate适合缓慢变化(slow-moving)的计数器（counter）。
 
-3、sum()函数，在实际工作中CPU大多是多核心，而node_cpu_seconds_total会将每个核的数据都单独显示出来，但我们关心的是CPU总的使用情况，因此可以使用sum()函数求和后得出一条总的数据，
 
-# 使用sum()函数获取实例在1分钟时间内，user在所有vCPU上的使用百分比之和
-sum(increase(node_cpu_seconds_total{nodename=~"monitor01",mode="user"}[1m])/60)
+irate
 
-4、count()函数，该函数用于进行统计，或用来做一些模糊判断，比如判断服务器连接数大于某个值，为真则返回1，否则返回null。
+用于计算指定时间范围内每秒瞬时增长率，是基于该时间范围内最后两个数据点来计算。rate和irate函数都用于计算某个指标在一定时间间隔内的变化速率。但是它们的计算方法有所不同：irate取的是在指定时间范围内的最后两个数据点来算速率，而rate会取指定时间范围内所有数据点，算出一组速率，然后取平均值作为结果。
 
-# 例如统计vCPU数
-count(node_cpu_seconds_total{nodename="monitor01",mode="idle"})
+例如，以下表达式返回区间向量中每个[时间序列](https://so.csdn.net/so/search?q=时间序列&spm=1001.2101.3001.7020)过去 5 分钟内最后两个样本数据的 HTTP 请求数的增长率：
 
-# 或者统计当前TCP建立连接数是否大于200
-count(node_netstat_Tcp_CurrEstab{nodename=~"monitor01"} >200 )
+```yaml
+irate(http_requests_total{job="api-server"}[5m])
+```
 
-5、topk()函数，该函数可以从大量数据中取出排行前N的数值，N可以自定义。
+irate 只能用于绘制快速变化的计数器,当将 `irate()` 函数与[聚合运算符](https://prometheus.io/docs/prometheus/latest/querying/operators/#aggregation-operators)（例如 `sum()`）或随时间聚合的函数（任何以 `_over_time` 结尾的函数）一起使用时，***\*必须先执行 irate 函数，然后再进行聚合操作，否则当采样目标重新启动时 irate() 无法检测到计数器是否被重置。\****
 
+
+
+increase
+
+用来针对counter这种持续增长的数值，截取其中**一段时间的增量**
+
+increase(node_cpu[1m])就获取了CPU总使用时间在1分钟内的增量
+
+
+
+sum
+
+sum会把结果集的输出进行总加和
+
+在实际工作中CPU大多是多核心，而node_cpu_seconds_total会将每个核的数据都单独显示出来，但我们关心的是CPU总的使用情况，因此可以使用sum()函数求和后得出一条总的数据
+
+但是sum(increase(node_cpu[1m]))会把所有机器的cpu值都加起来，我们可以用by(instance)把sum按机器拆分出来
+
+
+
+topk
+
+取出排行前N的数值，N可以自定义
+
+
+
+一般用于瞬时报警，而不是为了观察曲线
+
+```promql
 # 例如从所有主机中找出近5分钟网卡流量排名前3的主机(Counter类型数据)。
 topk(3,rate(node_network_receive_bytes_total{device=~'ens.*'}[5m]))
-
-# 或者用increase
-topk(3,increase(node_network_receive_bytes_total{device=~'ens.*'}[5m])/300)
-
-# 例如从所有主机中找出连接数前3的主机(Gauge类型数据)。
-topk(3,node_netstat_Tcp_CurrEstab)  
-
-6、predict_linear()函数，根据前一个时间段的值来预测未来某个时间点数据的走势。例如，我们可以用predict_linear()函数，根据近1天的磁盘使用来预测磁盘在未来2天增长情况，大概在未来多长时间可以将磁盘占满。
-
-predict_linear(node_filesystem_free_bytes{device="rootfs",nodename=~"monitor01",mountpoint="/"}[1d],2*86400)
 ```
+
+
+
+count
+
+把数值符合条件的输出数目进行加合
+
+count(count_netstat_wait_connections>200)
+
+一般用于一些模糊的监控判断
 
 ## 常用系统资源监控指标
 
