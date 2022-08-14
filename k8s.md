@@ -1,5 +1,25 @@
 ## k8s
 
+## docker
+
+1. docker用了linux什么技术
+
+   namespace：linux内核中对进程进行资源的隔离，不会和宿主机共享网络、PID等资源，比如在容器中看不到宿主机的进程
+
+   cgroup：inux内核中对进程使用资源的上限进行限制，包括CPU、内存、磁盘读写速率、网络带宽等
+
+2. docker网络模型
+
+   bridge：网桥，默认类型，会自动在主机上创建一个 `docker0` 虚拟网桥
+
+   host：和宿主机共享一个网络namespace
+
+   container：和别的容器共享一个网络namespace
+
+   none：不参与网络通信
+
+   
+
 ## 架构和组件
 
 1. k8s与docker的关系？
@@ -26,21 +46,6 @@
 
    容器运行时：负责镜像管理和pod容器的真正运行，比如docker
 
-3. k8s的网络模型？
-
-   Kubernetes网络模型中每个Pod都拥有一个独立的IP地址，并假定所有Pod都在一个可以直接连通的、扁平的网络空间中。所以不管它们是否运行在同一个Node（宿主机）中，都要求它们可以直接通过对方的IP进行访问。
-
-   一个 Pod 内部的所有容器共享一个网络堆栈。
-
-4. k8s的CNI模型？
-
-   k8s的扁平网络空间是由CNI插件建立的，常见的有flannel和calico
-
-   flannel能协助k8s给每一个节点的容器都分配不相互冲突的IP地址，它能在这些ip地址建立一个覆盖网络，容器可以在这个网络中通信。
-
-5. k8s的网络策略？
-
-   网络策略的主要功能是对pod间的网络通信进行限制和准入控制，设置方式是将pod的label作为查询条件，设置允许或禁止访问的pod列表；默认所有pod没有隔离；网络策略功能由第三方网络插件提供，如calico
 
 ## pod
 
@@ -142,19 +147,29 @@
 
 ## deploy、sts、ds、hpa
 
-1. deployment升级/更新过程
+1. ReplicaSet作用？
 
-   创建deployment时，系统创建了一个新的RS，RS创建了对应数量的pod副本；更新deployment时，**再创建一个新的RS**，然后根据更新策略**修改RS的副本数**，最后新的RS运行对应新的pod副本，旧的RS的pod副本数为0
+   RS会尽可能保证pod以我们指定的副本数运行，假如想要运行10个pod，如果这时候有4个pod出了故障异常退出，那么RS会自动创建新的4个pod来取代故障的pod
 
 2. 更新策略
 
-   deployment默认rollingupdate，两个参数：maxUnavailable（最多不可用副本数）、maxSurge（最多可以新建多少个副本）
+   deployment默认rollingupdate，默认maxUnavailable为25%（确保至少所需 Pods 75% 处于运行状态），默认maxSugre为25%（确保启动的 Pod 个数比期望个数**最多多出 25%**）
+
+   
 
    daemonset默认ondelete
 
    statefulset默认rollingupdate，从最后一个pod开始更新，更新完成再继续更新下一个pod
 
-3. k8s自动扩容机制
+3. deployment升级/更新过程
+
+   更新deployment时，会创建新的RS，并将其扩容，控制副本数在最大运行峰值比例，达到比例后不再扩容，直到杀死足够多的旧版pod
+
+   接下来对旧版本RS进行缩容操作，控制去除Pod副本数量**满足最大不可用比例**，达到比例后不会再继续删除旧版Pod，直到创建到足够多的新版Pod
+
+   此为一轮更新，DM不断的进行滚动更新上述操作，直到旧版Pod副本数为0，新版副本数稳定，停止滚动更新。
+
+4. k8s自动扩容机制
 
    使用hpa控制器根据pod的cpu和内存使用率进行自动pod扩缩容
 
@@ -179,6 +194,40 @@
    ingress对象，其实就是一个反向代理的配置文件描述，它定义了某个域名的请求转发到指定的service
 
    ingress-controller直接将请求转发到service对应的后端pod上，跳过kube-proxy的转发功能
+
+## 网络
+
+1. k8s网络模型
+
+   Kubernetes网络模型中每个Pod都拥有一个独立的IP地址，并假定所有Pod都在一个可以直接连通的、扁平的网络空间中。所以不管它们是否运行在同一个Node（宿主机）中，都要求它们可以直接通过对方的IP进行访问。
+
+2. 同一pod内多容器间通讯？
+
+   同一pod内容器共享同一个网络命名空间，通过localhost加端口通信
+
+3. flannel原理
+
+   flannel为每一个node分配ip子网，在node创建一个名为flannel.1的虚拟网卡，为容器配置名为docker0的网桥
+
+   源容器向目标容器发送数据，数据首先发送给docker0网桥
+
+   docker0网桥将其转发给flannel.1虚拟网卡处理
+
+   flannel.1收到后对数据进行封装，转发给宿主机eth0
+
+   对封装的数据包再封装（为了在物理网络上传输），转发给目标容器node的eth0
+
+    目标容器宿主机eth0收到后进行拆分，然后转发给flannel.1，flannel.1转发给docker0，最后数据到达目标容器
+
+1. k8s的CNI模型？
+
+   k8s的扁平网络空间是由CNI插件建立的，常见的有flannel和calico
+
+   flannel能协助k8s给每一个节点的容器都分配不相互冲突的IP地址，它能在这些ip地址建立一个覆盖网络，容器可以在这个网络中通信。
+
+2. k8s的网络策略？
+
+   网络策略的主要功能是对pod间的网络通信进行限制和准入控制，设置方式是将pod的label作为查询条件，设置允许或禁止访问的pod列表；默认所有pod没有隔离；网络策略功能由第三方网络插件提供，如calico
 
 ## 存储
 
