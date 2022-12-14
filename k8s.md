@@ -4,9 +4,9 @@
 
 1. docker用了linux什么技术
 
-   namespace：linux内核中对进程进行资源的隔离，不会和宿主机共享网络、PID等资源，比如在容器中看不到宿主机的进程
+   namespace：linux内核中对进程进行资源的隔离，通过隔离网络、PID、系统信号量、文件挂载系统、主机名和域名，来实现同一个宿主机的容器互不干扰
 
-   cgroup：inux内核中对进程使用资源的上限进行限制，包括CPU、内存、磁盘读写速率、网络带宽等
+   cgroup：linux内核中对进程使用资源的上限进行限制，包括CPU、内存、磁盘读写速率、网络带宽等
 
 2. docker网络模型
 
@@ -18,7 +18,67 @@
 
    none：不参与网络通信
 
+3. 本地的镜像文件都存放在哪里
+
+   /var/lib/docker/目录下，其中container目录存放容器信息，graph目录存放镜像信息，aufs目录下存放具体的镜像底层文件
+
+4. 如何临时退出一个正在交互的容器的终端，而不终止它？
+
+   ctrl+p+q
+
+5. 可以在一个容器中同时运行多个应用进程吗？
+
+   一般不推荐一个容器运行多个进程，如果有类似需求可以通过额外的进程管理机制比如supervisord
    
+6. docker常用命令
+
+   docker images/ps
+
+   docker pull/push
+
+   docker build
+
+   docker tag
+
+   docker run
+
+   docker cp 宿主机和容器互相拷贝文件
+
+   docker exec 进入容器
+
+   docker logs
+
+   docker start/stop
+
+7. 让容器随着 Docker 服务启动而自动启动？
+
+   docker run --restart=always
+
+   创建容器后则通过修改容器配置文件的RestartPolicy参数或docker update更新--restart参数
+
+8. 指定容器的端口映射
+
+   docker run -p 宿主机端口:容器端口
+
+   创建容器后则通过修改容器配置文件
+
+9. 容器异常排查
+
+   通过启动容器返回的错误提示排查
+
+   通过docker logs -f获取日志排查
+
+10. docker注入环境变量
+
+   运行容器时使用-e ..=..或者在dockerfile写入环境变量ENV ... ...
+
+11. namespace不能隔离什么
+
+    磁盘IO、时间
+
+12. docker有几种状态
+
+    starting运行、exited退出、paused暂停、healthy健康、unhealthy不健康
 
 ## 架构和组件
 
@@ -26,11 +86,11 @@
 
    docker提供了容器的生命周期管理和镜像构建运行时容器，主要优点是将应用和所需设置、依赖打包到一个容器中，提高可移植性。k8s用于关联和编排多主机上运行容器。
 
-2. k8s如何实现集群管理？（哪些组件及功能？）
+2. k8s有哪些组件及功能？
 
    k8s划分为控制平面和工作节点，控制平面包括apiserver、controller-manager、scheduler、etcd，这些组件实现了整个集群的安全控制、故障恢复、自动扩缩、Pod调度等。
 
-   apiserver：资源增删查改的唯一入口，各个组件通过apiserver进行通信：各个组件通过apisever**将信息存入etcd中**，当需要获取这些数据时再通过apiserver提供的**REST接口**（用get、list、watch）去请求，从而实现各个组件的通信。
+   apiserver：**资源增删查改的唯一入口，各个组件通过apiserver进行通信**：各个组件通过apisever**将信息存入etcd中**，当需要获取这些数据时再通过apiserver提供的**REST接口**（用get、list、watch）去请求，从而实现各个组件的通信。
 
    controller-manager：**维护集群的状态**，执行各种控制器，故障检测、自动扩展、滚动更新、保证pod数量达到期望值等
 
@@ -45,6 +105,20 @@
    kube-proxy：**负责转发**，一旦发现service关联的pod信息发生改变，就会创建ipvs规则，完成serive对后端pod的转发
 
    容器运行时：负责镜像管理和pod容器的真正运行，比如docker
+   
+3. 升级kubadm部署的集群
+
+   升级前必须备份所有组件及数据，例如etcd
+
+   不要跨多个小版本进行升级
+
+   1.升级管理节点
+
+   2.升级工作节点
+
+4. 证书续签
+
+   **容易过期的是ca证书派发出来的证书文件**，工作节点证书有效期限都是1年
 
 
 ## pod
@@ -57,7 +131,7 @@
 
 2. pod有哪些状态
 
-   pending：pod的yaml文件已经提交给k8s，api对象已经被保存在etcd中，但pod可能因为一些原因无法顺利创建，比如**pod调度失败**
+   pending：pod的yaml文件已经提交给k8s，api对象已经被保存在etcd中，但pod可能因为一些原因无法顺利创建，比如**pod调度失败**/pvc有问题
 
    failed：pod至少有一个容器不正常退出
 
@@ -77,9 +151,9 @@
 
    不同控制器的重启策略：deployment、statefulset、daemonset都要always；job为onfailed或never
 
-4. pod的健康检测
+4. pod的健康检测机制
 
-   livenessprobe存活探针：用于判断容器是否running，如果检测到不健康则**杀掉容器**，然后根据**重启**策略做相应处理
+   livenessprobe存活探针：用于判断容器是否running，如果检测到不健康则**杀掉容器**然后**重启**
 
    readnessprobe就绪探针：判断容器是否ready，如果检测失败则把pod**从endpoint中移除**，不然外部流量进入pod
 
@@ -97,10 +171,6 @@
 
    容器启动时间较长（超出 `initialDelaySeconds + failureThreshold × periodSeconds`）则用启动探针
 
-   希望容器在探测失败时被杀死并重新启动，那么请指定一个存活态探针
-
-   如果要仅在探测成功时才开始向 Pod 发送请求流量，请指定就绪态探针。
-
 6. master如何将pod调度到指定节点上
 
    该工作由scheduler组件完成，scheduler通过一系列复杂的算法算出pod的最佳node节点，可以通过**nodeselector、节点亲和性**来调度到指定的节点
@@ -117,21 +187,17 @@
 
 8. 删除一个pod会发生什么
 
-   apiserver接受到删除指令，默认有30秒时间等待优雅退出，超过30秒状态会变为terminating，kubelet看到pod状态为terminating就开始关闭pod：
+   delete pod会有两个平行的过程：
 
-   pod从service的endpoint中移除；
+   网络规则：apiserver收到delete pod后pod状态变为terminating，endpoint移除该pod的ip流量就不会进到该pod
 
-   如果pod定义了一个停止前的钩子，其会在内部被调用，停止钩子一般定义了如何优雅的结束进程；
-
-   进程被发送term信号kill -14
-
-   当超过优雅退出时间后，pod中所有进程都被发送sigkill信号kill -9
+   删除pod：kubelet向容器发送SIGTERM，如果容器没有配置优雅关闭进程，就会立刻退出；如果容器配置了，但是在默认的30秒内还没退出，kubelet就会发送SIGKILL强制退出
 
 9. 常见调度方式
 
    nodeselector：定向调度，将pod调度到某个标签的节点
 
-   节点亲和性：
+   亲和性：节点亲和性：pod调度到指定标签的节点，pod反亲和性：多副本的情况下把pod分散到不同节点
 
    污点和容忍：给节点打上污点后（master-test=test:NoSchedule），pod要想调度到该节点就必须配置容忍
 
@@ -153,25 +219,37 @@
 
 2. 更新策略
 
-   deployment默认rollingupdate，默认maxUnavailable为25%（确保至少所需 Pods 75% 处于运行状态），默认maxSugre为25%（确保启动的 Pod 个数比期望个数**最多多出 25%**）
-
-   
-
-   daemonset默认ondelete
+   deployment默认rollingupdate
 
    statefulset默认rollingupdate，从最后一个pod开始更新，更新完成再继续更新下一个pod
 
-3. deployment升级/更新过程
+   daemonset默认ondelete
 
-   更新deployment时，会创建新的RS，并将其扩容，控制副本数在最大运行峰值比例，达到比例后不再扩容，直到杀死足够多的旧版pod
+3. 如何控制滚动更新过程
 
-   接下来对旧版本RS进行缩容操作，控制去除Pod副本数量**满足最大不可用比例**，达到比例后不会再继续删除旧版Pod，直到创建到足够多的新版Pod
+   maxSurge：此参数控制滚动更新过程中，最多可以创建多少副本
+
+   maxUnavailable：此参数控制滚动更新过程中，最多不可用副本数
+
+4. deployment升级/更新过程
+
+   更新deployment时，**会创建新的RS，并将其扩容**，控制副本数在最大运行峰值比例，达到比例后不再扩容，直到杀死足够多的旧版pod
+
+   接下来**对旧版本RS进行缩容操作**，控制去除Pod副本数量**满足最大不可用比例**，达到比例后不会再继续删除旧版Pod，直到创建到足够多的新版Pod
 
    此为一轮更新，DM不断的进行滚动更新上述操作，直到旧版Pod副本数为0，新版副本数稳定，停止滚动更新。
 
-4. k8s自动扩容机制
+5. 版本回滚相关命令
+
+   kubectl rollout undo deploy xxx [--to-reversion=?]
+
+6. k8s自动扩容机制
 
    使用hpa控制器根据pod的cpu和内存使用率进行自动pod扩缩容
+
+7. statefulset为什么要用headless service
+
+   statefulset管理有状态服务，**不需要通过service反向代理到一组pod**，statefulset为每个pod做了唯一的编号，headless service不分配cluster ip，使用headless service就可以通过pod名称+序号.service名称.namespace名称来访问一个指定的pod
 
 ## service、ingress
 
@@ -191,9 +269,13 @@
 
    k8s结合ingress对象和ingress-controller，实现不同url的访问请求转发到后端对应的pod
 
-   ingress对象，其实就是一个反向代理的配置文件描述，它定义了某个域名的请求转发到指定的service
+   ingress对象，其实就是**一个反向代理的配置文件描述**，它定义了某个域名的请求转发到指定的service
 
-   ingress-controller直接将请求转发到service对应的后端pod上，跳过kube-proxy的转发功能
+   ingress-controller直接**将请求转发到service对应的后端pod**上，跳过kube-proxy的转发功能
+   
+4. 灰度发布
+
+   创建一个金丝雀版本ingress，配置nginx.ingress.kubernetes.io/canary: "true"和nginx.ingress.kubernetes.io/canary-by-header，当请求中的hearder key和value和ingess匹配时请求流量就会分配到canary入口
 
 ## 网络
 
@@ -228,6 +310,27 @@
 2. k8s的网络策略？
 
    网络策略的主要功能是对pod间的网络通信进行限制和准入控制，设置方式是将pod的label作为查询条件，设置允许或禁止访问的pod列表；默认所有pod没有隔离；网络策略功能由第三方网络插件提供，如calico
+
+## 安全
+
+1. 认证方式
+
+   client证书（k8s各种组件访问apiserver）和jwt token（pod访问apiserver）
+
+2. k8s内置角色
+
+   - **cluster-admin**  超级管理员，对集群所有权限（在部署dashboard的时候，先创建sa，然后将sa绑定到角色cluster-admin，最后获取到token，这就使用了内置的cluster-admin ）
+   - **admin**   主要用于授权命名空间所有读写权限
+   - **edit**   允许对命名空间大多数对象读写操作，不允许查看或者修改角色、角色绑定。
+   - **view** 允许对命名空间大多数对象只读权限，不允许查看角色、角色绑定和Secret
+   
+3. 授权用户访问k8s资源
+
+   1.根据ca签发用户的证书
+
+   2.根据用户证书绑定角色（根据需求配置只读/读写指定资源权限）并生成kubeconfig文件
+
+   3.将kubeconfig文件放到用户目录的.kube目录，切换上下文并测试权限
 
 ## 存储
 
@@ -279,6 +382,39 @@
 
    CSI Node的主要功能是对主机（Node）上的Volume进行管理和操作。
 
-   
+## 日志
 
-   
+1. 怎么收集k8s微服务日志
+
+   为了轻量级收集日志，可以使用filebeat来收集并将日志发送给logstash，filebeat以边车模式伴随微服务进行部署
+
+2. 监控什么日志
+
+   有几类比较关心的日志：
+
+   ingress日志：里面有从公网域名进来的访问记录
+
+   k8s事件日志：kubectl describe pods中的Events:内容，有容器健康检查失败重新部署，或者pod新建、删除等事件
+
+   业务程序的日志：比如java中常用的log4j套件输出的日志和kubectl logs命令查看的日志
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -20,62 +20,169 @@ docker国内加速镜像站：
 清华大学镜像站：mirrors.tuna.tsinghua.edu.cn
 ```
 
-## 架构和原理
+## 核心底层技术
 
-### **镜像（Image）**
+### Namespaces（隔离）
 
-镜像是一个**只读**的文件和文件夹组合。它包含了容器运行时所需要的所有基础文件和配置信息，是容器启动的基础。
+**Linux namespace是一种Linux内核提供的资源隔离方案：**
 
-实际上image是由**一层层的文件系统组成**的，这种层级的文件系统称为UnionFS。
+- 系统可以为进程分配不同的namespace
+- 保证不同的namespace资源独立分配、进程彼此隔离，即不同namespace下的进程互不干扰
 
-docker相关的本地资源都存放在/var/lib/docker目录下，其中containers目录下每个序列都是一个镜像
+
+
+复杂点说，**namespace是linux创建进程的可选参数。**
+
+在 Linux 系统中**创建线程**的系统调用是 **clone()**，这个系统调用就会为我们创建一个新的进程，并且返回它的进程号 pid。而当我们用 clone() 系统调用创建一个新进程时，就可以在参数中指定 CLONE_NEWPID 参数这时，**新创建的这个进程将会“看到”一个全新的进程空间**，在这个进程空间里，它的 PID 是 1。之所以说“看到”，是因为这只是一个“障眼法”，在宿主机真实的进程空间里，这个进程的 PID 还是真实的数值，比如 100。
+
+多次执行上面的 clone() 调用，这样就会创建多个 PID Namespace，而每个 Namespace 里的应用进程，都会认为自己是当前容器里的第 1 号进程。它们既看不到宿主机里真正的进程空间，也看不到其他 PID Namespace 里的具体情况。
+
+
+
+namespace的种类：
+
+- pid namespace
+  - 不同用户的进程就是通过Pidnamespace隔离开的，且不同namespace 中可以有相同Pid。
+  - 有了Pidnamespace, 每个namespace中的Pid能够相互隔离。
+- net namespace
+  - 网络隔离是通过net namespace实现的，每个net namespace有独立的network devices, IPaddresses, IP routing tables, /proc/net 目录。
+- ipc namespace
+  - Container中进程交互还是采用linux常见的进程间交互方法（interprocesscommunication –IPC）, 包括常见的信号量、消息队列和共享内存。
+  - container 的进程间交互实际上还是host上具有相同Pidnamespace中的进程间交互，因此需要在IPC资源申请时加入namespace信息-每个IPC资源有一个唯一的32 位ID。
+- mnt namespace
+  - mntnamespace允许不同namespace的进程看到的文件结构不同，这样每个namespace 中的进程所看到的文件目录就被隔离开了。
+- uts namespace
+  - 允许每个container拥有独立的hostname和domain name, 使其在网络上可以被视作一个独立的节点而非Host上的一个进程。
+- user namespace
+  - 每个container可以有不同的user 和group id, 也就是说可以在container内部用container内部的用户执行程序而非Host上的用户。
+
+简单举个例子，在不同pid namespace下，看到的进程pid是不一样的；在不同network namespace下，看到的网络配置是不一样的
+
+![image-20220903114345451](assets/image-20220903114345451.png)
+
+​                       
+
+**所以说，容器，其实是一种特殊的进程而已。**一般不推荐在一个容器运行多个进程，如果有类似需求，可以通过额外 的进程管理机制，比如 supervisord 来管理所运行的进程。
+
+在 Linux 内核中，有很多资源和对象是不能被 Namespace 化的，最典型的例子就是：时间。
+
+### Control groups（限制）
+
+**Cgroups（Control Groups）是Linux下用于对一个或一组进程进行资源控制和监控的机制；可以对诸如CPU使用时间、内存、磁盘I/O等进程所需的资源进行限制**
+
+- Cgroups以文件系统的方式暴露给用户使用，/sys/fs/cgroup 下面有很多诸如 cpuset、cpu、 memory 这样的子目录，也叫子系统
+- 使用时，在每个子系统下新建一个控制组（子目录下新建一个目录，操作系统会自动为其填充资源限制文件），将需要限制的进程的PID填写入tasks文件中
+
+	blkio：块设备IO；
+	cpu：CPU；
+	cpuacct：CPU资源使用报告；
+	cpuset：多处理器平台上的CPU集合；
+	devices：设备访问；
+	freezer：挂起或恢复任务；
+	memory：内存用量及报告；
+	perf_event：对cgroup中的任务进行统一性能测试；
+	net_cls：cgroup中的任务创建的数据报文的类别标识符；
+```shell
+docker run -d --name mysql --memory="500m" --memory-swap="600M" --oom-kill-disabel mysql01
+# 限制CPU
+docker run -d --name mysql --cpus=".5"
+docker run -d --name mysql --cpus="1.5
+```
+
+### Union FS（文件系统）
+
+**关于联合文件系统：**
+
+- 将不同目录挂载到同一个虚拟文件系统下（unite several directories into a single virtual filesystem）的文件系统
+- 支持为每一个成员目录（类似GitBranch）设定readonly、readwrite和whiteout-able 权限
+- 文件系统分层, 对readonly权限的branch 可以逻辑上进行修改(增量地, 不影响readonly部分的)。
+- 通常Union FS 有两个用途, 一方面可以将多个disk挂到同一个目录下, 另一个更常用的就是将一个readonly的branch 和一个writeable 的branch 联合在一起。
+
+
+
+容器镜像的分层结构：
+
+![image-20220903142437748](assets/image-20220903142437748.png)
+
+- Dockerfile中的每一条指令，都会为镜像生成一个层，即一个增量rootfs
+
+- 用命令`docker image insepct <image-name>:<tag-name>`可以看到“RootFS”字段下镜像的分层信息
 
 ```shell
-[root@docker containers]# ll
-total 0
-drwx------ 4 root root 237 Apr  8 23:35 01cd68ccc61b021dba0e20e226ac7db40e62ba9233522445b29f1fa1a7669113
-drwx------ 4 root root 237 Apr  8 23:35 32d661fd565451624446149dde18500f0e1ca702f93a286ad84b6c86e67985d7
-drwx------ 4 root root 237 Apr  8 23:22 408136b5a5aeddef2e7368d4106f8b3040875538d9f872a8291fbbf0dcb058f6
+$ docker image inspect ubuntu:latest
+...
+     "RootFS": {
+      "Type": "layers",
+      "Layers": [
+        "sha256:f49017d4d5ce9c0f544c...",
+        "sha256:8f2b771487e9d6354080...",
+        "sha256:ccd4d61916aaa2159429...",
+        "sha256:c01d74f99de40e097c73...",
+        "sha256:268a067217b5fe78e000..."
+      ]
+    }
+    
+#可以看到，这个 Ubuntu 镜像，实际上由五个层组成。这五个层就是五个增量 rootfs，每一层都是 Ubuntu 操作系统文件与目录的一部分；而在使用镜像时，Docker 会把这些增量联合挂载在一个统一的挂载点上，这个挂载点就是 /var/lib/docker/aufs/mnt/
 ```
 
-Docker image来源：
 
-```text
-（1）可以基于Dockerfile从无到有的构建；
-（2）也可以基于Dockerfile从已有的image创建新的image；
-（3）也可以基于容器生成新的image；
-（4）甚至也可以直接下载别人的image。
-```
 
-dockerhub镜像名称——registry/repository:tag
+## 安装
+
+操作系统要求：
+CentOS 7 要求系统为64位，系统内核版本为 3.10 以上
+CentOS 6.5.X 或更高的版本的 CenOS 上，要求系统为64位，系统内核为2.6.32-431或者更高版本。
 
 ```shell
-docker images
-REPOSITORY          TAG                 IMAGE ID            CREATED             SIZE
-ubuntu     			latest              2c4c54db1c77        4 months ago        192 MB
-
-#ubuntu是一个repository，同时这个repository下有一系列打了tag的image，iamge的标记是GUID，为了方便可以通过repository:tag来引用
-#registry：存储镜像数据，提供镜像的拉取和上传功能
-#registry中镜像是通过repository来组织的，而每个repository又包含了若干个image
+#先执行以下命令卸载旧版 Docker
+$ sudo yum remove docker \
+                  docker-client \
+                  docker-client-latest \
+                  docker-common \
+                  docker-latest \
+                  docker-latest-logrotate \
+                  docker-logrotate \
+                  docker-engine
+#添加 Docker 安装源
+wget https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo -O /etc/yum.repos.d/docker-ce.repo
+#正常情况下，直接安装最新版本的 Docker 即可
+$ sudo yum install docker-ce docker-ce-cli containerd.io
+#如果你想要安装指定版本的 Docker
+$ sudo yum list docker-ce --showduplicates | sort -r
+docker-ce.x86_64            18.06.1.ce-3.el7                   docker-ce-stable
+docker-ce.x86_64            18.06.0.ce-3.el7                   docker-ce-stable
+docker-ce.x86_64            18.03.1.ce-1.el7.centos            docker-ce-stable
+docker-ce.x86_64            18.03.0.ce-1.el7.centos            docker-ce-stable
+docker-ce.x86_64            17.12.1.ce-1.el7.centos            docker-ce-stable
+docker-ce.x86_64            17.12.0.ce-1.el7.centos            docker-ce-stable
+docker-ce.x86_64            17.09.1.ce-1.el7.centos            docker-ce-stable
+$ sudo yum install docker-ce-<VERSION_STRING> docker-ce-cli-<VERSION_STRING> containerd.io
+#配置阿里云镜像加速
+mkdir /etc/docker
+vim /etc/docker/daemon.json
+{
+    "registry-mirrors": ["https://plqjafsr.mirror.aliyuncs.com"]
+    #"registry-mirrors": ["https://registry.docker-cn.com"]
+}
+systemctl enable docker && systemctl start docker
+docker version
 ```
 
-基础镜像：
+这里有一个国际惯例，安装完成后，我们需要使用以下命令启动一个 hello world 的容器
 
-```text
-⼀个没有任何⽗镜像的镜像，谓之基础镜像
+```shell
+$ sudo docker run hello-world
+Unable to find image 'hello-world:latest' locally
+latest: Pulling from library/hello-world
+0e03bdcc26d7: Pull complete
+Digest: sha256:7f0a9f93b4aa3022c3a4c147a449bf11e0941a1fd0bf4a8e6c9408b2600777c5
+Status: Downloaded newer image for hello-world:latest
+Hello from Docker!
 ```
 
-### **容器（Container）**
+## docker引擎架构
 
-容器是镜像的运行实体。镜像是静态的只读文件，而容器带有运行时需要的可写文件层，并且容器中的进程属于运行状态。即**容器运行着真正的应用进程。容器有初建、运行、停止、暂停和删除五种状态。**
-
-### **仓库（Repository）**
-
-我们需要一个仓库来存放镜像，Docker官方提供了公共的镜像仓库；从安全和效率的角度考虑我们也可以部署私有环境的Registry或者是Harbor。
-
-### 架构
-
-![image-20210304103656232](https://gitee.com/c_honghui/picture/raw/master/img/20210304103702.png)
+![image-20220903142728093](assets/image-20220903142728093.png)
 
 Docker 整体架构采用 C/S（客户端 / 服务器）模式。客户端和服务端通信有多种方式，既可以在同一台机器上通过`UNIX`套接字通信，也可以通过网络连接远程通信。
 
@@ -139,230 +246,6 @@ Server: Docker Engine – Community      ### Docker 服务端
    containerd-shim 的主要作用是将 containerd 和真正的容器进程解耦，使用 containerd-shim 作为容器进程的父进程，从而实现重启 containerd 不影响已经启动的容器进程。
    ```
 
-## 核心底层技术
-
-容器的核心在于**通过对进程的隔离和限制，从而为其创造出一个边界。**
-
-### Namespaces（隔离）
-
-进入一个容器，执行ps：
-
-```shell
-/ # ps
-PID   USER     TIME  COMMAND
-    1 root      0:00 /bin/sh
-    6 root      0:00 ps
-```
-
-通过Linux的namespace机制， 容器里这两个进程已经**被docker隔离在一个跟宿主机完全不同的世界中**。实际上它们在宿主机的操作系统里，进程号不是1和6。
-
-
-
-简单说，**namespace是linux创建进程的可选参数。**
-
-在 Linux 系统中**创建线程**的系统调用是 **clone()**，这个系统调用就会为我们创建一个新的进程，并且返回它的进程号 pid。而当我们用 clone() 系统调用创建一个新进程时，就可以在参数中指定 CLONE_NEWPID 参数这时，**新创建的这个进程将会“看到”一个全新的进程空间**，在这个进程空间里，它的 PID 是 1。之所以说“看到”，是因为这只是一个“障眼法”，在宿主机真实的进程空间里，这个进程的 PID 还是真实的数值，比如 100。
-
-多次执行上面的 clone() 调用，这样就会创建多个 PID Namespace，而每个 Namespace 里的应用进程，都会认为自己是当前容器里的第 1 号进程。它们既看不到宿主机里真正的进程空间，也看不到其他 PID Namespace 里的具体情况。
-
-除了我们刚刚用到的 PID Namespace，Linux 操作系统还提供了 Mount、UTS、IPC、Network 和 User 这些 Namespace，用来对各种不同的进程上下文进行“障眼法”操作。
-
-| namespace | 系统调用参数  | 隔离内容                   | 内核版本 |
-| --------- | ------------- | -------------------------- | -------- |
-| UTS       | CLONE_NEWUTS  | 主机名和域名               | 2.6.19   |
-| IPC       | CLONE_NEWIPC  | 信息量，消息队列和共享内存 | 2.6.19   |
-| PID       | CLONE_NEWPID  | 进程编号                   | 2.6.24   |
-| Network   | CLONE_NEWNET  | 网络设备、网络栈、端口等   | 2.6.29   |
-| Mount     | CLONE_NEWNS   | 挂载点（文件系统）         | 2.4.19   |
-| User      | CLONE_NEWUSER | 用户和用户组               | 3.8      |
-
-​                       
-
-Docker 容器其实就是**在创建容器进程时，指定了这个进程所需要启用的一组 Namespace 参数**。这样，容器就只能“看”到**当前 Namespace 所限定的资源、文件、设备、状态，或者配置**。而对于宿主机以及其他不相关的程序，它就完全看不到了。
-
-**所以说，容器，其实是一种特殊的进程而已。**一般不推荐在一个容器运行多个进程，如果有类似需求，可以通过额外 的进程管理机制，比如 supervisord 来管理所运行的进程。
-
-在 Linux 内核中，有很多资源和对象是不能被 Namespace 化的，最典型的例子就是：时间。
-
-### Control groups（限制）
-
-**Linux Cgroups 就是 Linux 内核中用来限制进程能使用的资源上限**，包括CPU、内存、磁盘读写速率、网络带宽等。
-
-- Cgroups以文件系统的方式暴露给用户使用，/sys/fs/cgroup 下面有很多诸如 cpuset、cpu、 memory 这样的子目录，也叫子系统
-- 使用时，在每个子系统下新建一个控制组（子目录下新建一个目录，操作系统会自动为其填充资源限制文件），将需要限制的进程的PID填写入tasks文件中
-
-	blkio：块设备IO；
-	cpu：CPU；
-	cpuacct：CPU资源使用报告；
-	cpuset：多处理器平台上的CPU集合；
-	devices：设备访问；
-	freezer：挂起或恢复任务；
-	memory：内存用量及报告；
-	perf_event：对cgroup中的任务进行统一性能测试；
-	net_cls：cgroup中的任务创建的数据报文的类别标识符；
-```shell
-docker run -d --name mysql --memory="500m" --memory-swap="600M" --oom-kill-disabel mysql01
-# 限制CPU
-docker run -d --name mysql --cpus=".5"
-docker run -d --name mysql --cpus="1.5
-```
-
-### rootfs（文件系统）
-
-**关于mount namespace：**
-
-Mount Namespace和其他Namespace的不同：如果只是启用Mount Namespace，容器进程仍能看到宿主机上全部文件
-
-因为Mount Namespace 修改的，是容器进程对文件系统“挂载点”的认知。而宿主机无法感知容器的挂载行为。**它对容器进程视图的改变，一定是伴随着挂载操作（mount）才能生效。**
-
-但总不能每个目录都使用mount namespace然后再挂载一遍？ 这个太麻烦了
-
-
-
-**关于容器镜像：**
-
-- 容器进程启动后，使用pivot_root或者chroot命令重新挂载进程的根目录"/"，一般会在根目录下挂载**完整操作系统的\*文件系统\***
-- 挂载在容器根目录上、用来为容器进程提供隔离后执行环境的文件系统就是**容器镜像**，也叫做**根文件系统（rootfs）**
-- rootfs只包含操作系统的文件、配置和目录，不含操作系统内核
-- rootfs提供了容器运行的所有依赖，故才有它的的重要特性——一致性。
-
-
-
-所以，一个最常见的 rootfs，或者说容器镜像，会包括如下所示的一些目录和文件
-
-```shell
-#在容器中执行ls
-$ ls /
-bin dev etc home lib lib64 mnt opt proc root run sbin sys tmp usr var
-```
-
-
-
-**通过结合使用 Mount Namespace 和 rootfs，容器就能够为进程构建出一个完善的文件系统隔离环境。**
-
-对docker来说，它最核心的原理实际上就是为待创建的用户进程：
-
-1. 启用 Linux Namespace 配置；
-2. 设置指定的 Cgroups 参数；
-3. 切换进程的根目录（Change Root）。
-
-
-
-**关于联合文件系统：**
-
-在 rootfs 的基础上，Docker 公司创新性地提出了使用多个增量 rootfs 联合挂载一个完整 rootfs 的方案，这就是容器镜像中**“层”**的概念。
-
-
-
-联合挂载(union mount)：将多个不同位置目录A、B挂载到同一个目录C下，原目录A、B下所有内容都会合并到新目录C下，在C中的修改会在A、B中生效
-
-- `mount -t aufs -o dirs=./A:./B none ./C`
-
-常见的有vfs、deviceMapper、overlay、overlay2、aufs，通过`docker info`命令可以查看docker采用的是哪种union fs，目前新版本docker一般都用overlay2
-
-
-
-容器镜像的分层结构：
-
-- Dockerfile中的每一条指令，都会为镜像生成一个层，即一个增量rootfs
-
-- 用命令`docker image insepct <image-name>:<tag-name>`可以看到“RootFS”字段下镜像的分层信息
-
-```shell
-$ docker image inspect ubuntu:latest
-...
-     "RootFS": {
-      "Type": "layers",
-      "Layers": [
-        "sha256:f49017d4d5ce9c0f544c...",
-        "sha256:8f2b771487e9d6354080...",
-        "sha256:ccd4d61916aaa2159429...",
-        "sha256:c01d74f99de40e097c73...",
-        "sha256:268a067217b5fe78e000..."
-      ]
-    }
-    
-#可以看到，这个 Ubuntu 镜像，实际上由五个层组成。这五个层就是五个增量 rootfs，每一层都是 Ubuntu 操作系统文件与目录的一部分；而在使用镜像时，Docker 会把这些增量联合挂载在一个统一的挂载点上，这个挂载点就是 /var/lib/docker/aufs/mnt/
-```
-
-
-
-镜像的多个层会被联合挂载成为一个完整的文件系统，分为三部分：
-
-<img src="https://gitee.com/c_honghui/picture/raw/master/img/20220322003004.png" alt="在这里插入图片描述" style="zoom:67%;" />
-
-**第一部分，只读层（镜像层）。**
-
-它是这个容器的 rootfs 最下面的五层，对应的正是 ubuntu:latest 镜像的五层。不希望被程序修改的内容，**以只读方式挂载**（ro+wh，即 readonly+whiteout，至于什么是 whiteout，我下面马上会讲到）。
-
-**第二部分，可读写层。**
-
-用户的增删改操作都记录在这里
-
-修改操作只作用在本层，不会实际修改只读层的内容，要修改的文件会先被复制到可读写层然后再修改。被联合挂载时，只读层的相同文件会被可读写层覆盖，这叫做copy-on-write
-
-其中的删除动作不会真正删除文件，而只是标记某文件不可见，术语叫做whiteout，从而不影响只读层的内容
-
-**第三部分，Init 层。**
-
-夹在只读层和读写层之间。Init 层专门用来存放 /etc/hosts、/etc/resolv.conf 等信息。
-
-用户执行 docker commit 只会提交可读写层，所以是不包含该层内容。
-
-最终，这 7 个层都被联合挂载到 /var/lib/docker/aufs/mnt 目录下，表现为一个完整的 Ubuntu 操作系统供容器使用。
-
-## 安装
-
-操作系统要求：
-CentOS 7 要求系统为64位，系统内核版本为 3.10 以上
-CentOS 6.5.X 或更高的版本的 CenOS 上，要求系统为64位，系统内核为2.6.32-431或者更高版本。
-
-```shell
-#先执行以下命令卸载旧版 Docker
-$ sudo yum remove docker \
-                  docker-client \
-                  docker-client-latest \
-                  docker-common \
-                  docker-latest \
-                  docker-latest-logrotate \
-                  docker-logrotate \
-                  docker-engine
-#添加 Docker 安装源
-wget https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo -O /etc/yum.repos.d/docker-ce.repo
-#正常情况下，直接安装最新版本的 Docker 即可
-$ sudo yum install docker-ce docker-ce-cli containerd.io
-#如果你想要安装指定版本的 Docker
-$ sudo yum list docker-ce --showduplicates | sort -r
-docker-ce.x86_64            18.06.1.ce-3.el7                   docker-ce-stable
-docker-ce.x86_64            18.06.0.ce-3.el7                   docker-ce-stable
-docker-ce.x86_64            18.03.1.ce-1.el7.centos            docker-ce-stable
-docker-ce.x86_64            18.03.0.ce-1.el7.centos            docker-ce-stable
-docker-ce.x86_64            17.12.1.ce-1.el7.centos            docker-ce-stable
-docker-ce.x86_64            17.12.0.ce-1.el7.centos            docker-ce-stable
-docker-ce.x86_64            17.09.1.ce-1.el7.centos            docker-ce-stable
-$ sudo yum install docker-ce-<VERSION_STRING> docker-ce-cli-<VERSION_STRING> containerd.io
-#配置阿里云镜像加速
-mkdir /etc/docker
-vim /etc/docker/daemon.json
-{
-    "registry-mirrors": ["https://plqjafsr.mirror.aliyuncs.com"]
-    #"registry-mirrors": ["https://registry.docker-cn.com"]
-}
-systemctl enable docker && systemctl start docker
-docker version
-```
-
-这里有一个国际惯例，安装完成后，我们需要使用以下命令启动一个 hello world 的容器
-
-```shell
-$ sudo docker run hello-world
-Unable to find image 'hello-world:latest' locally
-latest: Pulling from library/hello-world
-0e03bdcc26d7: Pull complete
-Digest: sha256:7f0a9f93b4aa3022c3a4c147a449bf11e0941a1fd0bf4a8e6c9408b2600777c5
-Status: Downloaded newer image for hello-world:latest
-Hello from Docker!
-```
-
 ## 命令
 
 ### 镜像
@@ -382,27 +265,29 @@ AUTOMATED：     - “OK” 表示自助构建
 
 获取镜像：docker pull [选项] [Docker Registry 地址[:端口]]/仓库名/[image]:[tag]
 
-```text
-Docker 镜像仓库地址：地址的格式一般是 <域名/IP>[:端口号]，默认地址是 Docker Hub。
-在library的镜像也就是官方镜像需要：名称
-如果是个人的镜像需要：用户名/软件名
-标签：如果不显式指定TAG，则默认会选择latest标签，这会下载仓库中最新版本的镜像
-```
-
-一般来说，镜像的latest标签意味着该镜像的内容会跟踪最新的非稳定版本而发布，内容是不稳定的。从稳定性上考虑，不要在生产环境中忽略镜像的标签信息或使用默认的latest标记的镜像。
-
 ```shell
+标签：如果不显式指定TAG，则默认会选择latest标签，这会下载仓库中最新版本的镜像
+
+#拉取默认docker hub仓库镜像
 [root@localhost ~]# docker pull centos
 #该命令相当于docker pull registry.docker-cn.com/library/centos:latest命令，即从默认的注册服务器Docker Hub Registry中的centos仓库来下载标记为latest的镜像。
-[root@localhost ~]# docker pull ubuntu:14.04
-#镜像可以发布为不同的版本，这种机制我们称之为标签（Tag）。
+
+#拉取阿里云镜像仓库镜像
+docker pull registry.cn-shenzhen.aliyuncs.com/c-hh/gateway:v1
+```
+
+重命名镜像：docker tag
+
+```shell
+[root@qfedu.com ~]# docker tag daocloud.io/ubuntu daocloud.io/ubuntu:v1
+#这两个镜像id一样，指向同一个镜像文件，只是别名不同
 ```
 
 上传镜像：docker  push  [OPTIONS]  NAME[:TAG]
 
 ```shell
-docker tag docker.io/nginx:last 10.1.100.11:5000/nginx:1.15
-docker push 10.1.100.11:5000/nginx:1.15
+docker tag gateway registry.cn-shenzhen.aliyuncs.com/c-hh/gateway:v1
+docker pull registry.cn-shenzhen.aliyuncs.com/c-hh/gateway:v1
 ```
 
 列出本地所有镜像：docker images
@@ -422,17 +307,19 @@ dockerhub显示的镜像大小是压缩的
 
 删除镜像，多个镜像用空格隔开：docker rmi 镜像名或id：
 
-**使用标签删除镜像**
+使用标签删除镜像
 
-当同一个镜像拥有多个标签的时候，docker rmi命令**只是删除该镜像多个标签中的指定标签**而已，并不影响镜像文件。但当镜像只剩下一个标签的时候就要小心了，此时再使用docker rmi命令会彻底删除镜像。
+- 当同一个镜像拥有多个标签的时候，docker rmi命令**只是删除该镜像多个标签中的指定标签**而已，并不影响镜像文件。但当镜像只剩下一个标签的时候就要小心了，此时再使用docker rmi命令会彻底删除镜像。
+
 
 ```shell
 [root@node1 ~]# docker rmi nginx:v1
 ```
 
-**使用镜像ID删除镜像**
+使用镜像ID删除镜像
 
-删除所有指向该镜像的标签，然后删除该镜像文件本身。注意，当有该镜像创建的容器存在时，镜像文件默认是无法被删除的
+- 删除所有指向该镜像的标签，然后删除该镜像文件本身。注意，当有该镜像创建的容器存在时，镜像文件默认是无法被删除的
+
 
 ```shell
 [root@node1 ~]# docker rmi d123f4e55e12 
@@ -440,7 +327,7 @@ dockerhub显示的镜像大小是压缩的
 [root@qfedu.com ~]# docker rmi docker.io/ubuntu:latest --force
 ```
 
-**删除所有镜像**
+删除所有镜像
 
 ```shell
 [root@qfedu.com ~]# docker rmi $(docker images -q)
@@ -450,13 +337,6 @@ dockerhub显示的镜像大小是压缩的
 
 ```shell
 [root@qfedu.com ~]# docker image inspect 镜像id
-```
-
-重命名镜像：
-
-```shell
-[root@qfedu.com ~]# docker tag daocloud.io/ubuntu daocloud.io/ubuntu:v1
-#这两个镜像id一样，指向同一个镜像文件，只是别名不同
 ```
 
 打包镜像：
@@ -475,7 +355,7 @@ dockerhub显示的镜像大小是压缩的
 
 #### 创建、运行
 
-创建并运行一个容器：
+创建并运行一个容器：docker run
 
 ```shell
 docker run [参数] 镜像名
@@ -506,15 +386,6 @@ docker run [参数] 镜像名
 ```
 
 容器的第一个进程（初始命令）必须一直处于前台运行的状态（夯住），否则这个容器就会处于退出状态
-
-业务在容器中运行：夯住，启动服务
-
-```shell
-#容器秒停止
-docker run -d nginx:last /bin/bash
-#容器能保持运行
-docker run -d nginx:last
-```
 
 某些时候，执行docker run会出错，因为命令无法正常执行容器会直接退出，此时可以查看退出的错误代码。默认情况下，常见错误代码包括：
 
@@ -705,8 +576,6 @@ Runtimes: runc    ## runtimes 信息
  Live Restore Enabled: false
 ```
 
-获取容器端口：docker port 690123a26237
-
 查看 docker 的硬盘空间使用情况：docker system df
 
 更新容器启动项：docker container update --restart=always nginx
@@ -715,75 +584,17 @@ Runtimes: runc    ## runtimes 信息
 
 ## 网络
 
-所谓“网络栈”，即容器自己的network namespace，包括了：网卡(Network Interface)、回环设备(Loopback Device)、路由表(Routing Table)和 iptables 规则。
+网络模式主要有四种，这四种网络模式基本满足了我们单机容器的所有场景
 
-容器直接共享宿主机网络，监听的就是宿主机的80端口：
-
-```shell
-$ docker run –d –net=host --name nginx-host nginx
-```
-
-虽然可以为容器提供良好的网络性能，但也会不可避免地引入共享网络资源的问题，比如端口冲突。所以， **在大多数情况下，我们都希望容器进程能使用自己 Network Namespace 里的网络栈，即：拥有属于自己的 IP 地址和端口。**
-
-那么这个被隔离的容器进程，该如何跟其他 Network Namespace 里的容器进程进行交互呢？
-
-
-
-而为了实现上述目的， Docker 项目会默认在宿主机上创建一个名叫 **docker0 的网桥**，凡是连接在 docker0 网桥上的容器，就可以通过它来进行通信。
-
-这时候，我们就需要使用一种名叫 **Veth Pair的虚拟设备**了，用作连接不同 Network Namespace 的“网线”。
-
-当启动了一个容器后，可以在宿主机查看网络设备信息：
-
-```shell
-# 在宿主机上
-$ ifconfig
-...
-#网桥
-docker0   Link encap:Ethernet  HWaddr 02:42:d8:e4:df:c1  
-          inet addr:172.17.0.1  Bcast:0.0.0.0  Mask:255.255.0.0
-          inet6 addr: fe80::42:d8ff:fee4:dfc1/64 Scope:Link
-          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
-          RX packets:309 errors:0 dropped:0 overruns:0 frame:0
-          TX packets:372 errors:0 dropped:0 overruns:0 carrier:0
- collisions:0 txqueuelen:0 
-          RX bytes:18944 (18.9 KB)  TX bytes:8137789 (8.1 MB)
-          
-#容器的Veth Pair
-veth9c02e56 Link encap:Ethernet  HWaddr 52:81:0b:24:3d:da  
-          inet6 addr: fe80::5081:bff:fe24:3dda/64 Scope:Link
-          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
-          RX packets:288 errors:0 dropped:0 overruns:0 frame:0
-          TX packets:371 errors:0 dropped:0 overruns:0 carrier:0
- collisions:0 txqueuelen:0 
-          RX bytes:21608 (21.6 KB)  TX bytes:8137719 (8.1 MB)
-          
-$ brctl show
-bridge name bridge id  STP enabled interfaces
-docker0  8000.0242d8e4dfc1 no  veth9c02e56
-```
-
-同宿主机不同容器通信：
-
-![img](https://gitee.com/c_honghui/picture/raw/master/img/20220325111520.png)
-
-
-
-宿主机访问容器：
-
-数据包根据路由规则转发到docker0，然后被转发到对应的Veth Pair，最后出现在容器里
-
-![img](https://gitee.com/c_honghui/picture/raw/master/img/20220325112435.png)
-
-
-
-容器连接另外一台宿主机：
-
-![img](https://gitee.com/c_honghui/picture/raw/master/img/20220325113212.png)
-
-
-
-所以说， **当你遇到容器连不通“外网”的时候，你都应该先试试 docker0 网桥能不能 ping 通，然后查看一下跟 docker0 和 Veth Pair 设备相关的 iptables 规则是不是有异常，往往就能够找到问题的答案了。**
+- Null(--net=None)
+  - 把容器放入独立的网络空间但不做任何网络配置；
+  - 用户需要通过运行docker network命令来完成网络配置。
+- Host
+  - 使用主机网络名空间，复用主机网络。
+- Container
+  - 重用其他容器的网络。
+- Bridge(--net=bridge)
+  - 使用Linux网桥和iptables提供容器互联，Docker在每台主机上创建一个名叫docker0的网桥，通过vethpair来连接该主机的每一个EndPoint。
 
 
 
@@ -793,124 +604,11 @@ docker0  8000.0242d8e4dfc1 no  veth9c02e56
 
 我们可以通过Overlay Network(覆盖网络)技术，创建一个整个集群”公用“的网桥，把集群所有容器都接进来，就可以互相通信。
 
-![img](https://gitee.com/c_honghui/picture/raw/master/img/20220325142210.png)
 
 
+## 数据持久化
 
-网络模式主要有四种，这四种网络模式基本满足了我们单机容器的所有场景。：
-
-```text
-null 空网络模式：可以帮助我们构建一个没有网络接入的容器环境，以保障数据安全。
-bridge 桥接模式：可以打通容器与容器间网络通信的需求。
-host 主机网络模式：可以让容器内的进程共享主机网络，从而监听或修改主机网络。
-container 网络模式：可以将两个容器放在同一个网络命名空间内，让两个业务通过 localhost 即可实现访问。
-```
-
-## 数据卷管理
-
-默认情况下，容器内创建的所有文件都存储在可写容器层上。
-
-数据卷是一个或多个容器专门指定绕过Union File System，为持续性或共享数据提供一些有用的功能：
-
-```text
-1.数据卷 可以在容器之间共享和重用。
-2.对 数据卷 的修改会立马生效。
-3.对 数据卷 的更新，不会影响镜像。
-4.数据卷 默认会一直存在，即使容器被删除。保护数据不被删除。
-注意：数据卷 的使用，类似于 Linux 下对目录或文件进行 mount，镜像中的被指定为挂载点的目录中的文件会隐藏掉，能显示和看的是挂载的 数据卷，而不是被作为挂载点儿的目录中原来的内容。
-```
-
-从容器拷贝数据到主机上：
-
-```shell
-[root@Pagerduty /]# docker cp 92592755c544:/docker.txt /opt
-[root@Pagerduty /]# ls /opt/
-containerd  docker.txt
-```
-
-从宿主机拷贝数据到容器目录：
-
-```shell
-[root@Pagerduty ~]# docker cp /opt/centos.txt 92592755c544:/tmp/
-```
-
-
-
-创建一个名为myvolume的数据卷
-
-```shell
-$ docker volume create myvolume
-```
-
-在这里要说明下，默认情况下 ，Docker 创建的数据卷为 local 模式，仅能提供本主机的容器访问。如果想要实现远程访问，需要借助网络存储来实现。Docker 的 local 存储模式并未提供配额管理，因此在生产环境中需要手动维护磁盘存储空间。
-
-还可以在 Docker 启动时使用 -v 的方式指定容器内需要被持久化的路径，Docker 会自动为我们创建卷，并且绑定到容器中:
-
-```shell
-$ docker run -d --name=nginx-volume -v /usr/share/nginx/html nginx
--v host-dir:container-dir:[rw|wo]
--v container-dir:[rw|wo]
--v volume-name:container-dir:[rw|wo]
-host-dir：表示主机上的目录，如果不存在，Docker 会自动在主机上创建该目录。必须是绝对路径。
-container-dir：表示容器内部对应的目录，如果该目录不存在，Docker 也会在容器内部创建该目录。
-volume-name：表示卷名，如果该卷不存在，docker将自动创建。
-rw|ro：用于控制volume的读写权限。
-```
-
-查看下主机上的卷：
-
-```shell
-$ docker volume ls
-DRIVER              VOLUME NAME
-local               eaa8a223eb61a2091bf5cd5247c1b28ac287450a086d6eee9632d9d1b9f69171
-```
-
-查看某个数据卷的详细信息:
-
-```shell
-$ docker volume inspect myvolume
-[
-    {
-        "CreatedAt": "2020-09-08T09:10:50Z",
-        "Driver": "local",
-        "Labels": {},
-        "Mountpoint": "/var/lib/docker/volumes/myvolume/_data",
-        "Name": "myvolume",
-        "Options": {},
-        "Scope": "local"
-    }
-]
-```
-
-使用数据卷
-
-使用上一步创建的卷来启动一个 nginx 容器，并将 /usr/share/nginx/html 目录与卷关联:
-
-```shell
-$ docker run -d --name=nginx --mount source=myvolume,target=/usr/share/nginx/html nginx
-```
-
-删除数据卷
-
-这里需要注意，正在被使用中的数据卷无法删除，如果你想要删除正在使用中的数据卷，需要先删除所有关联的容器。
-
-```shell
-$ docker volume rm myvolume
-```
-
-容器与容器之间数据共享
-
-有时候，两个容器之间会有共享数据的需求，很典型的一个场景就是容器内产生的日志需要一个专门的日志采集程序去采集日志内容
-
-```shell
-$ docker volume create log-vol
-$ docker run --mount source=log-vol,target=/tmp/log --name=log-producer -it busybox
-docker run -it --name consumer --volumes-from log-producer  busybox
-```
-
-**主机与容器之间数据共享**
-
-卷作为一种统一封装，不仅可以支持本地目录，也可以支持 NFS 等网络文件系统。如果你的需求仅仅需要本地目录，使用 `-v 宿主机目录:容器`目录挂载也完全可以的。
+使用 `-v 宿主机目录:容器`目录挂载
 
 Docker 卷的目录默认在 **/var/lib/docker** 下，当我们想把主机的其他目录映射到容器内时，就需要用到主机与容器之间数据共享的方式了，例如我想把 MySQL 容器中的 /var/lib/mysql 目录映射到主机的 /var/lib/mysql 目录中，我们就可以使用主机与容器之间数据共享的方式来实现。
 
@@ -952,62 +650,6 @@ Total Memory: 1.777GiB
  Debug Mode: false
  Registry: https://index.docker.io/v1/
 -----------------内容截取---------------
-```
-
-## 私有仓库
-
-在实际的生产过程中会使用到Harbor
-
-
-
-私有仓库工作流程：
-
-1)    用户本地构建镜像，将镜像推送到Registry仓库
-
-2)    Docker用户使用的时候，直接从Registry下载，无须从Docker Hub下载
-
-
-
-搭建私有仓库：
-
-镜像名称：Registry，默认使用最新版本。
-
-挂载宿主机的/opt/myregistry目录到容器目录的/var/lib/registry
-
-```shell
-[root@Pagerduty ~]# mkdir -p  /opt/myregistry  
-[root@Pagerduty ~]# docker run -d -p  5000:5000 --restart=always --name=registry -v  /opt/myregistry/:/var/lib/registry registry
-```
-
-
-
-上传本地镜像到私有仓库：
-
-```shell
-打标签
-docker image tag centos:latest 192.168.13:5000/centos7:V1.0
-上传
-docker push 192.168.1.13:5000/centos7:V1.0
-```
-
-出现htpps报错的解决方式：
-
-1)    修改Docker节点配置文件
-
-2)    添加nginx反向代理
-
-```shell
-[root@Pagerduty ~]# cat /etc/docker/daemon.json
-{
-  "registry-mirrors": ["https://plqjafsr.mirror.aliyuncs.com"],
-  "data-root": "/data/docker",
-  "insecure-registries": ["192.168.1.13:5000"],
-  "storage-driver": "overlay2",
-  "storage-opts":[
-     "overlay2.override_kernel_check=true",
-     "overlay2.size=1G"
- ]
-}
 ```
 
 

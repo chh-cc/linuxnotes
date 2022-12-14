@@ -18,25 +18,10 @@ Dockerfile 由一行行命令语句组成，并且支持以#开头的注释行�
 **FROM**
 
 ```dockerfile
-指定所创建镜像的基础镜像，如果本地不存在，则默认会去 Docker Hub下载指定镜像
-任何Dockerfile 中的第一条指令必须为 FROM指令
-FROM <image> [as <name>] 
-FROM centos:latest                                       #or
-FROM <image>[:<tag>] [as <name>]                        
-FROM centos:7.5                                          #or
-FROM <image>[@<digest>] [as <name>]
+选择基础镜像，推荐alpine
+FROM [--platform=<platform>] <image>[@<digest>] [AS <name>]
 
 注意：如果是从私有仓库拉取镜像，如果有配置权限，那么需要先登录到私有仓库。
-
-多阶段构建：
-#build
-FROM golang:1.14.4-apline
-RUN go build /opt/main.go
-CMD "./opt/main"
-#create image
-FROM aline:3.8
-COPY --from=0 /opt/main /
-CMD "./main"
 ```
 
 LABEL
@@ -60,7 +45,7 @@ USER daemon
 ENTRYPOINT [“memached”,”-u”,”daemon”]
 ```
 
-ENV
+**ENV**
 
 ```dockerfile
 指定环境变量，后续 RUN 指令可以使用，container启动后，可以通过docker inspect查看这个环境变量，也可以通过docker run - -env key=value时设置或修改环境变量。
@@ -78,11 +63,9 @@ ENV LANG en_us.UTF-8
 **RUN**
 
 ```dockerfile
-构建指令，用来执行shell命令。 这些命令包括安装软件、创建文件和目录，以及创建环境配置等。
-RUN <command>或RUN ["executable"，"param1"，"param2"]
-前者将在shell终端中运行命令，即/bin/sh -c；后者则使用exec执行，可以用来指定其它形式的shell来运行指令。
-RUN yum update && yum install -y vim \
-    python-dev #反斜线换行
+执行命令
+最常见的用法是RUN apt-get update && apt-get install，这两条命令应该永远用&&连接，如果分开执行，RUN apt-get update 构建层被缓存，可能会导致新
+package无法安装
     
 注意初学docker容易出现的2个关于RUN命令的问题：
 1.RUN代码没有合并。
@@ -145,7 +128,18 @@ EXPOSE 22 80 8443
 将复制指定的 <src>路径下的内容到容器中的<dest>路径下，<src>可以是dockerfile所在目录的相对路径、一个URL、还可以是tar文件（会自动解压）
 ADD [--chown=<user>:<group>] <src>... <dest>
 ADD [--chown=<user>:<group>] ["<src>",... "<dest>"] (this form is required for paths containing whitespace)
+
+•ADD支持Go风格的通配符，如ADD check* /testdir/
+•src如果是文件，则必须包含在编译上下文中，ADD 指令无法添加编译上下文之外的文件
+•src如果是URL
+•如果dest结尾没有/，那么dest是目标文件名，如果dest结尾有/，那么dest是目标目录名
+•如果src是一个目录，则所有文件都会被复制至dest
+•如果src是一个本地压缩文件，则在ADD 的同时完整解压操作
+•如果dest不存在，则ADD 指令会创建目标目录
+•应尽量减少通过ADDURL 添加remote 文件，建议使用curl 或者wget&& untar
 ```
+
+ADD支持Go风格的通配符，如ADD check* /testdir/•src如果是文件，则必须包含在编译上下文中，ADD 指令无法添加编译上下文之外的文件•src如果是URL•如果dest结尾没有/，那么dest是目标文件名，如果dest结尾有/，那么dest是目标目录名•如果src是一个目录，则所有文件都会被复制至dest•如果src是一个本地压缩文件，则在ADD 的同时完整解压操作•如果dest不存在，则ADD 指令会创建目标目录•应尽量减少通过ADDURL 添加remote 文件，建议使用curl 或者wget&& untar
 
 **COPY**
 
@@ -164,18 +158,31 @@ COPY [--chown=<user>:<group>] ["<src>",... "<dest>"] (this form is required for 
 WORKDIR /path/to/workdir
 ```
 
-VOLUME
+
+
+多段构建
+
+有效减少镜像层级的方式
 
 ```dockerfile
-创建一个可以从本地主机或其他容器挂载的挂载点，一般用来存放数据库和需要保持的数据等
-VOLUME ["/data"]
+FROM golang:1.16-alpine AS build
+RUN apk add --no-cache git
+RUN go get github.com/golang/dep/cmd/dep
 
-注意：
-host机器的目录路径必须为全路径(准确的说需要以/或~/开始的路径)，不然docker会将其当做volume而不是volume处理
-如果host机器上的目录不存在，docker会自动创建该目录
-如果container中的目录不存在，docker会自动创建该目录
-如果container中的目录已经有内容，那么docker会使用host上的目录将其覆盖掉
+COPY Gopkg.lock Gopkg.toml /go/src/project/
+WORKDIR /go/src/project/
+RUN dep ensure -vendor-only
+
+COPY . /go/src/project/
+RUN go build -o /bin/project（只有这个二进制文件是产线需要的，其他都是waste）
+
+FROM scratch
+COPY --from=build /bin/project /bin/project
+ENTRYPOINT ["/bin/project"]
+CMD ["--help"]
 ```
+
+
 
 ### docker build语法
 

@@ -1,4 +1,4 @@
-# K8S入门
+# K8S简介
 
 Kubernetes是一个**开源的容器管理平台**，简称k8s，用于管理多个主机上的容器化应用程序，提供应用程序的快速部署，扩缩容，升级，维护和扩展等机制，利用service可以实现服务注册、发现以及四层负载均衡，通过ingress可以实现七层负载均衡等功能，Kubernetes这个名字源于希腊语，意思是舵手或飞行员
 
@@ -34,10 +34,9 @@ https://kubernetes.io/
 
 **附加组件**：
 
-- CNI容器网络接口插件：calico, flannel（如果没有实施网络策略的需求，那么就直接用flannel，开箱即用；否则就用calico了，但要注意如果网络使用了巨型帧，那么注意calico配置里面的默认值是1440，需要根据实际情况进行修改才能达到最佳性能）
+- CNI容器网络接口插件：calico, flannel（如果没有实施网络策略的需求，那么就直接用flannel，开箱即用；否则就用calico了，但要注意如果网络使用了巨型帧，那么注意calico配置里面的默认值是1440，需要根据实际情况进行修改才能达到最佳性能），terway（阿里云）
 - CoreDNS：CoreDNS负责为整个集群提供DNS服务
 - Ingress控制器：Ingress Controller为服务提供外网流量入口
-- 容器集群监控：Metrics-server为K8s资源指标获取工具
 
 ## k8s核心功能全景图
 

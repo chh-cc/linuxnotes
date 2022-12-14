@@ -1,5 +1,9 @@
 # grafana
 
+支持**Dashboard、Panel、Row**等组合，且支持折线图、柱状图等多种图例
+
+grafana模板很活跃，有很多[用户贡献的面板](https://grafana.com/dashboards)，直接导入就能用
+
 ## 连接Prometheus
 
 配置data sources

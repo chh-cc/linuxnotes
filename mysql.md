@@ -90,7 +90,15 @@ sql线程从relaylog获取GTID，然后对比slave的binlog是否有记录
 
 6、优化mysql
 
-配置优化：
+底层架构优化：
+
+主从架构，添加只读实例分担主库压力
+
+应用层面优化：
+
+优化sql语句
+
+参数优化：
 
 sort/join/read/read rnd buffer 4-16M就满足大部分需求了
 
@@ -153,3 +161,29 @@ STATEMENT：基于SQL语句的复制，每一条会修改数据的sql语句会�
 ROW：基于行的复制，不记录每一条具体执行的SQL语句，仅需记录哪条数据被修改了，以及修改前后的样子。该模式下产生的binlog日志量会比较大，但优点是会非常清楚的记录下每一行数据修改的细节，主从复制不会出错。
 
 Mixed：混合模式复制，以上两种模式的混合使用，一般的复制使用STATEMENT模式保存binlog，对于STATEMENT模式无法复制的操作使用ROW模式保存binlog，MySQL会根据执行的SQL语句选择日志保存方式。
+
+10、死锁
+
+线上流量变大，出现死锁
+
+1.select @@tx_isolation命令获取数据库隔离级别信息
+
+2.查询数据库死锁日志show engine innodb status
+
+3.根据死锁日志的sql语句，去排查和修改代码
+
+11、慢sql
+
+应用tps下降，出现sql执行超时异常
+
+用explain指令获取该慢sql的执行计划，可能有两种场景：
+
+1.sql不走索引或扫描行数过多导致执行时长过长，要优化sql
+
+2.sql没问题，只因事务并发导致等待锁
+
+12、连接数过多
+
+数据库连接达到最大连接数，通过set global max_connections=xxx增大连接数
+
+用show processlist获取连接信息，然后用kill杀死过多的连接

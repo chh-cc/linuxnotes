@@ -1,5 +1,7 @@
 # Prometheus
 
+## Prometheus operator
+
 1、prometheus operator添加监控项
 
 创建一个servicemonitor对象，关联暴露metrics接口的service，注意可能要配置指定标签才能被Prometheus关联识别到
@@ -15,6 +17,10 @@
 4、配置alertmanager告警发送方式
 
 创建一个alertmanager.yaml配置路由规则、接收器、告警媒介等，然后把这个文件创建为secret对象，Alertmanager实例在默认情况下会通过`alertmanager-{ALERTMANAGER_NAME}`的命名规则去查找Secret配置
+
+## Prometheus
+
+
 
 5、样本的格式
 

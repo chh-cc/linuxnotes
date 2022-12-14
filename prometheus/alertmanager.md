@@ -118,14 +118,18 @@ global:
   [ wechat_api_corp_id: <string> ]
   [ http_config: <http_config> ]
 
+# - 从中读取自定义通知模板定义的文件,最后一个组件可以使用通配符匹配器,例如“templates/*.tmpl”。 
 templates:
   [ - <filepath> ... ]
 
+# - 路由块定义路由树中的节点及其子节点。如果未设置则从其父节点继承其可选配置参数。 
 route: <route>
 
+# 通知接收者列表
 receivers:
   - <receiver> ...
 
+# - 抑制规则列表: 当存在与另一组匹配器匹配的警报（源）时，禁止规则会使与一组匹配器匹配的警报（目标）静音。对于相等列表中的标签名称，目标警报和源警报必须具有相同的标签值。 
 inhibit_rules:
   [ - <inhibit_rule> ... ]
 ```

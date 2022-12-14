@@ -1,6 +1,30 @@
 # Gitlab+Jenkins+k8s+Helm 的自动化部署实践
 
+## jenkins在k8s中动态创建代理
 
+自定义构建jenkins slave镜像
+
+```dockerfile
+FROM centos:7
+LABEL maintainer lizhenliang
+
+RUN yum install -y java-1.8.0-openjdk maven curl git libtool-ltdl-devel && \
+    yum clean all && \
+    rm -rf /var/cache/yum/* && \
+    mkdir -p /usr/share/jenkins
+    
+COPY slave.jar /usr/share/jenkins/slave.jar
+COPY jenkins-slave /usr/bin/jenkins-slave
+COPY setting.xml /etc/maven/setting.xml
+RUN chomd +x /usr/bin/jenkins-slave
+COPY helm kubectl /usr/bin
+
+ENTRYPOINT ["jenkins-slave"]
+```
+
+jenkins安装kubernetes插件
+
+![image-20220918214329204](assets/image-20220918214329204.png)
 
 ## Jenkins配置
 
@@ -44,146 +68,159 @@ base64 /root/.kube/config > kube-config-base64.txt
 
 ## Jenkinsfile
 
+
+
 ```groovy
+#!/usr/bin/env groovy
+//镜像仓库地址
+def registry = "registry.cn-shenzhen.aliyuncs.com"
+//项目名称
+def project = ""
+//项目地址
+def git_url = ""
+//服务域名
+def gateway_domain_name = ""
+def portal_domain_name = ""
+//凭证id
+def image_pull_secret = "registry-pull-secret"
+def registry_auth = ""
+def git_auth = ""
+def k8s_auth = ""
+
 pipeline {
-    agent any
-    environment {
-        GIT_REPO = "${env.gitlabSourceRepoName}"  //从Jenkins Gitlab插件中获取Git项目的名称
-        GIT_BRANCH = "${env.gitlabTargetBranch}"  //如果符合条件的tag指向最新提交则只是显示tag的名字，否则会有相关的后缀来描述该tag之后有多少次提交以及最新的提交commit-id
-        GIT_TAG = sh(returnStdout: true,script: 'git describe --tags --always').trim()  //commit id或tag名称
-        DOCKER_REGISTER_CREDS = credentials('aliyun-docker-repo-creds') //docker registry凭证
-        KUBE_CONFIG_LOCAL = credentials('local-k8s-kube-config')  //开发测试环境的kube凭证
-        KUBE_CONFIG_PROD = credentials('prod-k8s-kube-config') //生产环境的kube凭证
-
-        DOCKER_REGISTRY = "registry.cn-hangzhou.aliyuncs.com" //Docker仓库地址
-        DOCKER_NAMESPACE = "your-namespace"  //命名空间
-        DOCKER_IMAGE = "${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/${GIT_REPO}" //Docker镜像地址
-
-        INGRESS_HOST_DEV = "dev.your-site.com"    //开发环境的域名
-        INGRESS_HOST_TEST = "test.your-site.com"  //测试环境的域名
-        INGRESS_HOST_PROD = "prod.your-site.com"  //生产环境的域名
+    //动态创建slave
+    agent {
+      kubernetes {
+          label "jenkins-slave"
+          yaml """
+kind: pod
+metadata:
+  name: jenkins-slave
+spec:
+  containers:
+  - name: jnlp
+    image: "${registry}//jenkins-slave-jdk:1.8"
+    imagePullPolicy: Always
+    volumeMounts:
+    - name: docker-cmd
+      mountPath: /usr/bin/docker
+    - name: docker-sock
+      mountPath: /var/run/docker.sock
+    - name: maven-cache
+      mountPath: /root/.m2
+  volumes:
+  - name: docker-cmd
+    hostPath:
+      path: /usr/bin/docker
+  - name: docker-sock
+    hostPath:
+      path: /var/run/docker.sock
+  - name: maven-cache
+    hostPath:
+      path: /tmp/m2
+"""
+      }
     }
+    
+    //参数化构建
     parameters {
-        string(name: 'ingress_path', defaultValue: '/your-path', description: '服务上下文路径')
-        string(name: 'replica_count', defaultValue: '1', description: '容器副本数量')
+        //git参数，从git地址获取分支，来选择发布的分支
+        gitParameter branch: '', branchFilter: '.*', defaultValue: '', description: '选择发布的分支', name: 'Branch', quichFilterEnabled: false, selecteValue: 'NONE', sortMode: 'NONE', tagFilter: '*', type: 'PT_BRANCH'
+        //extended choice，通过复选框来勾选要发布的微服务
+        extendedChoice defaultValue: '', description: '选择发布的分支', multiSelectDelimiter: ',', name: 'Service', type: 'PT_CHECKBOX', value: 'gateway-service:9999,portal-service:8080,product-service:8010,order-service:8020,stock-service:8030'
+        //choice
+        choice choices: ['ms', 'demo'], description: '部署模板', name: 'Template'
+        choice choices: ['1', '3', '5', '7'], description: '副本数', name: 'ReplicaCount'
+        choice choices: ['ms'], description: '命名空间', name: 'Namespace'
     }
+
+
     stages {
-        stage {
-            stage('Code Analyze') {
-                agent any
-                steps {
-                    echo "1. 代码静态检查"
-                }
-            }
-            stage('Maven Build') {
-                agent {
-                    docker {
-                        image 'maven:3-jdk-8-alpine'
-                        args '-v $HOME/.m2:/root/.m2'
-                    }
-                }
-                steps {
-                    echo "2. 代码编译打包"
-                    sh 'mvn clean package -Dfile.encoding=UTF-8 -DskipTests=true'
-                }
-            }
-            stage('Docker Build') {
-                agent any
-                steps {
-                    echo "3. 构建Docker镜像"
-                    //登录Docker仓库
-                    sh "sudo docker login -u ${DOCKER_REGISTER_CREDS_USR} -p ${DOCKER_REGISTER_CREDS_PSW} ${DOCKER_REGISTRY}"
-                    script {
-                        def profile = "dev"
-                        if (env.gitlabTargetBranch == "develop") {
-                            image_tag = "dev." + env.GIT_TAG
-                        } else if (env.gitlabTargetBranch == "pre-release") {
-                            image_tag = "test." + env.GIT_TAG
-                            profile = "test"
-                        } else if (env.gitlabTargetBranch == "master") {
-                            // master分支则直接使用Tag
-                            image_tag = env.GIT_TAG
-                            profile = "prod"
-                        }
-                        //通过--build-arg将profile进行设置，以区分不同环境进行镜像构建
-                        sh "docker build  --build-arg profile=${profile} -t ${DOCKER_IMAGE}:${image_tag} ."
-                        sh "sudo docker push ${DOCKER_IMAGE}:${image_tag}"
-                        sh "docker rmi ${DOCKER_IMAGE}:${image_tag}"
-                    }
-                }
-            }
-            stage('Helm Deploy') {
-                agent {
-                    docker {
-                        image 'lwolf/helm-kubectl-docker'
-                        args '-u root:root'
-                    }
-                }
-                steps {
-                    echo "4. 部署到K8s"
-                    sh "mkdir -p /root/.kube"
-                    script {
-                        def kube_config = env.KUBE_CONFIG_LOCAL
-                        def ingress_host = env.INGRESS_HOST_DEV
-                        if (env.gitlabTargetBranch == "pre-release") {
-                            ingress_host = env.INGRESS_HOST_TEST
-                        } else if (env.gitlabTargetBranch == "master") {
-                            ingress_host = env.INGRESS_HOST_PROD
-                            kube_config = env.KUBE_CONFIG_PROD
-                        }
-                        sh "echo ${kube_config} | base64 -d > /root/.kube/config"
-                        //根据不同环境将服务部署到不同的namespace下，这里使用分支名称
-                        sh "helm upgrade -i --namespace=${env.gitlabTargetBranch} --set replicaCount=${params.replica_count} --set image.repository=${DOCKER_IMAGE} --set image.tag=${image_tag} --set nameOverride=${GIT_REPO} --set ingress.hosts[0].host=${ingress_host} --set ingress.hosts[0].paths={${params.ingress_path}} ${GIT_REPO} ./helm/"
-                    }
-                }
+        stage('拉取代码') {
+            steps {
+                //引用参数化构建的分支、定义的gitlab凭证id、定义的项目地址
+                checkout([$class: 'GitSCM', branches: [[name: '${params.Branch}']], doGenerateSubmoduleConfigurations: false, extensions: [], submoduleCfg: [], userRemoteConfigs: [[credentialsId: '${git_auth}', url: '${git_url}']]])
             }
         }
-    }
-}
-```
-
-
-
-
-
-
-
-```groovy
-pipeline {
-    agent any
-    eviironment {
-        GIT_REPO = "${env.gitlabSourceRepoName}"  //从Jenkins Gitlab插件中获取Git项目的名称
-        GIT_BRANCH = "${env.gitlabTargetBranch}"  //如果符合条件的tag指向最新提交则只是显示tag的名字，否则会有相关的后缀来描述该tag之后有多少次提交以及最新的提交commit-id
-        GIT_TAG = sh(returnStdout: true,script: 'git describe --tags --always').trim()  //commit id或tag名称
-    }
-    parameters {
-        string(name: 'ingress_path', defaultValue: '/your-path', description: '服务上下文路径')
-        string(name: 'replica_count', defaultValue: '1', description: '容器副本数量')
-    }
-    stages {
-        stage {
-            stage('Code Analyze') {
-                agent any
-                steps {
-                    echo "1. 代码静态检查"
-                }
+        stage('代码编译') {
+            steps {
+                sh """
+                  mvn clean package -Dmaven.test.skip=true
+                """
             }
-            stage('Maven Build') {
-                steps {
-                    echo "2. 代码编译打包"
-                }
-            }
-            stage('Docker Build') {
-                agent any
-                steps {
-                    echo "3. 构建Docker镜像"
+        }
+        stage('构建镜像') {
+            steps {
+                //通过凭证转换成阿里云镜像服务的账号和密码变量
+                withCredentials([usernamePassword(credentialsId: "${registry_auth}", passwordVariable: 'password', usernameVariable: 'username')]) {
+                    sh """
+                        #登录镜像仓库
+                        docker login -u ${username} -p '${password}' ${registry}
+                        #制作和上传镜像
+                        for service in \$(echo ${service} |sed 's/,/ /g');do
+                            service_name=\${service%:*}
+                            image_name=${registry}/${project}/\${service_name}:${BUILD_NUMBER}
+                            cd \${service_name}
+                            if ls |grep biz &>/dev/null;then
+                                cd \${service_name}-biz
+                            fi
+                            docker build -t \${image_name} .
+                            docker push \${image_name}
+                            cd ${WORKSPACE}
+                        done
+                    """
+                    configfileProvider([configFile(fileId: "${k8s_auth}", targetLocation: "admin.kubeconfig")]){
+                        sh """
+                           #添加镜像拉取认证
+                           kubectl create secret docker-registry ${image_pull_secret}
+                           --docker-username=${username} --docker-password=${password}
+                           --docker-server=${registry} -n ${Namespace} --kubeconfig
+                           admin.kubeconfig |true
+                           #添加私有chart仓库
+                           helm repo add --username ${username} --password ${password}
+                           myrepo http://${registry}/chartrepo/${project}
+                        """
                     }
-                }
+				}
             }
-            stage('Helm Deploy') 
-                steps {
-                    echo "4. 部署到K8s"
-                }
+        }
+        stage('Helm部署到k8s') {
+            steps {
+                sh """
+                    common_args="-n ${Namespace} --kubeconfig admin.kubeconfig"
+                    
+                    for serivce in \$(echo ${Service} |sed 's/,/ /g');do
+                        service_name=\${service%:*}
+                        service_port=\${service#*:}
+                        image=${registry}/${project}/\${service_name}
+                        tag=${BUILD_NUMBER}
+                        
+                        #helm参数
+                        helm_args="\{service_name} --set image.repository=\${image} --set image.tag=\${tag} --set replicaCount=${replicaCount} --set imagePullSecrets[0].name=${image_pull_secret} --set service.targetPort=\${service_port} myrepo/${Template}"
+                        
+                        #是否为新部署
+                        if helm history \${service_name} \${common_agrs} &>/dev/null;then
+                            action=upgrade
+                        else
+                            action=install
+                        fi
+                        
+                        #针对服务启用ingress
+                        if [ \${service_name} == "gateway-service" ];then
+                            helm \${action} \${helm_args} \
+                            --set ingress.enabled=true \
+                            --set ingress.host=${gateway_domain_name} \
+                            \${common_args}
+                        elif [ \${service_name} == "portal-service" ];then
+                            helm \${action} \${helm_args} \
+                            --set ingress.enabled=true \
+                            --set ingress.host=${portal_domain_name} \
+                            \${common_args}
+                        else
+                            helm \${action} \${helm_args} \${common_args}
+                        fi
+                    done
+                """
             }
         }
     }
