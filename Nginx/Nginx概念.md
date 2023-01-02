@@ -4,12 +4,6 @@ nginx：全称engine X；
 		发行版本：
 			Tengine：淘宝二次开发版本；
 
-## 应用场景
-
-作为 Web 服务器
-
-作为负载均衡服务器
-
 ## Nginx VS Apache
 
 - 轻量级，同样起web 服务比Apache 占用更少的内存及资源
@@ -22,22 +16,17 @@ nginx：全称engine X；
 
 - 社区活跃，各种高性能模块出品迅速
 
-## Nginx进程模型
+## Nginx原理
 
-<img src="https://gitee.com/c_honghui/picture/raw/master/img/20210302233050.png" alt="image-20210302233043576" style="zoom: 50%;" />
+<img src="assets/image-20221227165711139.png" alt="image-20221227165711139" style="zoom:80%;" />
 
-- 多进程：一个 Master 进程、多个 Worker 进程。
-- Master 进程：**管理 Worker 进程**。对外接口：接收外部的操作（信号）；对内转发：根据外部的操作的不同，通过信号管理 Worker；监控：监控 Worker 进程的运行状态，Worker 进程异常终止后，自动重启 Worker 进程。
-- Worker 进程：所有 Worker 进程都是平等的。实际处理：**网络请求**，由 Worker 进程处理。Worker 进程数量：在 nginx.conf 中配置，一般设置为核心数，充分利用 CPU 资源，同时，避免进程数量过多，避免进程竞争 CPU 资源，增加上下文切换的损耗。
 
-**HTTP 连接建立和请求处理过程**
 
-- Nginx 启动时，Master 进程，加载配置文件。
-- Master 进程，初始化监听的 Socket。
-- Master 进程，Fork 出多个 Worker 进程。
-- Worker 进程，竞争新的连接，获胜方通过三次握手，建立 Socket 连接，并处理请求。
+首先nginx会启动**master主进程**，master进程读取并校验配置文件，然后开启多个**worker子进程来接收响应请求**
 
-## Nginx 高性能、高并发
+
+
+
 
 - Nginx 采用**多进程+异步非阻塞**方式（IO 多路复用 Epoll）。
 - 请求的完整过程：建立连接→读取请求→解析请求→处理请求→响应请求。
@@ -67,18 +56,11 @@ nginx -t -c /path/to/nginx.conf   # 测试特定的nginx配置文件是否正确
 
 ## http协议
 
-	请求报文格式：
-				<method> <URL> <version>
-				<HEADERS>  【请求头部】
-				
-				           【这两行空白行一定要存在】
-				<body>    【请求正文】
-	响应报文格式：
-				<version> <status> <reason phrase>
-				<HEADERS>   【响应头部】
-					
-					
-				<body>     【响应正文】
+http1.x协议报文组成：
+
+![image-20221228124621852](assets/image-20221228124621852.png)
+
+
 常见请求：
 
 ```text
@@ -90,8 +72,6 @@ DELETE: 删除资源；
 TRACE: 跟踪资源所经过的代理服务器；
 OPTIONS：查看资源支持哪些请求方法；
 ```
-
-
 
 ## curl命令
 
