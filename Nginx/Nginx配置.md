@@ -50,14 +50,11 @@ limit
 
 ```shell
 http {
-    #设置用于保存各种 key（比如当前连接数）的共享内存的参数。 5m 就是 5兆字节，这个值应该被设置的足够大以存储（32K*5） 32byte 状态或者（16K*5） 64byte 状态。
+    #限制同一客户端的并发连接数
     limit_conn_zone $binary_remote_addr zone=addr:5m;
-    #我们设置的值是 100，也就是说我们允许每一个 IP 地址最多同时打开有 100 个连接。
-    limit_conn addr 50;
-    #限速模块，前3M下载时不限速
-    limit_rate_after 3m;
-    #限速模块
-    limit_rate 512k;
+    limit_conn addr 100; #我们设置的值是 100，也就是说我们允许每一个 IP 地址最多同时打开有 100 个连接。
+    limit_rate_after 3m; #限速模块，前3M下载时不限速
+    limit_rate 512k;    #限速模块
 }
 ```
 
@@ -65,7 +62,7 @@ http {
 
 ```shell
 http {
-    #开启高效文件传输模式，sendfile指令指定nginx是否调用sendfile函数来输出文件，对于普通应用设为 on，如果用来进行下载等应用磁盘IO重负载应用，可设置为off，以平衡磁盘与网络I/O处理速度，降低系统的负载。如果图片显示不正常把这个改成off。
+    #开启数据0拷贝，首先nginx接受到请求后要把数据文件响应给客户端， 如果不开启sendfile，nginx先把数据加载到应用程序内存中，然后再发送到网络接口；如果开启sendfile，nginx应用程序就不去加载数据，而是发送sendfile信号给网络接口，网络接口直接去加载数据发送给客户端
     sendfile        on;
     #必须在sendfile开启模式才有效，告诉nginx在一个数据包里发送所有头文件，而不一个接一个的发送。
     tcp_nopush     on;
@@ -102,24 +99,57 @@ http {
 }
 ```
 
-请求缓存
+### 请求缓冲
+
+可配置位置：
+
+- http
+
+- server
+
+- location
+
+  
+
+**缓冲（buffer）**：向硬盘写入数据时，先把数据放入缓冲区，然后再一起写入硬盘，把分散的写操作集中进行，减少磁盘碎片和磁盘的反复寻道，从而提高系统高性能。
+
+**客户端请求发送来一个数据**后，nginx先处理请求头，然后处理请求体，发送来的数据可能会比较大，可以通过client_body_buffer_size 配置缓冲区的大小
 
 ```shell
 http {
-    #nginx 会将整个请求头都放在一个 buffer 里面，如果用户的请求头太大，这个 buffer 装不下，那 nginx 就会重新分配一个新的更大的 buffer来装请求头，这个大 buffer 可以通过 large_client_header_buffers 来设置，比如配置 4 8k，就是表示有四个 8k 大小的buffer 可以用。
-    #客户端请求头部的缓冲区大小。这个可以根据你的系统分页大小来设置，一般一个请求的头部大小不会超过1k，不过由于一般系统分页都要大于1k，所以这里设置为分页大小。分页大小可以用命令getconf PAGESIZE取得。
+    #客户端请求体的缓冲大小，如果请求体大于缓冲区，则将整个请求体或仅将其部分写入临时文件。默认32位8k，64位16k
     client_header_buffer_size 32k;
+    #对客户端请求的body缓冲大小
+    client_body_buffer_size 
+    
     #此指令规定了用于读取大型客户端请求头的缓冲区的最大数量和大小。 这些缓冲区仅在缺省缓冲区不足时按需分配。 当处理请求或连接转换到保持活动状态时，释放缓冲区。如下例子：
     large_client_header_buffers 4 64k;
 }
 ```
 
-上传、打开文件
+### 对客户端的限制
+
+可配置位置：
+
+- http
+- server
+- location
+
+
 
 ```shell
 http {
-    #NGINX上传文件最大限制。 如果请求大于指定的大小，则NGINX发回HTTP 413（Request Entity too large）错误。如果在上传大文件，可以将此值设置大一些
+    #NGINX上传文件最大限制。 默认1M，如果请求大于指定的大小，则NGINX发回HTTP 413（Request Entity too large）错误。如果在上传大文件，可以将此值设置大一些
     client_max_body_size 20m;
+   
+    #客户端与服务端建立连接后发送request body的超时时间，如果指定时间内没发送任何内容，nginx返回http 408
+    client_body_timeout
+    client_header_timeout
+    
+    #在磁盘上客户端的body临时缓冲区位置
+    client_body_temp_path
+    #把body写入磁盘文件，请求结束不会删除
+    client_body_in_file_only on;
     
     #这个将为打开文件指定缓存，默认是没有启用的，max指定缓存数量，建议和打开文件数一致，inactive 是指经过多长时间文件没被请求后删除缓存。
     open_file_cache max=100000 inactive=20s;
@@ -132,7 +162,7 @@ http {
 }
 ```
 
-fastcgi调优（配合PHP引擎动态服务）
+### fastcgi调优（配合PHP引擎动态服务）
 
 ```shell
 http {
@@ -144,7 +174,7 @@ http {
 }
 ```
 
-负载均衡
+### 负载均衡
 
 ```shell
 http {
@@ -155,23 +185,25 @@ http {
 }
 ```
 
-压缩
+### 压缩
+
+作用域：
+
+http、server、location
 
 ```shell
 vim /etc/nginx/conf.d/gzip.conf
     #开启页面压缩
     gzip  on;
-    #gzip压缩是要申请临时内存空间的，假设前提是压缩后大小是小于等于压缩前的。例如，如果原始文件大小为10K，那么它超过了8K，所以分配的内存是8 * 2 = 16K;再例如，原始文件大小为18K，很明显16K也是不够的，那么按照 8 * 2 * 2 = 32K的大小申请内存。如果没有设置，默认值是申请跟原始数据相同大小的内存空间去存储gzip压缩结果。
+    #缓冲区大小
     gzip_buffers 16 8k;
-    #进行压缩的原始文件的最小大小值，也就是说如果原始文件小于1024K，那么就不会进行压缩了
+    
+    #被gzip压缩的响应的最小长度，长度仅由“Content-Length”响应报头字段确定
     gzip_min_length 1024K;
-    # 默认值: gzip_http_version 1.1(就是说对HTTP/1.1协议的请求才会进行gzip压缩)
-	# 识别http的协议版本。由于早期的一些浏览器或者http客户端，可能不支持gzip自解压，用户就会看到乱码，所以做一些判断还是有必要的。 
-	# 注：99.99%的浏览器基本上都支持gzip解压了，所以可以不用设这个值,保持系统默认即可。
-	# 假设我们使用的是默认值1.1，如果我们使用了proxy_pass进行反向代理，那么nginx和后端的upstream server之间是用HTTP/1.0协议通信的，如果我们使用nginx通过反向代理做Cache Server，而且前端的nginx没有开启gzip，同时，我们后端的nginx上没有设置gzip_http_version为1.0，那么Cache的url将不会进行gzip压缩
-    #gzip_http_version 1.1;
-    # 默认值：1(建议选择为4)
-    # gzip压缩比/压缩级别，压缩级别 1-9，级别越高压缩率越大，当然压缩时间也就越长（传输快但比较消耗cpu）。
+    # gzip版本
+    gzip_http_version 1.1;
+
+    # 压缩级别 1-9，级别越高压缩率越大，当然压缩时间也就越长（传输快但比较消耗cpu）。 
     gzip_comp_level 6;
     #需要进行gzip压缩的Content-Type的Header的类型。建议js、text、css、xml、json都要进行压缩；图片就没必要了，gif、jpge文件已经压缩得很好了，就算再压，效果也不好，而且还耗费cpu。
     #gzip_types text/HTML text/plain application/x-javascript text/css application/xml;
@@ -180,8 +212,8 @@ vim /etc/nginx/conf.d/gzip.conf
     # IE6的某些版本对gzip的压缩支持很不好，会造成页面的假死，今天产品的同学就测试出了这个问题后来调试后，发现是对img进行gzip后造成IE6的假死，把对img的gzip压缩去掉后就正常了为了确保其它的IE6版本不出问题，所以建议加上gzip_disable的设置
     gzip_disable "msie6";
 
+    gzip_proxied 多选，针对上游服务器返回的头信息进行压缩，一般不配置
     # 默认值：off
-    # Nginx作为反向代理的时候启用，开启或者关闭后端服务器返回的结果，匹配的前提是后端服务器必须要返回包含"Via"的 header头。
     #off - 关闭所有的代理结果数据的压缩
     #expired - 启用压缩，如果header头中包含 "Expires" 头信息
     #no-cache - 启用压缩，如果header头中包含 "Cache-Control:no-cache" 头信息
@@ -191,21 +223,23 @@ vim /etc/nginx/conf.d/gzip.conf
     #no_etag - 启用压缩 ,如果header头中不包含 "ETag" 头信息
     #auth - 启用压缩 , 如果header头中包含 "Authorization" 头信息
     #any - 无条件启用压缩
-    gzip_proxied no-cache;
+    
     #尽量发送压缩过的静态文件
     gzip_static on;
 ```
 
 ## 虚拟主机
 
+一个nginx可以通过配置不同的域名来配置多个站点
+
 vim /etc/nginx/conf.d/*.conf
 
-基础配置
+### 基础配置
 
 ```shell
 server {
 	listen       443;	#监听端口
-	server_name  10.81.248.2;	#域名可以多个，用空格隔开
+	server_name  xxx.xxx.com;	#域名可以多个，用空格隔开
 	access.log   /var/logs/webapps_access.log main
 	
 	root         /var/www/htdocs;
@@ -222,7 +256,11 @@ server {
 }
 ```
 
-反向代理
+### 反向代理
+
+nginx处理请求体时，可以通过配置proxy_request_buffering来决定如何发送到上游服务器（后端服务器），on是完全读到请求体后再发送，off是一边读body一边发送给上游服务器。
+
+通过开启proxy_buffering来**缓冲上游服务器返回的数据**，proxy_buffers配置缓冲区的大小
 
 ```shell
 server {
@@ -231,11 +269,13 @@ server {
 		proxy_pass http://lbEureka/;
 		#关闭proxy重定向
 		proxy_redirect off;
-        # 要使用 nginx 代理后台获取真实的 IP 需在 nginx.conf 配置中加入配置信息
+		
+        # 要使用上游服务器获取真实的 IP 需在 nginx.conf 配置中加入配置信息
         proxy_set_header Host	$http_host;	# 包含客户端真实的域名和端口号；
         proxy_set_header X-Real-IP	$remote_addr;	 # 表示客户端真实的IP（remote_addr 是一个 Nginx 的内置变量，它获取到的是 Nginx 层前端的用户 IP 地址，这个地址是一个 4 层的 IP 地址）；
         （相对于下面的方式而言更加准确，因为 remote_addr 是直接获取第一层代理的用户 IP 地址，如果直接把这个地址传递给 X-Real，这样就会更加准确。但是它有什么劣势呢？如果是多级代理的话，用户如果不是直接请求到最终的代理层，而是在中间通过了 n 层带来转发过来的话，此时 remote_addr 可能获取的不是用户的信息，而是 Nginx 最近一层代理过来的 IP 地址，此时同样没有获取到真实的用户 IP 地址信息。）
         proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;	#在多层代理时会包含真实客户端及中间每个代理服务器的IP（加了一个转发到后端的标准 head 信息，把用户的 IP 信息通过 X-Forwarded-For  方式传递过去）
+		
 		#proxy_set_header X-Forwarded-Proto	$scheme;	# 表示客户端真实的协议（http还是https）；
 		proxy_set_header X-NginX-Proxy true;
 		proxy_next_upstream error timeout invalid_header http_500 http_502 http_503 http_504;
@@ -253,6 +293,18 @@ server {
 		proxy_temp_file_write_size 64k;
 	}
 }
+```
+
+proxy缓存
+
+```shell
+#缓存上游服务器的静态文件，客户端可以直接去缓存找数据
+http模块：
+proxy_cache_path /ngx_tmp levels=1:2 keys_zone=test_cache:100m inactive=1d max_size=10g; #定义缓存路径/ngx_tmp，定义key值名称为test_cache存储key，hash内存空间100m，缓存失效时间1d，最大磁盘存储单文件10g
+location模块：
+add_header Nginx-Cache "$upstream_cache_status";
+proxy_cache test_cache;
+proxy_cache_valid 168h;
 ```
 
 
@@ -333,6 +385,8 @@ $uri ： 不带请求参数的当前URI，$uri不包含主机名，如”/foo/ba
 ```
 
 ## location
+
+通过匹配uri来找网页
 
 location [=|~|~*|^~] /uri/ {...}
 
