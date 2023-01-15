@@ -29,15 +29,20 @@
   - .Template.Name 用于获取当前模板的名称和路径（例如 mychart/templates/mytemplate.yaml）
   - .Template.BasePath：当前模板目录的路径（例如 mychart/templates）。
 
-  
 
-除了系统自带的变量，我们也可以**自定义模板变量**
+### 变量
 
-{{- $relname := .Release.Name }}
+变量的定义格式：**$name := value**
+
+如：{{- $relname := .Release.Name }}
 
 引用自定义变量:
 
 {{ $relname }}
+
+
+
+
 
 ### 内置函数
 
@@ -45,7 +50,7 @@
 
 
 
-函数的使用格式：
+**函数的使用格式：**
 
 格式1：函数名 arg1 arg2
 
@@ -137,6 +142,12 @@ apiVersion: apps/v1
 
 <img src="assets/image-20230112173613415.png" alt="image-20230112173613415" style="zoom:67%;" />
 
+```shell
+例子：
+#以占位符的方式，输出.Chart.Name-.Chart.Version
+printf "%s-%s" .Chart.Name .Chart.Version #返回结果：ingress-nginx-3.6.0
+```
+
 • trunc：用于截断字符串，通过使用正整数或负整数来分别表示从左向右截取的个数和从右向左截取的个数
 
 ```shell
@@ -149,7 +160,19 @@ trunc 5
 trimPrefix "-"
 ```
 
-• replace
+• contains：用于测试一个字符串是否包含在另一个字符串里面，返回布尔值，包含在里面结果为true
+
+```shell
+{{- if contains $name .Release.Name -}}
+...
+{{- else -}}
+```
+
+• replace：用于执行简单的字符串替换，该函数需要传递三个参数
+
+```shell
+"I Am Test" | replace "" "-" #返回结果：I-Am-Test
+```
 
 ### 流程控制
 
@@ -188,7 +211,7 @@ helm install ingress-nginx --dry-run .
           image: "registry.cn-beijing.aliyuncs.com/dotbalo/controller:v0.40.2"
 ```
 
-变量赋值
+因为**with语句里不能调用父级别的变量**，所以如果要调用父级别的变量，需要声明一个变量名，将父级别的变量值赋值给声明的变量
 
 ```yaml
 cat configmap.yaml
@@ -200,16 +223,28 @@ data:
   # 由于下方的with语句引入相对命令空间,无法通过.Release引入,提前定义relname变量
   {{- $name := .Release.Name }}
   {{- with .Values.data  }}
-  drink: {{ .drink }}
+  ...
   release: {{ $name }}
   # 或者可以使用$符号,引入全局命名空间
   release: {{ $.Release.Name }}
   {{- end }}
-  
-#default：定义变量默认的值
 ```
 
 • **if**语法
+
+格式：
+
+```shell
+{{- if ... -}}
+...
+{{- else if ... -}}
+...
+{{- else -}}
+...
+{{- end }}
+```
+
+
 
 操作符：and/eq/or/not
 
@@ -282,6 +317,7 @@ xxx
 语法1（遍历map类型，用于遍历键值对象）:
 
  ```yaml
+#对于字典类型的结构，可以使用range获取到每个键值对的key和value（注意字典是无序的，所以遍历出来的结果也是无序的）
 #变量$key代表对象的属性名，$val代表属性值
  {{- range $key, $val := 键值对象 }}
  {{ $key }}: {{ $val | quote }}
