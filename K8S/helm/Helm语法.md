@@ -29,8 +29,23 @@
   - .Template.Name 用于获取当前模板的名称和路径（例如 mychart/templates/mytemplate.yaml）
   - .Template.BasePath：当前模板目录的路径（例如 mychart/templates）。
 
+### 表达式
+
+模板表达式：
+
+{{ .Release.Name }}, 通过双括号注入,小数点开头表示从最顶层命名空间引用
+
+{{- 模版表达式 -}} ， 表示去掉表达式输出结果前面和后面的空行，去掉前面空行可以这么写{{- 模版表达式 }}, 去掉后面空格 {{ 模版表达式 -}}
 
 ### 变量
+
+变量的作用域：
+
+默认情况最左面的点( . ), 代表全局作用域，用于引用全局对象，中间的点，很像是js中对json对象中属性的引用方式。
+
+helm全局作用域中有两个重要的全局对象：Values和Release
+
+
 
 变量的定义格式：**$name := value**
 
@@ -40,9 +55,39 @@
 
 {{ $relname }}
 
+### Values
 
+**Values**对象是为chart模板提供值，这个对象的值有4个来源：
 
+- chart包中的value.yaml
+- 父chart包中的value.yaml
+- 通过helm install或helm upgrade的-f或--values参数传入的自定义yaml文件
+- 通过--set参数传入的值
 
+```yaml
+cat mychart/values.yaml 
+replicaCount: 1
+image:
+  repository: nginx
+  pullPolicy: IfNotPresent
+  tag: "1.16"
+selectorLabels: "nginx"
+
+cat mychart/templates/deployment.yaml 
+...
+metadata:
+  name: {{ .Release.Name }}
+...
+spec:
+  replicas: {{ .Values.replicaCount }}
+        
+helm install web1 --dry-run mychart/
+metadata:
+  name: web1
+...
+spec:
+  replicas: 1
+```
 
 ### 内置函数
 
@@ -235,11 +280,11 @@ data:
 格式：
 
 ```shell
-{{- if ... -}}
+{{- if ... }}
 ...
-{{- else if ... -}}
+{{- else if ... }}
 ...
-{{- else -}}
+{{- else }}
 ...
 {{- end }}
 ```
@@ -247,26 +292,6 @@ data:
 
 
 操作符：and/eq/or/not
-
-eq：判断两个参数是否相等，等于为true不等为false
-
-ne：判断两个参数是否不相等
-
-lt：判断第一个参数是否小于第二个参数
-
-le
-
-gt
-
-ge
-
-and：返回逻辑与结果，两个参数为真，则结果为true
-
-or：逻辑或
-
-empty：判断给定的值是否为空，如果空为true
-
-coalesce：扫描一个给定的列表，并返回第一个非空的值
 
 
 
@@ -319,6 +344,7 @@ xxx
  ```yaml
 #对于字典类型的结构，可以使用range获取到每个键值对的key和value（注意字典是无序的，所以遍历出来的结果也是无序的）
 #变量$key代表对象的属性名，$val代表属性值
+格式：
  {{- range $key, $val := 键值对象 }}
  {{ $key }}: {{ $val | quote }}
  {{- end}} 
@@ -360,6 +386,7 @@ spec:
 语法2（数组类型遍历）：
 
 ```yaml
+格式：
 {{- range 数组 }}
 {{ . | title | quote }} # . (点)，引用数组元素值。
 {{- end }}
@@ -453,5 +480,131 @@ metadata:
     app.kubernetes.io/instance: ingress-nginx
     app.kubernetes.io/version: "0.40.2"
     app.kubernetes.io/managed-by: Helm
+```
+
+## 手动编写helm模板
+
+helm 基于java 的chart 模板开发
+
+```shell
+helm create java
+cd java ;rm -fr templates/*
+```
+
+修改values.yaml
+
+```yaml
+# Default values for java. 
+# This is a YAML-formatted file. 
+# Declare variables to be passed into your templates. 
+ 
+replicaCount: 1 
+namespace: neighbour 
+label: {} 
+annotations: {} 
+ 
+#image 
+image: 
+  repository: nginx 
+  pullPolicy: IfNotPresent 
+  imageUrl: harbor.test.com/neiour/bl-test 
+  tag: "v1" 
+ 
+imagePullSecrets: [] 
+nameOverride: "" 
+fullnameOverride: "" 
+ 
+#pod更新策略 
+strategy: 
+  rollingUpdate: 
+    maxSurge: 1 
+    maxUnavailable: 0 
+ 
+#java 应用配置参数 
+jarInfo: 
+  name: "/opt/neighbour-group.jar" 
+  port: 10051 
+  version: v1 
+  args: ['-XX:+UnlockExperimentalVMOptions','-XX:+UseCGroupMemoryLimitForHeap','-XX:MaxRAMFraction=1'] 
+  env: 
+  - name: NACOS_CONFIG_ADDR 
+    value: "nacos-headless.nacos.svc.cluster.local:8848" 
+  - name: SEATA_CONFIG_ADDR 
+    value: "seata-server.default.svc.cluster.local:8091" 
+  - name: enable_multi_nacos 
+    value: "true" 
+  - name: additional_nacos_address 
+    value: http://nacos-headless.nacos.svc.cluster.local:8848  
+  addenv: {} 
+ 
+# 资源限制 
+resources: 
+  limits: 
+    cpu: 1 
+    memory: 1 
+  requests: 
+    cpu: 100Mi 
+    memory: 200Mi 
+ 
+#探针 
+readinessProbe: 
+  initialDelaySeconds: 15 
+  periodSeconds: 10 
+ 
+livenessProbe: 
+  initialDelaySeconds: 25 
+  periodSeconds: 10 
+  failureThreshold: 3 
+ 
+#节点亲和度 
+nodeSelector: {} 
+##污点 
+tolerations: [] 
+##容忍 
+affinity: {} 
+ 
+serviceAccount: 
+  # Specifies whether a service account should be created 
+  create: true 
+  # Annotations to add to the service account 
+  annotations: {} 
+  # The name of the service account to use. 
+  # If not set and create is true, a name is generated using the fullname template 
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+service:
+  type: ClusterIP
+  port: 80
+  protocol: TCP
+  annotations: {}
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+  hosts:
+    - host: chart-example.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
 ```
 
