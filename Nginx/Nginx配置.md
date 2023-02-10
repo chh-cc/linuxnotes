@@ -468,8 +468,8 @@ rewrite regex replacement [flag];
 
 |           |                                                              |
 | --------- | ------------------------------------------------------------ |
-| last      | 停止所有 rewrite 相关指令，浏览器地址栏URL地址不变，然后使用新的 URI 进行 location 匹配。 |
-| break     | 停止所有 rewrite 相关指令， 和 last 不同的是，last 接着继续使用新的 URI 匹配location。而 break 则是直接使用当前的 URI 进行请求处理，能避免重复rewrite，last 一般在 server，break 一般在 location。 |
+| last      | 停止处理后续rewrite指令集，然后对当前重写的新URI在rewrite指令集上重新查找。 |
+| break     | 停止处理后续rewrite指令集，并不在重新查找。                  |
 | redirect  | URI 中不包含协议如 https://，但依然希望它返回 30x，让浏览器二次请求然后获取到结果就需要 redirect。 |
 | permanent | 和 redirect 类似，但是直接返回 301 永久重定向。              |
 
