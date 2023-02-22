@@ -1,6 +1,6 @@
 # 负载均衡
 
-随着**应用型负载均衡ALB（Application Load Balancer）**的引入，原**负载均衡SLB（Server Load Balancer）**现称为**传统型负载均衡CLB（Classic Load Balancer）**
+
 
 ## CLB
 
@@ -18,28 +18,7 @@ TCP/UDP协议和HTTP/HTTPS协议的流量**都需要经过LVS集群**进行转�
 
 ![img](https://gitee.com/c_honghui/picture/raw/master/img/20210415221546.png)
 
-### 实例
-
-把鼠标移至性能保障型实例的问号图标，可查看具体的性能指标:
-
-![image-20210913223502601](https://gitee.com/c_honghui/picture/raw/master/img/20210913223509.png)
-
-- **最大连接数**-Max Connection
-
-  最大连接数定义了一个负载均衡实例能够承载的最大连接数量。当实例上的连接超过规格定义的最大连接数时，新建连接请求将被丢弃。
-
-- **每秒新建连接数**-Connection Per Second（CPS）
-
-  每秒新建连接数定义了新建连接的速率。当新建连接的速率超过规格定义的每秒新建连接数时，新建连接请求将被丢弃。
-
-- **每秒查询数**-Query Per Second（QPS）
-
-  每秒请求数是**七层监听**特有的概念，指的是**每秒可以完成的HTTP或HTTPS的查询（请求）的数量**。当请求速率超过规格所定义的每秒查询数时，新建连接请求将被丢弃。
-
-实例计费方式：
-
-- 按流量计费：适用于波峰波谷效应明显的业务。
-- 按带宽计费：适用于带宽较为平稳的业务。
+### 
 
 ### 监听
 
