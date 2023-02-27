@@ -480,7 +480,7 @@ receivers:
     api_secret: '应用的secret，在应用的配置页面可以看到'
 ```
 
-配置模板示例如下：
+配置自定义告警模板：
 
 ```shell
 {{ define "wechat.default.message" }}
