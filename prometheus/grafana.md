@@ -12,7 +12,11 @@ grafana模板很活跃，有很多[用户贡献的面板](https://grafana.com/da
 
 <img src="assets/image-20220731153055157.png" alt="image-20220731153055157" style="zoom:67%;" />
 
+Name: Prometheus
 
+Type: Prometheus
+
+HTTP处的URL写如下：http://prometheus-k8s.monitoring.svc:9090
 
 ## 界面介绍
 
