@@ -1,102 +1,14 @@
 ## k8s
 
-## docker
 
-1. docker用了linux什么技术
-
-   namespace：linux内核中对进程进行资源的隔离，通过隔离网络、PID、系统信号量、文件挂载系统、主机名和域名，来实现同一个宿主机的容器互不干扰
-
-   cgroup：linux内核中对进程使用资源的上限进行限制，包括CPU、内存、磁盘读写速率、网络带宽等
-
-2. docker网络模型
-
-   bridge：网桥，默认类型，会自动在主机上创建一个 `docker0` 虚拟网桥
-
-   host：和宿主机共享一个网络namespace
-
-   container：和别的容器共享一个网络namespace
-
-   none：不参与网络通信
-
-3. 本地的镜像文件都存放在哪里
-
-   /var/lib/docker/目录下，其中container目录存放容器信息，graph目录存放镜像信息，aufs目录下存放具体的镜像底层文件
-
-4. 如何临时退出一个正在交互的容器的终端，而不终止它？
-
-   ctrl+p+q
-
-5. 可以在一个容器中同时运行多个应用进程吗？
-
-   一般不推荐一个容器运行多个进程，如果有类似需求可以通过额外的进程管理机制比如supervisord
-   
-6. docker常用命令
-
-   docker images/ps
-
-   docker pull/push
-
-   docker build
-
-   docker tag
-
-   docker run
-
-   docker cp 宿主机和容器互相拷贝文件
-
-   docker exec 进入容器
-
-   docker logs
-
-   docker start/stop
-
-7. 让容器随着 Docker 服务启动而自动启动？
-
-   docker run --restart=always
-
-   创建容器后则通过修改容器配置文件的RestartPolicy参数或docker update更新--restart参数
-
-8. 指定容器的端口映射
-
-   docker run -p 宿主机端口:容器端口
-
-   创建容器后则通过修改容器配置文件
-
-9. 容器异常排查
-
-   通过启动容器返回的错误提示排查
-
-   通过docker logs -f获取日志排查
-
-10. docker注入环境变量
-
-   运行容器时使用-e ..=..或者在dockerfile写入环境变量ENV ... ...
-
-11. namespace不能隔离什么
-
-    磁盘IO、时间
-
-12. docker有几种状态
-
-    starting运行、exited退出、paused暂停、healthy健康、unhealthy不健康
 
 ## 架构和组件
 
-1. k8s与docker的关系？
 
-   docker提供了容器的生命周期管理和镜像构建运行时容器，主要优点是将应用和所需设置、依赖打包到一个容器中，提高可移植性。k8s用于关联和编排多主机上运行容器。
 
-2. k8s有哪些组件及功能？
+1. k8s有哪些组件及功能？
 
-   k8s划分为控制平面和工作节点，控制平面包括apiserver、controller-manager、scheduler、etcd，这些组件实现了整个集群的安全控制、故障恢复、自动扩缩、Pod调度等。
-
-   apiserver：**资源增删查改的唯一入口，各个组件通过apiserver进行通信**：各个组件通过apisever**将信息存入etcd中**，当需要获取这些数据时再通过apiserver提供的**REST接口**（用get、list、watch）去请求，从而实现各个组件的通信。
-
-   controller-manager：**维护集群的状态**，执行各种控制器，故障检测、自动扩展、滚动更新、保证pod数量达到期望值等
-
-   scheduler：通过API Server的Watch接口监听到新建Pod副本的信息后，把pod调度到一个或一批合适的节点
-
-   etcd：保存了整个集群的状态
+   
 
    
 
@@ -105,8 +17,8 @@
    kube-proxy：**负责转发**，一旦发现service关联的pod信息发生改变，就会创建ipvs规则，完成serive对后端pod的转发
 
    容器运行时：负责镜像管理和pod容器的真正运行，比如docker
-   
-3. 升级kubadm部署的集群
+
+2. 升级kubadm部署的集群
 
    升级前必须备份所有组件及数据，例如etcd
 
@@ -116,7 +28,7 @@
 
    2.升级工作节点
 
-4. 证书续签
+3. 证书续签
 
    **容易过期的是ca证书派发出来的证书文件**，工作节点证书有效期限都是1年
 
@@ -129,69 +41,9 @@
 
    ⼆者有着本质的差别：iptables是为防⽕墙⽽设计的；IPVS则专门⽤于⾼性能负载均衡，并使⽤更⾼效的数据结构（Hash表），允许⼏乎⽆限的规模扩张。
 
-2. pod有哪些状态
-
-   pending：pod的yaml文件已经提交给k8s，api对象已经被保存在etcd中，但pod可能因为一些原因无法顺利创建，比如**pod调度失败**/pvc有问题
-
-   failed：pod至少有一个容器不正常退出
-
-   unknown：意味pod的状态不能被kubelet汇报给apiserver，可能是master和node之间通信出了问题
-
-   succeeded：pod内所有容器正常退出没有重启
-
-   running：pod被调度成功，并且至少有一个容器正常运行
-
-3. pod重启策略
-
-   always：容器失效时，kubelet自动重启该容器
-
-   onfailed：容器异常退出时，kubelet自动重启该容器
-
-   never：都不重启
-
-   不同控制器的重启策略：deployment、statefulset、daemonset都要always；job为onfailed或never
-
-4. pod的健康检测机制
-
-   livenessprobe存活探针：用于判断容器是否running，如果检测到不健康则**杀掉容器**然后**重启**
-
-   readnessprobe就绪探针：判断容器是否ready，如果检测失败则把pod**从endpoint中移除**，不然外部流量进入pod
-
-   startupprobe启动探针：配置了startupprobe会**先禁用其他探针**，直到检测成功为止，成功后就不再探测，适合启动慢的程序
-
    
 
-   ExecAction：在容器内执行一个命令，如果返回值为0，则认为容器健康
-
-   TCPSocketAction：对指定端口的容器IP进行TCP检查，如果端口打开则认为容器健康
-
-   HttpGetAction：对指定端口和路径的容器IP进行HTTP Get请求，如果状态码在200~400之间则认为容器健康
-
-5. 如何选择探针
-
-   容器启动时间较长（超出 `initialDelaySeconds + failureThreshold × periodSeconds`）则用启动探针
-
-6. master如何将pod调度到指定节点上
-
-   该工作由scheduler组件完成，scheduler通过一系列复杂的算法算出pod的最佳node节点，可以通过**nodeselector、节点亲和性**来调度到指定的节点
-
-7. 创建一个pod的流程
-
-   客户端提交pod的配置信息到apiserver
-
-   apiserver收到指令后通知controller-manager创建一个资源对象
-
-   controller-manager通过apiserver将pod的配置信息存储到etcd
-
-   scheduler检测到pod信息会开始调度预选，先过滤掉不符合pod资源配置要求的节点，然后开始调度调优，主要是挑选更合适运行pod的节点，然后将pod配置单发给节点的kubelet组件，kubelet运行pod
-
-8. 删除一个pod会发生什么
-
-   delete pod会有两个平行的过程：
-
-   网络规则：apiserver收到delete pod后pod状态变为terminating，endpoint移除该pod的ip流量就不会进到该pod
-
-   删除pod：kubelet向容器发送SIGTERM，如果容器没有配置优雅关闭进程，就会立刻退出；如果容器配置了，但是在默认的30秒内还没退出，kubelet就会发送SIGKILL强制退出
+   
 
 9. 常见调度方式
 
@@ -201,15 +53,11 @@
 
    污点和容忍：给节点打上污点后（master-test=test:NoSchedule），pod要想调度到该节点就必须配置容忍
 
-9. 初始化容器？
+3. 初始化容器？
 
    init容器必须先于应用容器启动，有多个init容器时要按顺序运行，并且只有前一个init容器运行成功后才会运行下一个init容器，直到所有init容器成功运行，k8s才会初始化pod的各种信息，并开始创建和运行应用容器。
 
-10. Requests和Limits如何影响Pod的调度?
-
-    当一个pod创建成功后，scheduler会为该pod选择一个合适的节点执行，调度器在调度时，首先要确保节点的上所有pod的cpu和内存总和不能超过该节点能提供给pod的cpu和内存的最大容量。
-
-    在整个集群的资源分配调度中，可能某节点的实际资源使用量非常低，但是已运行 Pod 配置的总 Requests 值的总和非常高， 再加上需要调度的 Pod 的 Requests 值， 会超过该节点提供给 Pod 的资源容量上限， 这时 Kubernetes 任然不会将 Pod调度到该节点上。
+   
 
 ## deploy、sts、ds、hpa
 
@@ -261,18 +109,10 @@
 
    headless service：不会被分配一个vip，而是以dns的形式暴露它所代理的pod，它所代理的pod的ip都会被绑定一个这样的记录pod-name.svc-name.ns-name.svc.cluster.local
 
-2. 集群外部如何访问集群内部服务
+2. 
 
-   pod中定义hostNetwork: true，配合nodeSelector，把pod实例化在固定节点；使用nodeport类型的service；通过ingress访问
+3. 
 
-3. 简述ingress？
-
-   k8s结合ingress对象和ingress-controller，实现不同url的访问请求转发到后端对应的pod
-
-   ingress对象，其实就是**一个反向代理的配置文件描述**，它定义了某个域名的请求转发到指定的service
-
-   ingress-controller直接**将请求转发到service对应的后端pod**上，跳过kube-proxy的转发功能
-   
 4. 灰度发布
 
    创建一个金丝雀版本ingress，配置nginx.ingress.kubernetes.io/canary: "true"和nginx.ingress.kubernetes.io/canary-by-header，当请求中的hearder key和value和ingess匹配时请求流量就会分配到canary入口
@@ -301,15 +141,7 @@
 
     目标容器宿主机eth0收到后进行拆分，然后转发给flannel.1，flannel.1转发给docker0，最后数据到达目标容器
 
-1. k8s的CNI模型？
-
-   k8s的扁平网络空间是由CNI插件建立的，常见的有flannel和calico
-
-   flannel能协助k8s给每一个节点的容器都分配不相互冲突的IP地址，它能在这些ip地址建立一个覆盖网络，容器可以在这个网络中通信。
-
-2. k8s的网络策略？
-
-   网络策略的主要功能是对pod间的网络通信进行限制和准入控制，设置方式是将pod的label作为查询条件，设置允许或禁止访问的pod列表；默认所有pod没有隔离；网络策略功能由第三方网络插件提供，如calico
+4. 
 
 ## 安全
 
@@ -334,15 +166,7 @@
 
 ## 存储
 
-1. k8s数据持久化的方式有哪些
-
-   emptydir：挂载在pod的一个空目录，生命周期跟pod同步，适合容器之间临时共享文件
-
-   hostpath：挂载宿主机的目录到pod
-
-   configmap：存放容器的配置文件、环境变量、命令参数；secret：存放敏感信息比如密码、密钥、token等；以subpath或env挂载的话不支持热更新
-
-   PV/PVC：PV是一块抽象的存储空间，生命周期独立于pod，PVC是申请PV的接口
+1. 
 
 2. PV和PVC的生命周期
 
