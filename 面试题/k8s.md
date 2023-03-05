@@ -6,7 +6,11 @@
 
    cgroup：linux内核对进程的使用资源上限进行限制，如cpu、内存、网络带宽等
 
-2. docker网络模型
+2. 宿主机能看到容器的进程吗
+
+   能
+
+3. docker网络模型
 
    bridge：网桥，默认类型，会自动在主机上创建一个docker0虚拟网桥
 
@@ -16,15 +20,15 @@
 
    none：不参与网络通信
 
-3. 本地镜像文件存放在哪里
+4. 本地镜像文件存放在哪里
 
    /var/lib/docker/目录下，其中container目录存放容器信息，graph目录存放镜像信息，aufs目录下存放具体的镜像底层文件
 
-4. 一个容器可以运行多个进程吗
+5. 一个容器可以运行多个进程吗
 
    一般不推荐运行多个进程，如果有类似需求可以通过额外的进程管理机制比如supervisor
 
-5. 说下常用的docker命令
+6. 说下常用的docker命令
 
    制作镜像docker build
 
@@ -38,7 +42,7 @@
 
    进入容器docker exec
 
-6. 让容器随着docker服务启动而自动启动
+7. 让容器随着docker服务启动而自动启动
 
    第一次启动容器：
 
@@ -48,15 +52,15 @@
 
    修改容器配置文件的RestartPolicy参数或docker update --restart=always
 
-7. 指定容器的端口映射
+8. 指定容器的端口映射
 
    docker run -p 宿主机端口:容器端口
 
-8. docker注入环境变量
+9. docker注入环境变量
 
    运行容器时使用-e ..=..或者在dockerfile写入环境变量ENV ... ...
 
-9. 容器异常排查
+10. 容器异常排查
 
    通过docker logs查看容器日志
 
@@ -164,13 +168,17 @@
 
 ## 控制器
 
-1. 如何控制滚动更新的过程
+1. deployment和rs的关系？
+
+   创建deployment时会自动创建一个RS，deploy不是直接管理pod，而是通过管理RS来管理pod，通过修改RS的副本数和属性来实现扩缩副本和滚动更新
+
+2. 如何控制滚动更新的过程
 
    maxSurge：此参数控制滚动更新的过程中，最多可以新建多少个副本数
 
    maxUnavailable：此参数控制滚动更新的过程中，最多有多少个副本不可用
 
-2. deployment升级/更新过程
+3. deployment升级/更新过程
 
    更新delpoyment时，会创建新的RS，用于管理更新后的pod
 
@@ -178,11 +186,11 @@
 
    在更新过程中，k8s会不断检测更新状态，确保所有的pod都已经更新完成
 
-3. 版本回滚命令
+4. 版本回滚命令
 
    kubectl rollout undo deploy xxx [--to-reversion=?]
 
-4. statefulset为什么要用headless service
+5. statefulset为什么要用headless service
 
    statefulset管理的是有状态服务，不需要通过service反向代理到一组pod，使用headless service就可以通过pod名称.servicename.namespace来访问一指定的pod
 
@@ -198,7 +206,11 @@
 
    通过ingress访问pod
 
-2. 简述ingress？
+2. service和ep的关系
+
+   创建一个service的同时会创建一个同名的endpoint，ep记录了svc关联的一组pod的ip和端口
+
+3. 简述ingress？
 
    k8s结合ingress对象和ingress-controller，实现不同的url请求转发到对应的pod应用服务
 
@@ -206,7 +218,7 @@
 
    ingress-controller是真正工作的组件，将请求转发到service对应的后端pod，跳过kube-proxy的转发功能
 
-3. ingress如何配置https流量
+4. ingress如何配置https流量
 
    ingress可以通过tls证书来配置https，使用secret对象存储tls证书，然后在ingress规则中指定要使用的证书
 
@@ -276,7 +288,13 @@
 
    同一个pod共享网络命名空间，通过localhost加端口通信
 
-3. 
+3. 同一个节点，pod之间通信会走网络插件吗
 
+   不会
 
+## 排障
+
+1. clusterip访问不通
+
+   一般是service没有正确创建或者service没有正确关联到后端pod，可以用kubectl describe svc查看svc的详细信息
 
