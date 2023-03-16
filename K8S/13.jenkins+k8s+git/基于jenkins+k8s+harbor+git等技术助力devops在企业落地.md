@@ -1,3 +1,11 @@
+![image-20230316151934315](assets/image-20230316151934315.png)
+
+![image-20230316152023491](assets/image-20230316152023491.png)
+
+![image-20230316152050572](assets/image-20230316152050572.png)
+
+
+
 基于jenkins+k8s+harbor+git等技术助力devops在企业落地
 
 神州泰岳k8s+devops+微服务生态体系建设与实践
