@@ -545,3 +545,4 @@ https://www.elastic.co/guide/en/logstash/current/filter-plugins.html
   }
   #index 事件写入的索引。可以按照日志来创建索引，以便于删旧数据和按时间来搜索日志
   ```
+
