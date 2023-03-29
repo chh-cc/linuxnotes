@@ -2,8 +2,7 @@
 
 ```shell
 log_format json '{"timestamp":"$time_local",'
-                 '"clientip":"$Real",'
-                 '"remote_addr":"$remote_addr",'
+                 '"clientip":"$remote_addr",'
                  '"remote_user":"$remote_user",'
                  '"request":"$request",'
                  '"status":"$status",'
@@ -19,6 +18,16 @@ log_format json '{"timestamp":"$time_local",'
                  '"server_port":"$server_port"'
            '}';
 ```
+
+json格式化后的日志是这样：
+
+```shell
+{"timestamp":"29/Mar/2023:23:39:26 +0800","clientip":"192.168.101.1","remote_user":"-","request":"GET / HTTP/1.1","status":"304","domain":"192.168.101.128","size":"0","response_time":"0.000","referer":"-","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36 Edg/111.0.1661.54","upstream_addr":"-","request_time":"0.000","upstream_response_time":"-","upstream_status":"-","server_port":"80"}
+```
+
+不经过logstash过滤是这样：
+
+![image-20230329234722255](assets/image-20230329234722255.png)
 
 filebeat配置
 
