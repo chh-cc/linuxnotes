@@ -19,13 +19,13 @@ log_format json '{"timestamp":"$time_local",'
            '}';
 ```
 
-json格式化后的日志是这样：
+json格式化后的日志：
 
 ```shell
 {"timestamp":"29/Mar/2023:23:39:26 +0800","clientip":"192.168.101.1","remote_user":"-","request":"GET / HTTP/1.1","status":"304","domain":"192.168.101.128","size":"0","response_time":"0.000","referer":"-","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36 Edg/111.0.1661.54","upstream_addr":"-","request_time":"0.000","upstream_response_time":"-","upstream_status":"-","server_port":"80"}
 ```
 
-不经过logstash过滤是这样：
+不经过logstash过滤有这么多字段：
 
 ![image-20230329234722255](assets/image-20230329234722255.png)
 
@@ -37,8 +37,8 @@ filebeat.inputs:
   enable: true
   paths:
     - /var/log/nginx/access_json.log
-  #json.keys_under_root: true
-  #json.overwrite_keys: true
+  #json.keys_under_root: true #默认情况下，解码后的JSON放在输出文档中的“json”键下。 如果启用此设置，则会将键复制到输出文档的顶层。
+  #json.overwrite_keys: true #如果启用了keys_under_root和此设置，则来自解码的JSON对象的值会覆盖Filebeat通常添加的字段（类型，源，偏移量等）以防冲突。
   tags: ["nginx-access"]
   fields:
     app: nginx
