@@ -10,9 +10,9 @@ https://www.elastic.co/guide/en/logstash/current/input-plugins.html
 
 **让logstash可以读取特定的事件源**，事件源可以是从stdin屏幕输入读取，可以从file指定的文件，也可以从es，filebeat，kafka，redis等读取
 
-- **stdin** 标准输入
+- stdin 标准输入
 
-- **file**  
+- file
 
   从文件读取数据
 
@@ -45,15 +45,14 @@ https://www.elastic.co/guide/en/logstash/current/input-plugins.html
   # service rsyslog restart   #重启日志服务
   ```
 
-- beats  
+- **beats**  
 
   从Elastic beats接收事件
 
-  ```
+  ```shell
   beats {
       port => 5044   #要监听的端口
   }
-  # 还有host等选项
   
   # 从beat读取需要先配置beat端，从beat输出到logstash。
   # vim /etc/filebeat/filebeat.yml 
@@ -61,8 +60,8 @@ https://www.elastic.co/guide/en/logstash/current/input-plugins.html
   output.logstash:
   hosts: ["ip:5044"]
   ```
-
-- kafka  
+  
+- **kafka**  
 
   将 kafka topic 中的数据读取为事件
 
@@ -98,29 +97,26 @@ https://www.elastic.co/guide/en/logstash/current/filter-plugins.html
 
 - grok  
 
-   解析文本并构造 。**把非结构化日志数据通过正则解析成结构化和可查询化** 
+   grok插件有非常强大的功能，但是十分消耗资源，当然，对于时间这个属性来说，grok是非常便利的
 
-  ```
-  grok {
-              match => {"message"=>"^%{IPORHOST:clientip} %{USER:ident} %{USER:auth} \[%{HTTPDATE:timestamp}\] "%{WORD:verb} %{DATA:request} HTTP/%{NUMBER:httpversion}" %{NUMBER:response:int} (?:-|%{NUMBER:bytes:int}) %{QS:referrer} %{QS:agent}$"}
-          }
-  匹配nginx日志
-  # 203.202.254.16 - - [22/Jun/2018:16:12:54 +0800] "GET / HTTP/1.1" 200 3700 "-" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/601.7.7 (KHTML, like Gecko) Version/9.1.2 Safari/601.7.7"
-  #220.181.18.96 - - [13/Jun/2015:21:14:28 +0000] "GET /blog/geekery/xvfb-firefox.html HTTP/1.1" 200 10975 "-" "Mozilla/5.0 (compatible; Baiduspider/2.0; +http://www.baidu.com/search/spider.html)"
-  ```
+  
+  
+  grok 语法：
+  
+   	%{SYNTAX:SEMANTIC}  即 %{正则:自定义字段名}
 
-  注意这里grok 可以有多个match匹配规则，如果前面的匹配失败可以使用后面的继续匹配。例如
+​	   例子：
 
-  ```
-   grok {
-              match => ["message", "%{IP:clientip} - %{USER:user} \[%{HTTPDATE:raw_datetime}\] \"(?:%{WORD:verb} %{URIPATHPARAM:request} HTTP/%{NUMBER:httpversion})\" (?:\"%{DATA:body}\" )?(?:\"%{DATA:cookie}\" )?%{NUMBER:response} (?:%{NUMBER:bytes:int}|-) \"%{DATA:referrer}\" \"%{DATA:agent}\" (?:(%{IP:proxy},? ?)*|-|unknown) (?:%{DATA:upstream_addr} |)%{NUMBER:request_time:float} (?:%{NUMBER:upstream_time:float}|-)"]
-              match => ["message", "%{IP:clientip} - %{USER:user} \[%{HTTPDATE:raw_datetime}\] \"(?:%{WORD:verb} %{URI:request} HTTP/%{NUMBER:httpversion})\" (?:\"%{DATA:body}\" )?(?:\"%{DATA:cookie}\" )?%{NUMBER:response} (?:%{NUMBER:bytes:int}|-) \"%{DATA:referrer}\" \"%{DATA:agent}\" (?:(%{IP:proxy},? ?)*|-|unknown) (?:%{DATA:upstream_addr} |)%{NUMBER:request_time:float} (?:%{NUMBER:upstream_time:float}|-)"]       
-          }
-  ```
+      ```yaml
+      #从message 字段中吧时间给抠出来，并且赋值给另个一个字段logdate
+      grok{
+            match => {"message","%{TIMESTAMP_ISO8601:logdate}"}
+      }
+      ```
 
-   	grok 语法：%{SYNTAX:SEMANTIC}  即 %{正则:自定义字段名}
+ 
 
-​       官方提供了很多正则的grok pattern可以直接使用 :[https://github.com/logstash-plugins/logstash-patterns-core/blob/master/patterns](https://github.com/logstash-plugins/logstash-patterns-core/tree/master/patterns) 
+​	   官方提供了很多正则的grok pattern可以直接使用 :[https://github.com/logstash-plugins/logstash-patterns-core/blob/master/patterns](https://github.com/logstash-plugins/logstash-patterns-core/tree/master/patterns) 
 
 ​       grok debug工具： http://grokdebug.herokuapp.com
 
@@ -128,37 +124,27 @@ https://www.elastic.co/guide/en/logstash/current/filter-plugins.html
 
 　   需要用到较多的正则知识，参考文档有：https://www.jb51.net/tools/zhengze.html
 
-​       自定义模式：  (?<字段名>the pattern)
 
-​       例如： 匹配 2018/06/27 14:00:54  
-
-​        (?<datetime>\d\d\d\d\/\d\d\/\d\d \d\d:\d\d:\d\d)
-
-​      得到结果： "datetime": "2018/06/27 14:00:54"
-
- 
 
 - date  日期解析  解析字段中的日期，然后转存到@timestamp
 
-  ```
-  [2018-07-04 17:43:35,503]
-  grok{
-        match => {"message"=>"%{DATA:raw_datetime}"}
-  }
-  date{
-         match => ["raw_datetime","YYYY-MM-dd HH:mm:ss,SSS"]
-          remove_field =>["raw_datetime"]
+  ```shell
+  #在配置文件中自定义的时间格式
+  例如 tomcat 定义的格式 %{yyyy-MM-dd HH:mm:ss Z},按照这样的配置，输出的日志原文是 
+   "timestamp" ： "2019-12-11 10:11:12 +0800"
+   那么在 logstash 中应该这样配置
+   date {
+  　　match => [ "timestamp", "yyyy-MM-dd HH:mm:ss Z"]
+  　　target => "@timastamp"
   }
   
-  #将raw_datetime存到@timestamp 然后删除raw_datetime
+  #带有中括号的格式
   
-  #24/Jul/2018:18:15:05 +0800
-  date {
-        match => ["timestamp","dd/MMM/YYYY:HH:mm:ss Z]
-  }
   ```
+  
+- **mutate  **
 
-- **mutate  对字段做处理 重命名、删除、替换和修改字段。**
+   mutate插件是用来处理数据的格式的，你可以选择处理你的时间格式，或者你想把一个字符串变为数字类型
 
 - - covert 
 
@@ -168,7 +154,7 @@ https://www.elastic.co/guide/en/logstash/current/filter-plugins.html
     filter{
         mutate{
     #     covert => ["response","integer","bytes","float"]  #数组的类型转换
-            convert => {"message"=>"integer"}
+            convert => {"message"=>"integer"} #把message的值转为整型
         }
     }
     #测试------->

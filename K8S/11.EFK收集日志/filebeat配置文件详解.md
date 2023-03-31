@@ -126,3 +126,65 @@ processors:
 #xpack.monitoring.elasticsearch:
 ```
 
+## 合并多行日志
+
+<img src="assets/webp" alt="img" style="zoom:67%;" />
+
+**例1:**
+
+Java堆栈跟踪由多行组成：
+
+```java
+Exception in thread "main" java.lang.NullPointerException
+        at com.example.myproject.Book.getTitle(Book.java:16)
+        at com.example.myproject.Author.getBookTitles(Author.java:25)
+        at com.example.myproject.Bootstrap.main(Bootstrap.java:14)
+```
+
+将这些行整合到Filebeat中的单个事件中:
+
+```yaml
+multiline.pattern: '^[[:space:]]'
+multiline.negate: false
+multiline.match: after
+```
+
+**例2:**
+
+Java堆栈跟踪日志：
+
+```java
+Exception in thread "main" java.lang.IllegalStateException: A book has a null property
+       at com.example.myproject.Author.getBookIds(Author.java:38)
+       at com.example.myproject.Bootstrap.main(Bootstrap.java:14)
+Caused by: java.lang.NullPointerException
+       at com.example.myproject.Book.getId(Book.java:22)
+       at com.example.myproject.Author.getBookIds(Author.java:35)
+       ... 1 more
+```
+
+将这些行整合到Filebeat中的单个事件中：
+
+```yaml
+multiline.pattern: '^[[:space:]]+(at|\.{3})\b|^Caused by:'
+multiline.negate: false
+multiline.match: after
+```
+
+**例3：**
+
+以时间戳开头
+
+```java
+[2019-08-24 11:49:14,389][INFO ][env                      ] [Letha] using [1] data paths, mounts [[/
+(/dev/disk1)]], net usable_space [34.5gb], net total_space [118.9gb], types [hfs]
+```
+
+将这些行整合到Filebeat中的单个事件中
+
+```yaml
+multiline.pattern: '^\[[0-9]{4}-[0-9]{2}-[0-9]{2}'
+multiline.negate: true
+multiline.match: after
+```
+
