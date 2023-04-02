@@ -19,7 +19,7 @@ filebeat配置
 ```yaml
 filebeat.inputs:
 - type: log
-  enable: true
+  enabled: true
   paths:
     - /xxx/config-server/*-error.*.log
   #json.keys_under_root: true
@@ -34,7 +34,7 @@ filebeat.inputs:
     ...
     
 - type: log
-  enable: true
+  enabled: true
   paths:
     - /xxx/config-server/config-server.log
   #json.keys_under_root: true
@@ -49,7 +49,7 @@ filebeat.inputs:
     ...
     
 - type: log
-  enable: true
+  enabled: true
   paths:
     - /xxx/eureka-server/*.log
   #json.keys_under_root: true
@@ -59,7 +59,7 @@ filebeat.inputs:
     app: eureka
     
 - type: log
-  enable: true
+  enabled: true
   paths:
     - /xxx/gateway-server/*.log
   #json.keys_under_root: true
