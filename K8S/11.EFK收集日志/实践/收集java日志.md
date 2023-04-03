@@ -1,18 +1,33 @@
-收集SpringBoot项目的日志输出，有几个地方需要注意：
+日志格式有：
 
-- 项目日志输出格式化
-- Filebeat将多行日志汇集成一行
-- Logstash将项目日志格式化为json
+```shell
+2023-04-03 11:14:56,601 INFO  [  ] c.x.e.p.s.i.XazrXcxProductServiceImpl:555 - ....
+....
+```
+
+```shell
+[2023-04-02 22:06:26] ...
+...
+        at ...
+        at ...
+        
+#或者
+[2023-04-02 22:06:26] ...
+...
+        at ...
+        at ...
+Caused by: ...
+        at ...
+        at ...
+        ... 26 common frames omitted
+```
+
+```shell
+[2023-04-03 11:31:33] [Thread-22500] INFO ...
+...
+```
 
 
-
-这里的日志格式为：
-
-2023-03-30 15:44:05,585 INFO  [  ] 。。。。
-
-错误日志格式为：
-
-Caused by:开头或者[2023-03-30 14:45:01] [http-nio-9501-exec-6] ERROR开头
 
 filebeat配置
 
@@ -21,52 +36,58 @@ filebeat.inputs:
 - type: log
   enabled: true
   paths:
-    - /xxx/config-server/*-error.*.log
+    - /xxx/picture-service-error.log
   #json.keys_under_root: true
   #json.overwrite_keys: true
-  multiline.pattern: '^\[|^Caused by:'
-  multiline.negate: true
+  multiline.pattern: '^[[:space:]]+(at|\.{3})\b|^Caused by:'
+  multiline.negate: false
   multiline.match: after
-  tags: ["config"]
+  tags: ["picture-error"]
   fields:
-    app: config
+    app: picture
     logsource: ip地址
     ...
     
 - type: log
   enabled: true
   paths:
-    - /xxx/config-server/config-server.log
+    - /xxx/picture-service.log
   #json.keys_under_root: true
   #json.overwrite_keys: true
   multiline.pattern: '^\d{4}-\d{2}-\d{2}'
   multiline.negate: true
   multiline.match: after
-  tags: ["config"]
+  tags: ["picture-access"]
   fields:
-    app: config
+    app: picture
     logsource: ip地址
     ...
     
 - type: log
   enabled: true
   paths:
-    - /xxx/eureka-server/*.log
+    - /xxx/user-center.log
   #json.keys_under_root: true
   #json.overwrite_keys: true
-  tags: ["eureka"]
+  multiline.pattern: '^\['
+  multiline.negate: true
+  multiline.match: after
+  tags: ["user-center-access"]
   fields:
-    app: eureka
+    app: user-center
     
 - type: log
   enabled: true
   paths:
-    - /xxx/gateway-server/*.log
+    - /xxx/user-center-error.log
   #json.keys_under_root: true
   #json.overwrite_keys: true
-  tags: ["gateway"]
+  multiline.pattern: '^[[:space:]]+(at|\.{3})\b|^Caused by:'
+  multiline.negate: false
+  multiline.match: after
+  tags: ["uesr-center-error"]
   fields:
-    app: gateway
+    app: user-center
     
 ...
     
@@ -83,36 +104,40 @@ input {
 
 filter {
     date { match => [ "timestamp","yyyy-MM-dd HH:mm:ss,SSS" ] } #使用 date 插件解析 timestamp 字段为日期时间格式
-    if [fields][app] == "config" {
+    if [fields][app] == "picture" {
         
     }
-    if [fields][app] == "eureka" {
-        
-    }
-    if [fields][app] == "gateway" {
+    if [fields][app] == "user-center" {
         
     }
 }
 
 output {
-    if "config" in [tags] {
+    if "picture-access" in [tags] {
         elasticsearch {
           hosts => "10.0.0.101:9200"
-          index => "configlog-%{+YYYY.MM.dd}"
+          index => "picturelog-%{+YYYY.MM.dd}"
           #template_overwrite => true
        }
     }
-    if "eureka" in [tags] {
+    if "picture-error" in [tags] {
         elasticsearch {
           hosts => "10.0.0.101:9200"
-          index => "eurekalog-%{+YYYY.MM.dd}"
+          index => "picture-errorlog-%{+YYYY.MM.dd}"
           #template_overwrite => true
        }
     }
-    if "gateway" in [tags] {
+    if "user-center-access" in [tags] {
         elasticsearch {
           hosts => "10.0.0.101:9200"
-          index => "gatewaylog-%{+YYYY.MM.dd}"
+          index => "user-centerlog-%{+YYYY.MM.dd}"
+          #template_overwrite => true
+       }
+    }
+    if "user-center-error" in [tags] {
+        elasticsearch {
+          hosts => "10.0.0.101:9200"
+          index => "user-center-errorlog-%{+YYYY.MM.dd}"
           #template_overwrite => true
        }
     }
