@@ -89,14 +89,26 @@
    scheduler：通过apiserver的watch接口监听新建pod信息，把pod调度到一个或一批合适的节点
 
    etcd：保存整个集群的状态
-   
+
    ---
-   
+
    kubelet：负责pod的全生命周期的管理，定期汇报节点状态给apiserver
-   
+
    kube-proxy：负责转发，一旦发现service关联的pod信息发生变化，就会创建ipvs规则，完成service对后端pod的转发
-   
+
    容器运行时：负责镜像管理和容器的真正运行，比如docker
+
+3. 简述k8s的调度机制
+
+4. 简述kube-proxy的工作模式和原理
+
+   iptables：
+
+   Kube-proxy为service后端的每个Pod创建对应的iptables规则，直接将发向Cluster IP的请求重定向到一个Pod IP，但不能提供灵活的LB策略，当后端Pod不可用时也无法进行重试
+
+   ipvs：
+
+   和iptables类似，kube-proxy监控Pod的变化并创建相应的ipvs rules。ipvs也是在kernel模式下通过netfilter实现的，但采用了hash table来存储规则，因此在规则较多的情况下，Ipvs相对iptables转发效率更高。除此以外，ipvs支持更多的LB算法
 
 ### pod
 
@@ -112,7 +124,17 @@
 
    Succeeded（已完成）：一旦 Pod 中的所有容器都已经完成它们的任务并退出，Pod 的状态将变为“已完成”。这通常发生在批处理作业或一次性任务中。
 
-2. pod重启策略？
+2. 节点宕机后，简述pods驱逐流程
+
+   节点宕机一段时间后会被标记为unkown状态，并且节点生命周期控制器会自动创建代表状况的污点，用于防止调度器调度 pod 到该节点。
+
+   在节点被认定为不可用状态到删除节点上的 Pod 之间是有一段时间的，这段时间被称为容忍度，如果不配置的话默认是300秒
+
+   当到了删除 Pod 时，污点管理器会创建污点标记事件，然后驱逐 pod
+
+   deployment 控制器在监听到 Pod 被驱逐后会创建一个新的 Pod 出来，但是 Statefulset 控制器并不会创建出新的 Pod，原因是因为它可能会违反 StatefulSet 固有的至多一个的语义，可能出现具有相同身份的多个成员，这将可能是灾难性的，并且可能导致数据丢失。 
+
+3. pod重启策略？
 
    always：总是自动重启
 
@@ -122,7 +144,7 @@
 
    不同控制器的重启策略：deployment、statefulset、daemonset都要always；job为onfailed或never
 
-3. pod的健康检测机制
+4. pod的健康检测机制
 
    三种检测探针：
 
@@ -140,7 +162,7 @@
 
    HttpGetAction：对指定端口和路径的容器IP进行HTTP Get请求，如果状态码在200~400之间则认为容器健康
 
-4. 创建一个pod的流程
+5. 创建一个pod的流程
 
    客户端提交一个pod的配置信息到apiserver，apiserver收到指令后通知controller-manager创建资源对象
 
@@ -150,7 +172,7 @@
 
    kubelet运行pod
 
-5. 删除一个pod的流程
+6. 删除一个pod的流程
 
    apiserver收到delete pod指令后，pod状态变为“terminating“
 
@@ -158,7 +180,7 @@
 
    在容器被终止之后，Kubernetes 控制平面会将该 Pod 的状态设置为“Terminated”并从集群中移除该 Pod。
 
-6. Requests和Limits如何影响Pod的调度?
+7. Requests和Limits如何影响Pod的调度?
 
    Requests：Pod 的 CPU 和内存请求是一个容器或多个容器请求的总量。如果没有足够的请求资源可用于满足 Pod 的要求，那么该 Pod 可能会排队等待。如果等待时间过长，Pod 将会被调度器标记为未调度状态并且不会启动。因此，Pod 的请求资源限制可以影响 Pod 是否能够被调度。
 
@@ -278,17 +300,31 @@
 
 ## 网络
 
-1. k8s的网络模型
+1. 简述你知道的几种CNI网络插件，并详述其工作原理
+
+   calico：
+
+   flannel：
+
+   Flannel实质上是一种“覆盖网络(overlay network)”，也就是将TCP数据包装在另一种网络包里面进行路由转发和通信。
+
+   数据从源容器中发出后，经由所在主机的docker0虚拟网卡转发到flannel0虚拟网卡
+
+   Flannel通过Etcd服务维护了一张节点间的路由表，详细记录了各节点子网网段 
+
+   源主机的flanneld服务将原本的数据内容UDP封装后根据自己的路由表投递给目的节点的flanneld服务，数据到达以后被解包，然后直接进入目的节点的flannel0虚拟网卡，然后被转发到目的主机的docker0虚拟网卡，最后就像本机容器通信一下的有docker0路由到达目标容器
+
+2. k8s的网络模型
 
    k8s网络模型中，每个pod都有一个独立的ip地址，并且假设每个pod都在一个直通的、扁平的网络空间，所以不管pod有没有在同一个宿主机，都可以通过pod的ip直接访问
 
    k8s的扁平网络空间是由CNI插件建立的，常见的有flannel和calico
 
-2. 同一个pod内多容器间的通信？
+3. 同一个pod内多容器间的通信？
 
    同一个pod共享网络命名空间，通过localhost加端口通信
 
-3. 同一个节点，pod之间通信会走网络插件吗
+4. 同一个节点，pod之间通信会走网络插件吗
 
    不会
 
@@ -297,4 +333,12 @@
 1. clusterip访问不通
 
    一般是service没有正确创建或者service没有正确关联到后端pod，可以用kubectl describe svc查看svc的详细信息
+   
+1. pod启动失败
+
+   一般查看系统资源是否满足，然后就是查看pod日志看看原因
+   
+   kubectl describe查看pod失败的原因
+   
+   还有就是看组件日志，apiserver等组件日志，有没有异常
 
