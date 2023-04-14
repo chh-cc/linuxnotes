@@ -84,7 +84,7 @@
 
    apiserver：资源增删查改的唯一入口，各个组件通过apiserver通信（只有apiserver和etcd直接打交道）：各个组件通过apiserver将信息存入etcd中，当需要获取这些信息时再从apiserver的REST接口获取（get、list、watch）
 
-   controller-manager：负责管理各种控制器，保证系统中的状态和期望状态一致
+   controller-manager：监控Kubernetes资源对象的状态，保证系统中的状态和期望状态一致
 
    scheduler：通过apiserver的watch接口监听新建pod信息，把pod调度到一个或一批合适的节点
 
@@ -98,7 +98,13 @@
 
    容器运行时：负责镜像管理和容器的真正运行，比如docker
 
-3. 简述k8s的调度机制
+3. 简述k8s的调度有哪些方式
+
+   基于cpu和内存资源的静态/动态调度：为每个pod指定需要使用的cpu和内存资源。基于这些资源的需求，k8s会自动将pod调度到具有足够资源的节点上
+
+   基于节点标签的调度
+
+   基于节点亲和性反亲和性的调度
 
 4. 简述kube-proxy的工作模式和原理
 
@@ -156,11 +162,11 @@
 
    探针的三种检测类型：
 
-   ExecAction：在容器内执行一个命令，如果返回值为0，则认为容器健康
+   ExecAction（命令）：在容器内执行一个命令，如果返回值为0，则认为容器健康
 
-   TCPSocketAction：对指定端口的容器IP进行TCP检查，如果端口打开则认为容器健康
+   TCPSocketAction（tcp请求）：对指定端口的容器IP进行TCP检查，如果端口打开则认为容器健康
 
-   HttpGetAction：对指定端口和路径的容器IP进行HTTP Get请求，如果状态码在200~400之间则认为容器健康
+   HttpGetAction（http请求）：对指定端口和路径的容器IP进行HTTP Get请求，如果状态码在200~400之间则认为容器健康
 
 5. 创建一个pod的流程
 
@@ -170,15 +176,19 @@
 
    scheduler检测到pod信息会把pod调度到合适的节点，把pod配置单发给节点的kubelet组件
 
-   kubelet运行pod
+   kubelet指示当前节点上的Container Runtime运行对应的容器
+
+   Container Runtime下载镜像并启动容器
 
 6. 删除一个pod的流程
 
-   apiserver收到delete pod指令后，pod状态变为“terminating“
+   从service删除pod：如果pod正在被service使用，k8s会将其从service中删除，确保不再将流量发送到该pod
 
-   k8s向pod发送SIGTERM信号，信号会要求容器尽快停止正在运行的进程，如果在默认的grace period内容器没有停止，则k8s会发送SIGKILL信号，强制关闭容器
+   发送SIGTERM信号：k8s向pod发送SIGTERM信号，让容器开始优雅停止
 
-   在容器被终止之后，Kubernetes 控制平面会将该 Pod 的状态设置为“Terminated”并从集群中移除该 Pod。
+   发送SIGKILL信号：如果在默认的grace period内容器没有停止，则k8s会发送SIGKILL信号，强制关闭容器并释放其资源
+
+   清理资源：k8s将释放pod使用的所有资源，包括节点上的网络、存储、内存等
 
 7. Requests和Limits如何影响Pod的调度?
 
@@ -216,17 +226,25 @@
 
    statefulset管理的是有状态服务，不需要通过service反向代理到一组pod，使用headless service就可以通过pod名称.servicename.namespace来访问一指定的pod
 
+6. k8s自动伸缩方式有哪些
+
+   水平自动伸缩HPA：根据cpu、内存利用率等指标，动态增加或减少pod数量，以满足应用的负载需求
+
+   垂直自动伸缩VPA：根据容器内部资源使用情况，动态调整容器的cpu和内存请求量
+
+   集群自动伸缩：根据集群节点的资源利用率，动态增加或减少节点的数量
+
    
 
-## service
+## 通信
 
-1. 集群外部如何访问集群内部服务
+1. 简单说下k8s集群内外如何互通
+
+   使用service：使用nodeport类型或loadbalancer的service，这样可以通过service的ip和端口调用服务
+
+   使用ingress：ingress controller可以将外部流量路由到k8s集群中特定的服务
 
    pod配置hostNetwork: true参数，可以共享宿主机的ip，直接通过宿主机ip访问
-
-   通过nodeport类型的serivce访问pod
-
-   通过ingress访问pod
 
 2. service和ep的关系
 
