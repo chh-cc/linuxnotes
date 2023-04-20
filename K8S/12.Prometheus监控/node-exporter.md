@@ -147,7 +147,34 @@ node_network_receive_bytes_total 网络流入流量
 ```yaml
 - name: node_exporter
   rules:
-  - alert: HostOutOfMemory
+  - alert: 主机状态
+    expr: up == 0
+    for: 1m
+    labels:
+      severity: warning
+    annotations:
+      summary: "{{ $labels.instance }}:服务器宕机"
+      description: "{{ $labels.instance }}:状态为down超过1分钟"
+      
+  - alert: CPU使用率
+    expr: 100-(avg(irate(node_cpu_seconds_total{mode="idle"}[5m])) by(instance)* 100) > 60
+    for: 10m
+    labels:
+      severity: warning
+    annotations:
+      summary: "{{ $labels.instance }} CPU使用率过高！"
+      description: "{{ $labels.instance }} CPU使用大于80%，当前值：{{ $value }}%"
+      
+  - alert: CPU负载
+    expr: avg(node_load5) / count(node_cpu_seconds_total{}) > 2
+    for: 10m
+    labels:
+      severity: warning
+    annotations:
+      summary: "{{ $labels.instance }} CPU负载高！"
+      description: "{{ $labels.instance }} CPU平均负载持续10分钟超过CPU核数2倍，当前值：{{ $value }}"
+      
+  - alert: 内存可用率
     expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100 < 10
     for: 2m
     labels:
@@ -155,25 +182,41 @@ node_network_receive_bytes_total 网络流入流量
     annotations:
       summary: "主机 {{ $labels.instance }} 的内存不足"
       description: "内存可用率<10%，当前值：{{ $value }}"
-
-  - alert: system_1m_load_over_threshold
-    expr: instance:node_1m_load > 20
+      
+  - alert: IO性能
+    expr: 100-(avg(irate(node_disk_io_time_seconds_total[1m])) by(instance)* 100) < 60
     for: 1m
     labels:
       severity: warning
     annotations:
-      summary: 主机 {{ $labels.nodename }} 的 1分负载超出阈值,当前为 {{humanize $value}}
+      summary: "主机 {{ $labels.instance }} 的IO使用率过高！"
+      description: "{{ $labels.instance }}IO空闲率<60%，当前值：{{ $value }}%"
+      
+  - alert: 网络流入带宽
+    expr: ((sum(rate (node_network_receive_bytes_total{device!~'tap.*|veth.*|br.*|docker.*|virbr*|lo*'}[5m])) by (instance)) / 100) > 102400
+    for: 1m
+    labels:
+      severity: warning
+    annotations:
+      summary: "{{$labels.instance}} 流入网络带宽过高！"
+      description: "{{$labels.instance}}流入网络带宽持续2分钟高于100M. RX带宽使用率{{$value}}"
+      
+  - alert: 网络流出带宽
+    expr: ((sum(rate (node_network_transmit_bytes_total{device!~'tap.*|veth.*|br.*|docker.*|virbr*|lo*'}[5m])) by (instance)) / 100) > 102400
+    for: 1m
+    labels:
+      severity: warning
+    annotations:
+      summary: "{{$labels.instance}} 流出网络带宽过高！"
+      description: "{{$labels.instance}}流出网络带宽持续2分钟高于100M. RX带宽使用率{{$value}}"
 
-  - alert: mem_usage_over_threshold
-    expr: instance:node_mem_usage > 80
-    for: 1m
-    annotations:
-      summary: 主机 {{ $labels.nodename }} 的 内存 使用率持续1分钟超出阈值,当前为 {{humanize $value}} %
-
-  - alert: root_partition_usage_over_threshold
-    expr: instance:node_root_partition_predit < 60
-    for: 1m
-    annotations:
-      summary: 主机 {{ $labels.nodename }} 的 根分区 预计在12小时使用将达到 {{humanize $value}}GB,超出当前可用空间，请及时扩容!
+  - alert: 磁盘容量
+    expr: 100-(node_filesystem_free_bytes{fstype=~"ext4|xfs"}/node_filesystem_size_bytes {fstype=~"ext4|xfs"}*100) > 80
+    for: 1m
+    labels:
+      severity: warning
+    annotations:
+      summary: "{{$labels.instance}} 磁盘分区使用率过高！"
+      description: "{{$labels.instance}} 磁盘分区使用大于80%(目前使用:{{$value}}%)"
 ```
 
