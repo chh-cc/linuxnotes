@@ -4,11 +4,7 @@
 
 Dockerfile 是一个文本文件，其内包含了一条条的指令(Instruction)，每一条指令构建一层，因此每一条指令的内容，就是描述该层应当如何构建。
 
-**生产实践中一定优先使用 Dockerfile 的方式构建镜像。**用commit创建的镜像会比较大。 使用 Dockerfile 构建镜像可以带来很多好处：
-
-- 易于版本化管理，Dockerfile 本身是一个文本文件，方便存放在代码仓库做版本管理，可以很方便地找到各个版本之间的变更历史；
-- 过程可追溯，Dockerfile 的每一行指令代表一个镜像层，根据 Dockerfile 的内容即可很明确地查看镜像的完整构建过程；
-- 屏蔽构建环境异构，使用 Dockerfile 构建镜像无须考虑构建环境，基于相同 Dockerfile 无论在哪里运行，构建结果都一致。
+把jar包制作成docker镜像就需要通过dockerfile制作成镜像
 
 ### dockerfile语法
 
@@ -20,6 +16,9 @@ Dockerfile 由一行行命令语句组成，并且支持以#开头的注释行�
 ```dockerfile
 选择基础镜像，推荐alpine
 FROM [--platform=<platform>] <image>[@<digest>] [AS <name>]
+
+例子：
+FROM openjdk:8-jre
 
 注意：如果是从私有仓库拉取镜像，如果有配置权限，那么需要先登录到私有仓库。
 ```
@@ -63,9 +62,9 @@ ENV LANG en_us.UTF-8
 **RUN**
 
 ```dockerfile
-执行命令
-最常见的用法是RUN apt-get update && apt-get install，这两条命令应该永远用&&连接，如果分开执行，RUN apt-get update 构建层被缓存，可能会导致新
-package无法安装
+执行命令，比如
+RUN mkdir -p /home/admin/app/ && \
+         wget http://edas-hz.oss-cn-hangzhou.aliyuncs.com/demo/1.0/hello-edas-0.0.1-SNAPSHOT.jar -O /home/admin/app/hello-edas-0.0.1-SNAPSHOT.jar
     
 注意初学docker容易出现的2个关于RUN命令的问题：
 1.RUN代码没有合并。
@@ -128,6 +127,9 @@ EXPOSE 22 80 8443
 将复制指定的 <src>路径下的内容到容器中的<dest>路径下，<src>可以是dockerfile所在目录的相对路径、一个URL、还可以是tar文件（会自动解压）
 ADD [--chown=<user>:<group>] <src>... <dest>
 ADD [--chown=<user>:<group>] ["<src>",... "<dest>"] (this form is required for paths containing whitespace)
+
+例子：
+ADD target/*.jar /application.jar
 
 •ADD支持Go风格的通配符，如ADD check* /testdir/
 •src如果是文件，则必须包含在编译上下文中，ADD 指令无法添加编译上下文之外的文件
@@ -198,29 +200,18 @@ docker build -t shykes/myapp -f /path/Dockerfile /path
 docker build -t shykes/myapp http://www.example.com/Dockerfile
 ```
 
-### dockerfile封装nginx
+### 制作jar包镜像
 
 ```shell
-mkdir  nginx
-cd nginx
-wget  http://nginx.org/download/nginx-1.15.2.tar.gz
-vim Dockerfile
-FROM centos	//使用官方的centos镜像作为基础镜像
-MAINTAINER NGINX Docker Maintainers "docker-maint@nginx.com"	//指定维护者信息
-RUN yum -y install gcc make pcre-devel zlib-devel tar zlib	//运行命令
-ADD nginx-1.15.2.tar.gz /usr/src/	//把nginx压缩包复制到/usr/src/
-RUN cd /usr/src/nginx-1.15.2 \
-	&& mkdir /usr/local/nginx \
-    && ./configure --prefix=/usr/local/nginx && make && make install \
-    && ln -s /usr/local/nginx/sbin/nginx /usr/local/sbin/ \
-    && nginx
-RUN rm -rf /usr/src/nginx-1.15.2
-EXPOSE 80	//允许外界访问容器的 80 端⼝
-ENTRYPOINT [ "nginx", "-g", "daemon off;"]	#nginx默认是以后台模式启动的，Docker未执行自定义的CMD之前，nginx的pid是1，执行到CMD之后，nginx就在后台运行，bash或sh脚本的pid变成了1。所以一旦执行完自定义CMD，nginx容器也就退出了。为了保持nginx的容器不退出，应该关闭nginx后台运行
-#构建镜像
-docker build -t nginx:2020 .
-#启动镜像
-docker run -itd -p 88:80  -v /home/anhao1226/:/usr/local/nginx/html nginx:20201020
+FROM lizhenliang/java:8-jdk-alpine
+LABEL maintainer www.aliangedu.cn
+RUN  sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories && \
+     apk add -U tzdata && \
+     ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+COPY ./target/portal-service.jar ./
+COPY skywalking /skywalking
+EXPOSE 8080
+CMD java -jar -javaagent:/skywalking/skywalking-agent.jar=agent.service_name=ms-portal,agent.instance_name=$(echo $HOSTNAME | awk -F- '{print $1"-"$NF}'),collector.backend_service=192.168.31.90:11800 /portal-service.jar
 ```
 
 ## 优化dockerfile
