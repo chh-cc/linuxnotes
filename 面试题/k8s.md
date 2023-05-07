@@ -12,13 +12,13 @@
 
 3. docker网络模型
 
-   bridge：网桥，默认类型，会自动在主机上创建一个docker0虚拟网桥
+   bridge：默认类型，给每个容器分配ip，并将容器连接到docker0的虚拟网桥
 
    host：和宿主机共享一个网络namespace
 
    container：和别的容器共享一个网络namespace
 
-   none：不参与网络通信
+   none：禁用网络
 
 4. 本地镜像文件存放在哪里
 
@@ -345,6 +345,12 @@
 4. 同一个节点，pod之间通信会走网络插件吗
 
    不会
+
+## 上线
+
+1. devops怎么做的？
+
+   可以用jenkins+gitlab+sonarqube+maven+nexus+harbor+k8s 实现一套完整的 devops 系统，开发提交代码到 github -->Jenkins 检测到代码更新 --> 调用 api 在k8s 中创建 jenkins slave pod--> jenkins slave 拉取代码 -->通过 maven 把拉取的代码进行构建成jar包-->上传代码到 sonarqube 进行代码扫描-->基于jar包构建docker镜像--> 把镜像上传到 harbor 仓库 --> 基于镜像部署到应用开发环境 --> 部署应用到测试环境--> 部署应用到生产环境
 
 ## 排障
 
