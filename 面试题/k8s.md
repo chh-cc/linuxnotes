@@ -266,13 +266,13 @@
 
 1. k8s数据持久化的方式有哪些
 
-   emptydir：在Node上自动分配一个空目录挂载到pod，生命周期跟pod同步，适合容器之间临时共享文件
+   本地存储：如emptydir、hostpath，数据保存在集群特定的节点上，不能随应用漂移
 
-   hostpath：指定宿主机的目录挂载到pod
+   网络存储：如ceph、glusternfs等，需要将存储服务挂载到本地使用
 
-   PV/PVC：PV是一块抽象的存储空间，生命周期独立于pod，PVC是申请PV的接口
+   PV/PVC：PV是一块抽象的存储空间，生命周期独立于pod，PVC将数据卷抽象成一个独立于pod的对象，供k8s负载挂载使用
 
-2. pv和pvc的生命周期
+2. pv和pvc的生命周期（如何使用pvc）
 
    手动创建底层存储和PV
 
@@ -284,7 +284,11 @@
 
    使用完毕后删除PVC，与其绑定的PV 会被标记为已释放，但还不能与其他PVC立刻绑定，k8s会根据回收策略对PV进行回收，只有PV的存储空间完成回收PV才能再次使用
 
-3. pv有哪些状态
+3. pv与pvc的绑定关系？
+
+   pv与pvc一一对应，pvc只有绑定了pv后才能被使用
+
+4. pv有哪些状态
 
    available：可用状态，还没跟pvc绑定
 
@@ -294,7 +298,7 @@
 
    Failed：PV 操作失败或者 PV 所在的存储出现了故障，因此 PV 不能再被使用，需要手动修复或删除。
 
-4. 如何在pod中使用存储
+5. 如何在pod中使用存储
 
    先定义一个volume，然后将volume mount到pod的某个目录，可以使用emtpydir、hostpath、pvc等类型的volume
 
