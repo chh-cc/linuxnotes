@@ -1,20 +1,20 @@
 # Nginx配置
 
-## nginx.conf
+## nginx.conf详解
 
 全局参数(配置影响nginx全局的指令。)
 
-```shell
+```nginx
 user nginx nginx	#定义nginx运行的用户和组
 pid /run/nginx.pid;	#pid文件位置
-error_log /var/log/nginx/error.log notice;	#全局日志输出位置,notice是日志级别
+#error_log /var/log/nginx/error.log notice;	#全局日志输出位置,notice是日志级别
 worker_processes auto;	#开启的工作进程数量,和cpu核心数量相等
 worker_rlimit_nofile 65535;	#一个nginx 进程打开的最多文件描述符数目，理论值应该是最多打开文件数（ulimit -n）与进程数相除，但是nginx分配请求并不是那么均匀，所以最好与ulimit -n值一致
 ```
 
 events块
 
-```shell
+```nginx
 events {
 	use epoll;
 	worker_connections	65535;	#每个work进程最大的连接数,并发限定总数是 worker_processes 和 worker_connections 的乘积;在设置了反向代理的情况下，max_clients = worker_processes * worker_connections / 2  因为作为反向代理服务器，每个并发会建立与客户端的连接和与后端服务的连接，会占用两个连接。
@@ -23,7 +23,7 @@ events {
 
 日志格式
 
-```shell
+```nginx
 http {
 	log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
                       '$status $body_bytes_sent "$http_referer" '
@@ -35,7 +35,7 @@ http {
 
 基础配置
 
-```shell
+```nginx
 http {
     #隐藏版本号
     server_tokens off;
@@ -48,7 +48,7 @@ http {
 
 limit
 
-```shell
+```nginx
 http {
     #限制同一客户端的并发连接数
     limit_conn_zone $binary_remote_addr zone=addr:5m;
@@ -60,7 +60,7 @@ http {
 
 信息传输
 
-```shell
+```nginx
 http {
     #开启数据0拷贝，首先nginx接受到请求后要把数据文件响应给客户端， 如果不开启sendfile，nginx先把数据加载到应用程序内存中，然后再发送到网络接口；如果开启sendfile，nginx应用程序就不去加载数据，而是发送sendfile信号给网络接口，网络接口直接去加载数据发送给客户端
     sendfile        on;
@@ -73,7 +73,7 @@ http {
 
 server_name
 
-```shell
+```nginx
 http {
 	#保存服务器名字的hash表是由指令server_names_hash_max_size 和server_names_hash_bucket_size所控制的。参数hash bucket size总是等于hash表的大小，并且是一路处理器缓存大小的倍数。在减少了在内存中的存取次数后，使在处理器中加速查找hash表键值成为可能。如果hash bucket size等于一路处理器缓存的大小，那么在查找键的时候，最坏的情况下在内存中查找的次数为2。第一次是确定存储单元的地址，第二次是在存储单元中查找键 值。因此，如果Nginx给出需要增大hash max size 或 hash bucket size的提示，那么首要的是增大前一个参数的大小
     server_names_hash_bucket_size 64;
@@ -84,7 +84,7 @@ http {
 
 超时设置
 
-```shell
+```nginx
 http {
     #客户端连接保持会话超时时间，超过这个时间，服务器断开这个链接，对于后端是php，可以低一些，因为php解析快，java的话要长一些，java解析慢
     keepalive_timeout  30;
@@ -115,7 +115,7 @@ http {
 
 **客户端请求发送来一个数据**后，nginx先处理请求头，然后处理请求体，发送来的数据可能会比较大，可以通过client_body_buffer_size 配置缓冲区的大小
 
-```shell
+```nginx
 http {
     #客户端请求体的缓冲大小，如果请求体大于缓冲区，则将整个请求体或仅将其部分写入临时文件。默认32位8k，64位16k
     client_header_buffer_size 32k;
@@ -137,7 +137,7 @@ http {
 
 
 
-```shell
+```nginx
 http {
     #NGINX上传文件最大限制。 默认1M，如果请求大于指定的大小，则NGINX发回HTTP 413（Request Entity too large）错误。如果在上传大文件，可以将此值设置大一些
     client_max_body_size 20m;
@@ -164,7 +164,7 @@ http {
 
 ### fastcgi调优（配合PHP引擎动态服务）
 
-```shell
+```nginx
 http {
     fastcgi_connect_timeout    300;	#指定连接到后端fastCGI的超时时间
     fastcgi_send_timeout    300;	#向FastCGI传送请求的超时时间，这个值是指已经完成两次握手后向FastCGI传送请求的超时时间
@@ -176,7 +176,7 @@ http {
 
 ### 负载均衡
 
-```shell
+```nginx
 http {
 	upstream lbEureka {
 		server    10.1.96.3:80 weight=1 max_fails=2 fail_timeout=30s;
@@ -191,7 +191,7 @@ http {
 
 http、server、location
 
-```shell
+```nginx
 vim /etc/nginx/conf.d/gzip.conf
     #开启页面压缩
     gzip  on;
@@ -234,113 +234,134 @@ vim /etc/nginx/conf.d/gzip.conf
 
 vim /etc/nginx/conf.d/*.conf
 
-### 基础配置
 
-```shell
-server {
-	listen       443;	#监听端口
-	server_name  xxx.xxx.com;	#域名可以多个，用空格隔开
-	access.log   /var/logs/webapps_access.log main
-	
-	root         /var/www/htdocs;
-	index  index.html index.htm;
-	
-	#https证书
-	ssl on;
-    ssl_certificate /etc/ssl/xaest2019/4743589_xxx.xxx.com.pem;
-    ssl_certificate_key /etc/ssl/xaest2019/4743589_xxx.xxx.com.key;
-    ssl_session_timeout 5m;
-    ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
-    ssl_ciphers AESGCM:ALL:!DH:!EXPORT:!RC4:+HIGH:!MEDIUM:!LOW:!aNULL:!eNULL;
-    ssl_prefer_server_ciphers on;
-}
-```
 
-### 反向代理
+反向代理：
 
 nginx处理请求体时，可以通过配置proxy_request_buffering来决定如何发送到上游服务器（后端服务器），on是完全读到请求体后再发送，off是一边读body一边发送给上游服务器。
 
 通过开启proxy_buffering来**缓冲上游服务器返回的数据**，proxy_buffers配置缓冲区的大小
 
-```shell
-server {
-	location ^~ /eureka/ {
-	    #代理的后端服务器
-		proxy_pass http://lbEureka/;
-		#关闭proxy重定向
-		proxy_redirect off;
-		
-        # 要使用上游服务器获取真实的 IP 需在 nginx.conf 配置中加入配置信息
-        proxy_set_header Host	$http_host;	# 包含客户端真实的域名和端口号；
-        proxy_set_header X-Real-IP	$remote_addr;	 # 表示客户端真实的IP（remote_addr 是一个 Nginx 的内置变量，它获取到的是 Nginx 层前端的用户 IP 地址，这个地址是一个 4 层的 IP 地址）；
-        （相对于下面的方式而言更加准确，因为 remote_addr 是直接获取第一层代理的用户 IP 地址，如果直接把这个地址传递给 X-Real，这样就会更加准确。但是它有什么劣势呢？如果是多级代理的话，用户如果不是直接请求到最终的代理层，而是在中间通过了 n 层带来转发过来的话，此时 remote_addr 可能获取的不是用户的信息，而是 Nginx 最近一层代理过来的 IP 地址，此时同样没有获取到真实的用户 IP 地址信息。）
-        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;	#在多层代理时会包含真实客户端及中间每个代理服务器的IP（加了一个转发到后端的标准 head 信息，把用户的 IP 信息通过 X-Forwarded-For  方式传递过去）
-		
-		#proxy_set_header X-Forwarded-Proto	$scheme;	# 表示客户端真实的协议（http还是https）；
-		proxy_set_header X-NginX-Proxy true;
-		proxy_next_upstream error timeout invalid_header http_500 http_502 http_503 http_504;
-        proxy_max_temp_file_size 0;
-		
-		proxy_connect_timeout 90; #nginx 跟后端服务器连接超时时间
-		proxy_send_timeout 90; #nginx向后端发送请求报文的超时时间
-		proxy_read_timeout 90; #nginx读取后端响应内容的超时时间
-		
-		proxy_buffering on;	#缓冲开关，nignx会把后端返回的内容先放到缓冲区当中，然后再返回给客户端（边收边传，不是全部接收完再传给客户端）
-		proxy_buffer_size 128k;	#缓冲区大小
-		proxy_buffers 4 64k;	#缓冲区数量及每个buffer被分配的内存大小
-		proxy_busy_buffers_size 256k;	#忙碌的缓冲区大小控制同时传递给客户端的buffer数量
-		#proxy_max_temp_file_size 256k;
-		proxy_temp_file_write_size 64k;
-	}
+### 例1:slb-->nginx（前端+代理）
+
+把域名解析到slb公网地址，slb监听该服务器，就可以通过域名访问该前端服务
+
+/etc/nginx/conf.d/xx.conf：
+
+```nginx
+#后端地址池
+upstream xxx {
+		server    10.xx.xx.xx:27000 weight=1 max_fails=2 fail_timeout=30s;
+    server    10.xx.xx.xx:27000 weight=1 max_fails=2 fail_timeout=30s;
 }
-```
-
-proxy缓存
-
-```shell
-#缓存上游服务器的静态文件，客户端可以直接去缓存找数据
-http模块：
-proxy_cache_path /ngx_tmp levels=1:2 keys_zone=test_cache:100m inactive=1d max_size=10g; #定义缓存路径/ngx_tmp，定义key值名称为test_cache存储key，hash内存空间100m，缓存失效时间1d，最大磁盘存储单文件10g
-location模块：
-add_header Nginx-Cache "$upstream_cache_status";
-proxy_cache test_cache;
-proxy_cache_valid 168h;
-```
-
-
-
-```shell
 
 server {
-
-
+	listen       33100;	#监听端口
+	server_name  10.xx.xx.xx;	#内网ip
+	access_log   /var/logs/nginx/xx_access.log main;
+	error_log    /var/logs/nginx/xx_error.log warn;
 	
-	#动静分离
-	location ~ .*\.(gif|jpg|jpeg|svg|bmp|png|ico|txt|js|css|html)$ {
-        root    tomcat_static;
-        expires 1d;
-        #防盗链（即防止别人盗用网站的资源）
-        valid_referers none blocked     chenhh.xyz *.chenhh.xyz;
-        if ($invalid_referer) {
-            return 404;
-        }
-    }
+  #前端服务
+	root         /data/www/xx/dist;
+	index  index.html index.htm;
+	
+	#https证书
+	ssl on;
+  ssl_certificate /etc/nginx/ssl/xx/xx.xxx.com.pem;
+  ssl_certificate_key /etc/nginx/ssl/xx/xx.xxx.com.key;
+  ssl_session_timeout 5m;
+  ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
+  ssl_ciphers AESGCM:ALL:!DH:!EXPORT:!RC4:+HIGH:!MEDIUM:!LOW:!aNULL:!eNULL;
+  ssl_prefer_server_ciphers on;
+  
+  #后端服务
+  location /api/ {
+      proxy_pass http://xxx; #反向代理
+      proxy_redirect     off; #关闭proxy重定向
+      proxy_set_header   Host             $http_host; #包含客户端真实的域名和端口号
+      proxy_set_header   X-Real-IP        $remote_addr; # 表示客户端真实的IP（remote_addr 是一个 Nginx 的内置变量，它获取到的是 Nginx 层前端的用户 IP 地址，这个地址是一个 4 层的 IP 地址）
+      （相对于下面的方式而言更加准确，因为 remote_addr 是直接获取第一层代理的用户 IP 地址，如果直接把这个地址传递给 X-Real，这样就会更加准确。但是它有什么劣势呢？如果是多级代理的话，用户如果不是直接请求到最终的代理层，而是在中间通过了 n 层带来转发过来的话，此时 remote_addr 可能获取的不是用户的信息，而是 Nginx 最近一层代理过来的 IP 地址，此时同样没有获取到真实的用户 IP 地址信息。）
+      proxy_set_header   X-Forwarded-For  $proxy_add_x_forwarded_for; #在多层代理时会包含真实客户端及中间每个代理服务器的IP（加了一个转发到后端的标准 head 信息，把用户的 IP 信息通过 X-Forwarded-For  方式传递过去）
+      proxy_set_header X-NginX-Proxy true;
+      proxy_next_upstream error timeout invalid_header http_500 http_502 http_503 http_504;
+      proxy_max_temp_file_size 0;
+      
+      proxy_connect_timeout 900; #nginx 跟后端服务器连接超时时间
+      proxy_send_timeout 900; #nginx向后端发送请求报文的超时时间
+      proxy_read_timeout 9000; #nginx读取后端响应内容的超时时间
     
-    #配置nginx监测状态页面
-    location /status {
-        access_log  off;        #关闭访问日志
-		stub_status on;         #开启状态页监测
-		allow 192.168.0.0/16;	#只允许192.168.0.0/16网段访问
-		deny all;				#其余网段禁止访问
-	}
+      proxy_buffering on;	#缓冲开关，nignx会把后端返回的内容先放到缓冲区当中，然后再返回给客户端（边收边传，不是全部接收完再传给客户端）
+      proxy_buffer_size 16k; #缓冲区大小
+      proxy_buffers 4 64k; #缓冲区数量及每个buffer被分配的内存大小
+      proxy_busy_buffers_size 128k; #忙碌的缓冲区大小控制同时传递给客户端的buffer数量
+      proxy_temp_file_write_size 128k;
     
-	location ~ .*\.(gif|jpg|jpeg|bmp|png|ico|txt|js|css)$ {
-		if () {
-			rewrite ...
-		}
-	}
-	定义日志;
+      client_max_body_size 20m;
+      client_body_buffer_size 10m;
+  }
 }
+```
+
+### 例2:nginx（代理）-->nginx（前端）
+
+把域名解析到nginx代理的服务器ip
+
+nginx代理配置：
+
+```nginx
+server {
+        listen 80;
+        server_name xx.xxx.com;
+
+        rewrite ^(.*)$ https://${server_name}$1 permanent;
+}
+
+server {
+        listen 443;
+        server_name xx.xxx.com;
+
+        access_log /var/log/nginx/xx_access.log;
+        error_log /var/log/nginx/xx_error.log;
+
+        ssl on;
+        ssl_certificate /etc/nginx/sslkey/xx/xx.xxx.com.pem;
+        ssl_certificate_key /etc/nginx/sslkey/xx/xx.xxx.com.key;
+        ssl_session_timeout 5m;
+        ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
+        ssl_ciphers AESGCM:ALL:!DH:!EXPORT:!RC4:+HIGH:!MEDIUM:!LOW:!aNULL:!eNULL;
+        ssl_prefer_server_ciphers on;
+
+        client_max_body_size 20m;
+
+        location / {
+            proxy_pass http://10.xx.xx.109:33100;
+            proxy_http_version 1.1;
+            proxy_set_header Host $http_host;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Real-Ip $remote_addr;
+            proxy_set_header X-NginX-Proxy true;
+        }
+
+        allow 218.xx.xx.xx;
+        deny all;
+}
+```
+
+nginx前端配置：
+
+```nginx
+ server {
+       listen  33100;
+       server_name 10.xx.xx.109;
+       index index.html index.htm index.php;
+       root   /data/xx/dist;
+       location / {
+           index index.html;
+       }
+       location /api/ {
+          proxy_pass http://127.0.0.1:27001;
+       }
+   }
 ```
 
 
@@ -628,44 +649,5 @@ nginx日志统计
 4.查询访问最频繁的IP   awk '{print $1}' access.log|sort | uniq -c |sort -n -k 1 -r|more
 ```
 
-## 负载均衡
 
-集群架构是热备的高可用架构，它通常采用虚拟VIP技术（如keepalived、heartbeat）来解决单点故障的问题，让架构高可用。
-集群的虚拟VIP技术只能让一台服务器平时作为backup热备，只有出现故障的时候才会切换到backup上，平时backup都处于空闲状态。
-
-分布式架构的技术特点就是引入了负载均衡，让不同服务器来同时处理业务压力。负载均衡是分布式架构的起点，高可用架构底层最需要及最依赖的就是负载均衡。
-
-应用最广泛的开源负载均衡：nginx、lvs、HAProxy
-
-阿里云的SLB也是基于LVS及Nginx
-
-由于LVS基于虚拟VIP，阿里云当前底层限制，经典网络和VPC专有云网络都不支持虚拟VIP的功能，所以ECS不支持使用LVS，keepalived也不能
-
-负载均衡性能对比：
-
-| 类型              | 支持并发  |
-| ----------------- | --------- |
-| LVS DR            | 100W~400W |
-| LVS NAT/SLB四层   | 50W~100W  |
-| nginx四层         | 10w~50W   |
-| SLB七层/nginx七层 | 2W~5W     |
-
-七层负载原理：
-
-{client}—CIP|DIP|HTTP→DIP{nginx}DIP—DIP|RIP|HTTP→{real server}
-
-{real server}—RIP|DIP→DIP{nginx}DIP—DIP|CIP→{client}
-
-- 客户端请求数据包报文的源地址时CIP，之不过在实际应用中，这里访问的目标地址并不是DIP+IP端口，而是URL
-- 负载均衡在用户空间接收数据包，并且负载均衡和后端服务器发起新的TCP三次握手，建立新的连接。这时报文的源地址是DIP，目标地址是RIP，还有客户端请求的目标URL
-- 后端服务器收到后响应请求并返回给负载均衡
-- 然后负载均衡将响应内容重新打包并返回给客户端
-
-场景：
-
-- 七层作用在http层，所以七层只能跟tomcat、php等web服务做负载
-
-- 可以根据请求的域名来做转发，比如请求访问A域名就转发到A服务器，这个功能在七层叫虚拟主机
-- 可以根据URL做转发，比如请求的URL包含A目录就转发到A服务器
-- 可根据浏览器类型做转发
 
