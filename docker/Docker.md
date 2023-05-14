@@ -397,31 +397,15 @@ docker run [参数] 镜像名
 
 #### 查看
 
-查看运行的容器:
+查看运行的容器: docker ps
 
-```shell
-[root@qfedu.com ~]# docker ps
-```
+正在运行的容器数量：docker ps -q | wc -l
 
-查看所有的容器：
+查看所有的容器：docker ps -a
 
-```shell
-[root@qfedu.com ~]# docker ps -a
-```
+ 非运行状态的容器的数量:  docker ps -a | grep -v 'Up ' | grep -v'CONTAINER' | wc -l
 
-查看容器的详情：
-
-```shell
-[root@localhost ~]# docker inspect 8be128d85d8d
-```
-
-查看容器的端口和宿主机端口的映射情况：
-
-```shell
-[root@qfedu.com ~]# docker port blog
- 80/tcp -> 0.0.0.0:80
- #容器blog的内部端⼝80映射到宿主机的80端⼝，这样可通过宿主机的80端⼝查看容器blog提供的服务
-```
+查看容器的详细信息：docker insepct 容器名或容器号
 
 #### 启动、停止、删除
 
@@ -478,8 +462,15 @@ root@68656158eb8e:/[root@qfedu.com ~]# ls
 
 logs命令来查看后台容器的输出和⽇志，其中--tail选项可以指定查看最后⼏条⽇志，⽽-t选项则可以对⽇志条⽬附加时间戳。使⽤-f选项可以跟踪⽇志的输出，直到⼿动停⽌。
 
+查看容器日志：docker logs
+
 ```shell
-[root@qfedu.com ~]# docker logs App_Container
+查看指定时间后的日志，只显示最后100行：
+docker logs -f -t --since="2018-02-08" --tail=100 CONTAINER_ID
+查看最近30分钟的日志:
+docker logs --since 30m CONTAINER_ID
+查看某时间段日志：
+docker logs -t --since="2018-02-08T13:23:37" --until "2018-02-09T12:23:37" CONTAINER_ID
 ```
 
 top命令显示一个运行的容器里面的进程信息
@@ -523,10 +514,9 @@ docker import busybox.tar busybox:test
 
 查看docker版本:docker version
 
-查看docker状态信息：
+查看docker状态信息：docker info
 
 ```shell
-[root@Pagerduty ~]# docker info
 Client:            ## docker 客户端信息
  Debug Mode: false
 Server:           ## 代表服务端
