@@ -41,29 +41,45 @@ templates/NOTES.txt
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ghost
+  name: jvm-oom
+  labels:
+    jvm-oom
 spec:
   selector:
     matchLabels:
-      app: ghost-app
+      app: jvm-oom
   replicas: {{ .Values.replicaCount }}
   template:
     metadata:
       labels:
-        app: ghost-app
+        app: jvm-oom
     spec:
+      imagePullSecrets:
+        xxx
       containers:
-        - name: ghost-app
-          image: {{ .Values.image }}
-          ports:
-            - containerPort: 2368
-          env:
-            - name: NODE_ENV
-              value: {{ .Values.node_env | default "production" }}
-            {{- if .Values.url }}
-            - name: url
-              value: http://{{ .Values.url }}
-            {{- end }}
+      - name: xxx
+        securityContext:
+          xxx
+        image: {{ .Values.image }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP
+        env:
+        - name: NODE_ENV
+          value: {{ .Values.node_env | default "production" }}
+        volumeMounts:
+          xxx
+        resources:
+          xxx
+      volumes:
+        xxx
+      imagePullSecrets:
+        xxx
+      serviceAccountName: xxx
+      securityContext:
+        xxx
 ```
 
 同样修改 `templates/service.yaml` 模板文件的内容：
@@ -72,27 +88,52 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: ghost
+  name: jvm-oom
+  labels:
+    jvm-oom
 spec:
   selector:
-    app: ghost-app
+    app: jvm-oom
   type: {{ .Values.service.type }}
   ports:
-    - protocol: TCP
-      targetPort: 2368
-      port: {{ .Values.service.port }}
-      {{- if (and (or (eq .Values.service.type "NodePort") (eq .Values.service.type "LoadBalancer")) (not (empty .Values.service.nodePort))) }}
-      nodePort: {{ .Values.service.nodePort }}
-      {{- else if eq .Values.service.type "ClusterIP" }}
-      nodePort: null
-      {{- end }}
+  - name: http
+    protocol: TCP
+    targetPort: http
+    port: {{ .Values.service.port }}
+    {{- if (and (or (eq .Values.service.type "NodePort") (eq .Values.service.type "LoadBalancer")) (not (empty .Values.service.nodePort))) }}
+    nodePort: {{ .Values.service.nodePort }}
+    {{- else if eq .Values.service.type "ClusterIP" }}
+    nodePort: null
+    {{- end }}
 ```
 
 现在的灵活性更大了，比如可以控制环境变量、服务的暴露方式等等。
 
 上面我们的模板还有很多改进的地方，比如资源对象的名称我们是固定的，这样我们就没办法在同一个命名空间下面安装多个应用了，所以**一般我们也会根据 Chart 名称或者 Release 名称来替换资源对象的名称。**
 
-前面默认创建的模板中包含一个 `_helpers.tpl` 的文件，该文件中包含一些和名称、标签相关的命名模板，我们可以直接使用
+前面默认创建的模板中包含一个 `_helpers.tpl` 的文件，该文件中包含一些和名称、标签相关的命名模板，我们可以直接使用\
+
+```yaml
+cat _helpers.tpl
+{{- define "app.fullname" -}}
+{{- if .Values.fullnameOverride }}
+{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
+{{- else }}
+{{- $name := default .Chart.Name .Values.nameOverride }}
+{{- if contains $name .Release.Name }}
+{{- .Release.Name | trunc 63 | trimSuffix "-" }}
+{{- else }}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+cat values.yaml
+fullnameOverride: "jvm-oom"
+
+```
+
+
 
 然后我们可以将 Deployment 的名称和标签替换掉：
 
@@ -100,18 +141,18 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "my-ghost.fullname" . }}
+  name: {{ include "app.fullname" . }}
   labels:
-  {{ include "my-ghost.labels" . | indent 4 }}
+  {{ include "app.labels" . | indent 4 }}
 spec:
   selector:
     matchLabels:
-      {{ include "my-ghost.selectorLabels" . | indent 6 }}
+      {{ include "app.selectorLabels" . | indent 6 }}
   replicas: {{ .Values.replicaCount }}
   template:
     metadata:
       labels:
-        {{ include "my-ghost.selectorLabels" . | indent 8 }}
+        {{ include "app.selectorLabels" . | indent 8 }}
     ...
 ```
 
@@ -121,12 +162,12 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "my-ghost.fullname" . }}
+  name: {{ include "app.fullname" . }}
   labels:
-    {{ include "my-ghost.labels" . | indent 4 }}
+    {{ include "app.labels" . | indent 4 }}
 spec:
   selector:
-    {{ include "my-ghost.selectorLabels" . | indent 4 }}
+    {{ include "app.selectorLabels" . | indent 4 }}
   ...
 ```
 
@@ -136,13 +177,13 @@ spec:
 
 ```yaml
 {{/* Allow KubeVersion to be overridden. */}}
-{{- define "my-ghost.kubeVersion" -}}
+{{- define "app.kubeVersion" -}}
   {{- default .Capabilities.KubeVersion.Version .Values.kubeVersionOverride -}}
 {{- end -
 
 {{/* Get Ingress API Version */}}
-{{- define "my-ghost.ingress.apiVersion" -}}
-  {{- if and (.Capabilities.APIVersions.Has "networking.k8s.io/v1") (semverCompare ">= 1.19-0" (include "my-ghost.kubeVersion" .)) -}}
+{{- define "app.ingress.apiVersion" -}}
+  {{- if and (.Capabilities.APIVersions.Has "networking.k8s.io/v1") (semverCompare ">= 1.19-0" (include "app.kubeVersion" .)) -}}
       {{- print "networking.k8s.io/v1" -}}
   {{- else if .Capabilities.APIVersions.Has "networking.k8s.io/v1beta1" -}}
     {{- print "networking.k8s.io/v1beta1" -}}
@@ -152,14 +193,14 @@ spec:
 {{- end -}}
 
 {{/* Check Ingress stability */}}
-{{- define "my-ghost.ingress.isStable" -}}
-  {{- eq (include "my-ghost.ingress.apiVersion" .) "networking.k8s.io/v1" -}}
+{{- define "app.ingress.isStable" -}}
+  {{- eq (include "app.ingress.apiVersion" .) "networking.k8s.io/v1" -}}
 {{- end -}}
 
 {{/* Check Ingress supports pathType */}}
 {{/* pathType was added to networking.k8s.io/v1beta1 in Kubernetes 1.18 */}}
-{{- define "my-ghost.ingress.supportsPathType" -}}
-  {{- or (eq (include "my-ghost.ingress.isStable" .) "true") (and (eq (include "my-ghost.ingress.apiVersion" .) "networking.k8s.io/v1beta1") (semverCompare ">= 1.18-0" (include "my-ghost.kubeVersion" .))) -}}
+{{- define "app.ingress.supportsPathType" -}}
+  {{- or (eq (include "app.ingress.isStable" .) "true") (and (eq (include "app.ingress.apiVersion" .) "networking.k8s.io/v1beta1") (semverCompare ">= 1.18-0" (include "app.kubeVersion" .))) -}}
 {{- end -}}
 ```
 
@@ -167,19 +208,19 @@ spec:
 
 ```yaml
 {{- if .Values.ingress.enabled }}
-{{- $apiIsStable := eq (include "my-ghost.ingress.isStable" .) "true" -}}
-{{- $ingressSupportsPathType := eq (include "my-ghost.ingress.supportsPathType" .) "true" -}}
-apiVersion: {{ include "my-ghost.ingress.apiVersion" . }}
+{{- $apiIsStable := eq (include "app.ingress.isStable" .) "true" -}}
+{{- $ingressSupportsPathType := eq (include "app.ingress.supportsPathType" .) "true" -}}
+apiVersion: {{ include "app.ingress.apiVersion" . }}
 kind: Ingress
 metadata:
-  name: {{ template "my-ghost.fullname" . }}
+  name: {{ template "app.fullname" . }}
   annotations:
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
     {{- if and .Values.ingress.ingressClass (not $apiIsStable) }}
     kubernetes.io/ingress.class: {{ .Values.ingress.ingressClass }}
     {{- end }}
   labels:
-    {{ include "my-ghost.labels" . | indent 4 }}
+    {{ include "app.labels" . | indent 4 }}
 spec:
   {{- if and .Values.ingress.ingressClass $apiIsStable }}
   ingressClassName: {{ .Values.ingress.ingressClass }}
@@ -199,11 +240,11 @@ spec:
         backend:
           {{- if $apiIsStable }}
           service:
-            name: {{ include "my-ghost.fullname" . }}
+            name: {{ include "app.fullname" . }}
             port:
               number: {{ .Values.service.port }}
           {{- else }}
-          serviceName: {{ template "my-ghost.fullname" . }}
+          serviceName: {{ template "app.fullname" . }}
           servicePort: {{ .Values.service.port }}
           {{- end }}
 {{- end }}
@@ -216,6 +257,8 @@ ingress:
   enabled: true
   ingressClass: nginx
 ```
+
+
 
 上面我们使用的 Ghost 镜像默认使用 SQLite 数据库，所以非常有必要将数据进行持久化，当然我们要将这个开关给到用户去选择，修改 `templates/deployment.yaml` 模板文件，增加 volumes 相关配置：
 
@@ -274,6 +317,8 @@ persistence:
   size: 1Gi  # 存储容量
 ```
 
+
+
 除了上面的这些主要的需求之外，还有一些额外的定制需求，比如用户想要配置更新策略，因为更新策略并不是一层不变的，这里和之前不太一样，我们需要用到一个新的函数 `toYaml`：
 
 ```
@@ -305,24 +350,23 @@ imagePullSecrets:
 - name: {{ . }}
 {{- end }}
 {{- end }}
+
 containers:
-- name: ghost
+- name: {{ .Chart.Name }}
   image: {{ printf "%s:%s" .Values.image.name .Values.image.tag }}
   imagePullPolicy: {{ .Values.image.pullPolicy | quote }}
-  ports:
-  - containerPort: 2368
 ```
 
 对应的 Values 值如下所示：
 
 ```
 image:
-  name: ghost
-  tag: latest
+  name: registry.cn-hangzhou.aliyuncs.com/pinecone_cdp/jvm-oom
+  tag: jvm-40953c1c18-3
   pullPolicy: IfNotPresent
   ## 如果是私有仓库，需要指定 imagePullSecrets
-  # pullSecrets:
-  #   - myRegistryKeySecretName
+  pullSecrets:
+  - myRegistryKeySecretName
 ```
 
 然后就是 resource 资源声明，这里我们定义一个默认的 resources 值，同样用 `toYaml` 函数来控制空格：
@@ -370,25 +414,34 @@ readinessProbe:
 {{- end }}
 ```
 
-默认的 `values.yaml` 文件如下所示：
+完整的 `values.yaml` 文件如下所示：
 
-```
+```yaml
 replicaCount: 1
 image:
-  name: ghost
-  tag: latest
+  name: registry.cn-hangzhou.aliyuncs.com/pinecone_cdp/jvm-oom
+  tag: jvm-40953c1c18-3
   pullPolicy: IfNotPresent
+  pullSecrets:
+  - myregistrysecret
+  
+fullnameOverride: "jvm-oom"
 
-node_env: production
+#resources: {}
+resources:
+  limits:
+    cpu: 2100m
+    memory: 2228Mi
+  requests:
+    cpu: 50m
+    memory: 500Mi
+
+
 url: ghost.k8s.local
 
-service:
-  type: ClusterIP
-  port: 80
 
-ingress:
-  enabled: true
-  ingressClass: nginx
+
+
 
 ## 是否使用 PVC 开启数据持久化
 persistence:
@@ -401,13 +454,15 @@ persistence:
   accessMode: ReadWriteOnce  # 访问模式
   size: 1Gi  # 存储容量
 
-nodeSelector: {}
 
-affinity: {}
 
-tolerations: {}
+service:
+  type: ClusterIP
+  port: 80
 
-resources: {}
+ingress:
+  enabled: true
+  ingressClass: nginx
 
 startupProbe:
   enabled: false
@@ -417,7 +472,76 @@ livenessProbe:
 
 readinessProbe:
   enabled: false
+  
+nodeSelector: {}
+
+affinity: {}
+
+tolerations: {}
 ```
+
+完整的deployment.yaml如下
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "app.fullname" . }}
+  labels:
+    {{ include "app.fullname" . }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ include "app.fullname" . }}
+  replicas: {{ .Values.replicaCount }}
+  {{- if .Values.updateStrategy }}
+  strategy: {{ toYaml .Values.updateStrategy | nindent 4 }}
+  {{- end }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "app.fullname" . }}
+    spec:
+      {{- if .Values.image.pullSecrets }}
+      imagePullSecrets:
+      {{- range .Values.image.pullSecrets }}
+      - name: {{ . }}
+      {{- end }}
+      {{- end }}
+      containers:
+      - name: {{ .Chart.Name }}
+        securityContext:
+          xxx
+        image: {{ printf "%s:%s" .Values.image.name .Values.image.tag }}
+        imagePullPolicy: {{ .Values.image.pullPolicy | quote }}
+        ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP
+        env:
+        - name: 
+          value: 
+        volumeMounts:
+          xxx
+        resources:
+        {{ toYaml .Values.resources | indent 10 }}
+      volumes:
+        xxx
+      serviceAccountName: xxx
+      securityContext:
+        xxx
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end -}}
+      {{- with .Values.affinity }}
+      affinity: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+```
+
+
 
 现在我们再去更新 Release：
 

@@ -32,21 +32,48 @@ mv linux-amd64/helm /usr/bin/
 
 不能根据一套yaml文件来创建多个环境，比如一般环境分为dev、预生产、生产环境，部署完dev后面再部署预生产和生产，还需要复制出两套并手动修改才行
 
-## 概念
-
-Helm 是 **kubernetes的 包管理工具** ， 相当于 linux 环境下的 yum/apg-get 命令 。可以将一个服务相关的所有资源信息整合到一个chart包中，并且可以使用一套资源发布多个环境，可以将应用程序的所有资源和部署信息都整合到一个chart包中。
 
 
 
-组件：
 
-- **helm：**一个命令行客户端工具，和k8s apiserver通信，主要用于Kubernetes应用chart的创建、打包、发布和管理。
+## k8s包管理本质
 
-- **Chart：**helm把k8s应用的资源（如deployment、services、ingress等）打包到一个chart中，chart被保存到chart仓库
+如果在没有包管理的场景下部署资源，就需要一个一个文件手动执行`kubectl apply -f`，卸载资源又要手动执行`kubectl delete -f`
 
-- **Release：**用chart包部署一个实例，通过chart部署的应用都会产生一个唯一的release，同一个chart部署多次就会产生多个release
+所以每次发布，你都必须有一个发布记录，记录下哪些YAML要执行apply，哪些yaml要执行delete。而且delete后，你还要记得将那个文件从文件夹中删除。
 
-  
+
+
+所以k8s的包管理器其实就两个核心功能：
+
+1. 自动化执行资源更新
+2. 跟踪资源更新记录
+
+## helm是如何实现包管理
+
+假如存在一个微服务x，我们将其部署到Kubernetes中，需要准备Deployment、HPA、Service的这三种资源的YAML文件。这三个文件，统一放在一个文件夹中。
+
+**Helm本身是一个命令行工具**。通过package子命令`helm package x-service --version 1.0`，可以将整个文件夹打包成一个tgz的压缩包。
+
+![图片](assets/640.png)
+
+这个tgz包，我们称之为**Chart包**，本质上就是一堆k8s资源文件的集合。我们可以将Chart包上传到Nexus这类制品管理工具进行版本化控制。
+
+在有了Chart包以后，我们可以通过命令 `helm install <release> <chart路径>`将svc安装到指定的Kubernetes集群上。
+
+**release**：用chart包部署一个实例，每执行一次helm install，就会创建一个唯一的release。通常我们使用应用名作为发布名。release这个概念在资源变更跟踪中环节非常重要。
+
+## 模板
+
+实际工作中，我们还会有y-svc、z-svc……n个服务。我们是不是每个服务要创建一个Chart？另外，每个服务都将被部署到三个环境中，那么，是不是每个环境还要单独又创建一个Chart？
+
+helm通过模板解决这个问题，就是将chart中资源文件中容易变化的部分抽离出来变成变量，不变的部分变成模板
+
+变量部分配置统一放在Chart包中的values.yaml文件中
+
+对于Chart中不变的部分，Helm使用gotemplate模板语言进行描述。就是说我们可以在deployments.yaml中直接写gotemplate模板语言了
+
+在写Helm的gotemplate模板时，建议不要写太复杂的逻辑，代码宁可重复，甚至另创建一个新的Chart。 
 
 ## Helm v3的变化
 
@@ -279,3 +306,12 @@ helm rollback web 1
 # helm get --revision 1 web
 ```
 
+
+
+1. 当首次部署时，使用install，这时，Helm会直接在指定命名空间（默认是default）下，创建一个helm.sh/release类型的secret。secret的名称定义为：sh.helm.release.v1.release.v1。secret的内容是这次执行的所有的Kubernetes资源的YAML内容。
+2. 当使用upgrade更新时，Helm从sh.helm.release.v1.release.v1的secret取出所有的YAML资源内容与本次将要执行更新的YAML资源内容进行对比，计算出本次更新需要执行的操作，是删除，变更。
+3. 当upgrade执行成功，Helm会创建名为sh.helm.release.v1.release.v2的secret。当你看到这个v2的时候，你就已经知道了。Helm是通过结合secret的名称约定和secret的内容来记录下每一次发布的。当下次upgrade时，Helm会取v2的secret，然后执行更新，并创建v3的secret。以此类推。
+
+为了展示的更友好，Helm把这些底层都隐藏下来了，所以，当你执行history指令时，你看到的将是：
+
+![图片](assets/640-20230522143737009.png)
