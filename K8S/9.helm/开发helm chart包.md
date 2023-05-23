@@ -35,6 +35,364 @@ templates/hpa.yaml
 templates/NOTES.txt
 ```
 
+### 修改templates/deployment.yaml
+
+#### 修改标签和名称
+
+```yaml
+cat _helpers.tpl
+{{- define "app.fullname" -}} #模板
+{{- if .Values.fullnameOverride }}
+{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }} #trunc 63是限制其最大长度为 63 个字符；trimSuffix "-"是删除字符末尾的“-”
+{{- else }}
+{{- $name := default .Chart.Name .Values.nameOverride }}
+{{- if contains $name .Release.Name }}
+{{- .Release.Name | trunc 63 | trimSuffix "-" }}
+{{- else }}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{- define "app.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "app.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+
+{{- define "app.name" -}}
+{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }} #如果.Values.nameOverride 的值为空，则默认值为 .Chart.Name
+{{- end }}
+---
+
+cat values.yaml
+fullnameOverride: "jvm-oom"
+nameOverride: "jvm-oom"
+```
+
+将 Deployment 的名称和标签替换掉：
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "app.fullname" . }}
+  labels:
+  {{ include "app.labels" . | indent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{ include "app.selectorLabels" . | indent 6 }}
+  replicas: {{ .Values.replicaCount }}
+  template:
+    metadata:
+      labels:
+        {{ include "app.selectorLabels" . | indent 8 }}
+    ...
+```
+
+#### 添加持久化配置
+
+```yaml
+spec:
+  volumes:
+  - name: ghost-data
+  {{- if .Values.persistence.enabled }}
+  persistentVolumeClaim:
+  claimName: {{ .Values.persistence.existingClaim | default (include "my-ghost.fullname" .) }}
+  {{- else }}
+      emptyDir: {}
+    {{ end }}
+  containers:
+    - name: ghost-app
+      image: {{ .Values.image }}
+      volumeMounts:
+        - name: ghost-data
+          mountPath: /var/lib/ghost/content
+```
+
+这里我们通过 `persistence.enabled` 来判断是否需要开启持久化数据，如果开启则需要看用户是否直接提供了一个存在的 PVC 对象，如果没有提供，则我们需要自己创建一个合适的 PVC 对象，如果不需要持久化，则直接使用 `emptyDir:{}` 即可，添加 `templates/pvc.yaml` 模板
+
+```yaml
+{{- if and .Values.persistence.enabled (not .Values.persistence.existingClaim) }}
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: {{ template "my-ghost.fullname" . }}
+  labels:
+    {{- include "my-ghost.labels" . | nindent 4 }}
+spec:
+  {{- if .Values.persistence.storageClass }}
+  storageClassName: {{ .Values.persistence.storageClass | quote }}
+  {{- end }}
+  accessModes:
+  - {{ .Values.persistence.accessMode | quote }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.size | quote }}
+{{- end -}}
+```
+
+其中访问模式、存储容量、StorageClass、存在的 PVC 都通过 Values 来指定，增加了灵活性。对应的 `values.yaml` 配置部分我们可以给一个默认的配置：
+
+```yaml
+## 是否使用 PVC 开启数据持久化
+persistence:
+  enabled: true
+  ## 是否使用 storageClass，如果不适用则补配置
+  # storageClass: "xxx"
+  ##
+  ## 如果想使用一个存在的 PVC 对象，则直接传递给下面的 existingClaim 变量
+  # existingClaim: your-claim
+  accessMode: ReadWriteOnce  # 访问模式
+  size: 1Gi  # 存储容量
+```
+
+#### 配置更新策略
+
+values.yaml
+
+```yaml
+Strategy:
+  rollingUpdate:
+  maxSurge: 25%
+  maxUnavailable: 25%
+  type: RollingUpdate
+```
+
+deployment.yaml
+
+```
+{{- if .Values.Strategy }}
+strategy: {{ toYaml .Values.Strategy | nindent 4 }}
+{{- end }}
+```
+
+#### 配置调度
+
+```yaml
+nodeSelector: {}
+
+affinity: {}
+
+tolerations: {}
+```
+
+是否需要添加 nodeSelector、容忍、亲和性
+
+```
+{{- if .Values.nodeSelector }}
+nodeSelector: {{- toYaml .Values.nodeSelector | nindent 8 }}
+{{- end -}}
+{{- with .Values.affinity }}
+affinity: {{- toYaml . | nindent 8 }}
+{{- end }}
+{{- with .Values.tolerations }}
+tolerations: {{- toYaml . | nindent 8 }}
+{{- end }}
+```
+
+#### 配置镜像
+
+如果是私有仓库还需要指定 `imagePullSecrets`：
+
+```yaml
+{{- if .Values.image.pullSecrets }}
+imagePullSecrets:
+{{- range .Values.image.pullSecrets }}
+- name: {{ . }}
+{{- end }}
+{{- end }}
+
+containers:
+- name: {{ .Chart.Name }}
+  image: {{ printf "%s:%s" .Values.image.name .Values.image.tag }}
+  imagePullPolicy: {{ .Values.image.pullPolicy | quote }}
+```
+
+对应的 Values 值如下所示：
+
+```yaml
+image:
+  name: registry.cn-hangzhou.aliyuncs.com/pinecone_cdp/jvm-oom
+  tag: jvm-40953c1c18-3
+  pullPolicy: IfNotPresent
+  pullSecrets:
+  - myregistrysecret
+```
+
+#### 配置resource资源
+
+values.yaml
+
+```yaml
+#resources: {}
+resources:
+  limits:
+    cpu: 2100m
+    memory: 2228Mi
+  requests:
+    cpu: 50m
+    memory: 500Mi
+```
+
+这里我们定义一个默认的 resources 值，同样用 `toYaml` 函数来控制空格：
+
+```
+resources:
+{{ toYaml .Values.resources | indent 10 }}
+```
+
+#### 配置健康检查
+
+```yaml
+startupProbe:
+  enabled: false
+
+livenessProbe:
+  enabled: false
+
+readinessProbe:
+  enabled: false
+```
+
+最后是健康检查部分，虽然我们之前没有做 livenessProbe，但是我们开发 Chart 模板的时候就要尽可能考虑周全一点，这里我们加上存活性和可读性、启动三个探针，并且根据 `livenessProbe.enabled` 、`readinessProbe.enabled` 以及 `startupProbe.enabled` 三个 Values 值来判断是否需要添加探针，探针对应的参数也都通过 Values 值来配置：
+
+```yaml
+{{- if .Values.startupProbe.enabled }}
+startupProbe:
+  httpGet:
+    path: /
+    port: 80
+  initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
+  periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+  timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
+  failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+  successThreshold: {{ .Values.startupProbe.successThreshold }}
+{{- end }}
+{{- if .Values.livenessProbe.enabled }}
+livenessProbe:
+  httpGet:
+    path: /
+    port: 80
+  initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+  periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+  timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+  failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+  successThreshold: {{ .Values.livenessProbe.successThreshold }}
+{{- end }}
+{{- if .Values.readinessProbe.enabled }}
+readinessProbe:
+  httpGet:
+    path: /
+    port: 80
+  initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+  periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+  timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+  failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+  successThreshold: {{ .Values.readinessProbe.successThreshold }}
+{{- end }}
+```
+
+### 修改templates/service.yaml
+
+#### 修改标签和名称
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "app.fullname" . }}
+  labels:
+    {{ include "app.labels" . | indent 4 }}
+spec:
+  selector:
+    {{ include "app.selectorLabels" . | indent 4 }}
+  ...
+```
+
+#### 配置service类型
+
+```yaml
+service:
+  type: ClusterIP
+  nodePort: {}
+  port: 80
+  targetPort: 80
+  protocol: TCP
+```
+
+deployment.yaml
+
+```yaml
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+  - {{- if (and (or (eq .Values.service.type "NodePort") (eq .Values.service.type "LoadBalancer")) (not (empty .Values.service.nodePort))) }}
+    nodePort: {{ .Values.service.nodePort }}
+    {{- else if eq .Values.service.type "ClusterIP" }}
+    {{ toYaml .Values.service | indent 4 }}
+    {{- end }}
+```
+
+### 修改templates/ingress.yaml
+
+旧版ingress.yaml
+
+```yaml
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: minimal-ingress
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /testpath
+        backend:
+          serviceName: test
+          servicePort: 80
+```
+
+新版ingress.yaml
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jvm-oom
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  rules:
+  - http:
+      paths:
+      - path: /testpath
+        pathType: Prefix
+        backend:
+          service:
+            name: test
+            port:
+              number: 80
+```
+
+
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jvm-oom
+  annotations:
+```
+
+
+
+
+
 然后修改 `templates/deployment.yaml` 模板文件：
 
 ```yaml
@@ -82,94 +440,15 @@ spec:
         xxx
 ```
 
-同样修改 `templates/service.yaml` 模板文件的内容：
-
-```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: jvm-oom
-  labels:
-    jvm-oom
-spec:
-  selector:
-    app: jvm-oom
-  type: {{ .Values.service.type }}
-  ports:
-  - name: http
-    protocol: TCP
-    targetPort: http
-    port: {{ .Values.service.port }}
-    {{- if (and (or (eq .Values.service.type "NodePort") (eq .Values.service.type "LoadBalancer")) (not (empty .Values.service.nodePort))) }}
-    nodePort: {{ .Values.service.nodePort }}
-    {{- else if eq .Values.service.type "ClusterIP" }}
-    nodePort: null
-    {{- end }}
-```
-
-现在的灵活性更大了，比如可以控制环境变量、服务的暴露方式等等。
-
-上面我们的模板还有很多改进的地方，比如资源对象的名称我们是固定的，这样我们就没办法在同一个命名空间下面安装多个应用了，所以**一般我们也会根据 Chart 名称或者 Release 名称来替换资源对象的名称。**
-
-前面默认创建的模板中包含一个 `_helpers.tpl` 的文件，该文件中包含一些和名称、标签相关的命名模板，我们可以直接使用\
-
-```yaml
-cat _helpers.tpl
-{{- define "app.fullname" -}}
-{{- if .Values.fullnameOverride }}
-{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
-{{- else }}
-{{- $name := default .Chart.Name .Values.nameOverride }}
-{{- if contains $name .Release.Name }}
-{{- .Release.Name | trunc 63 | trimSuffix "-" }}
-{{- else }}
-{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" }}
-{{- end }}
-{{- end }}
-{{- end }}
-
-cat values.yaml
-fullnameOverride: "jvm-oom"
-
-```
 
 
 
-然后我们可以将 Deployment 的名称和标签替换掉：
 
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: {{ include "app.fullname" . }}
-  labels:
-  {{ include "app.labels" . | indent 4 }}
-spec:
-  selector:
-    matchLabels:
-      {{ include "app.selectorLabels" . | indent 6 }}
-  replicas: {{ .Values.replicaCount }}
-  template:
-    metadata:
-      labels:
-        {{ include "app.selectorLabels" . | indent 8 }}
-    ...
-```
 
-同样对 Service 也做相应的改造：
 
-```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: {{ include "app.fullname" . }}
-  labels:
-    {{ include "app.labels" . | indent 4 }}
-spec:
-  selector:
-    {{ include "app.selectorLabels" . | indent 4 }}
-  ...
-```
+
+
+
 
 由于 Kubernetes 的版本迭代非常快，所以我们**在开发 Chart 包的时候有必要考虑到对不同版本的 Kubernetes 进行兼容**，最明显的就是 Ingress 的资源版本。Kubernetes 在 1.19 版本为 Ingress 资源引入了一个新的 API：`networking.k8s.io/v1`，这与之前的 `networking.k8s.io/v1beta1` beta 版本使用方式基本一致，但是和前面的 `extensions/v1beta1` 这个版本在使用上有很大的不同，资源对象的属性上有一定的区别，所以要兼容不同的版本，我们就需要对模板中的 Ingress 对象做兼容处理。
 
@@ -260,159 +539,7 @@ ingress:
 
 
 
-上面我们使用的 Ghost 镜像默认使用 SQLite 数据库，所以非常有必要将数据进行持久化，当然我们要将这个开关给到用户去选择，修改 `templates/deployment.yaml` 模板文件，增加 volumes 相关配置：
 
-```yaml
-spec:
-  volumes:
-    - name: ghost-data
-    {{- if .Values.persistence.enabled }}
-      persistentVolumeClaim:
-        claimName: {{ .Values.persistence.existingClaim | default (include "my-ghost.fullname" .) }}
-    {{- else }}
-      emptyDir: {}
-    {{ end }}
-  containers:
-    - name: ghost-app
-      image: {{ .Values.image }}
-      volumeMounts:
-        - name: ghost-data
-          mountPath: /var/lib/ghost/content
-```
-
-这里我们通过 `persistence.enabled` 来判断是否需要开启持久化数据，如果开启则需要看用户是否直接提供了一个存在的 PVC 对象，如果没有提供，则我们需要自己创建一个合适的 PVC 对象，如果不需要持久化，则直接使用 `emptyDir:{}` 即可，添加 `templates/pvc.yaml` 模板
-
-```yaml
-{{- if and .Values.persistence.enabled (not .Values.persistence.existingClaim) }}
-kind: PersistentVolumeClaim
-apiVersion: v1
-metadata:
-  name: {{ template "my-ghost.fullname" . }}
-  labels:
-    {{- include "my-ghost.labels" . | nindent 4 }}
-spec:
-  {{- if .Values.persistence.storageClass }}
-  storageClassName: {{ .Values.persistence.storageClass | quote }}
-  {{- end }}
-  accessModes:
-  - {{ .Values.persistence.accessMode | quote }}
-  resources:
-    requests:
-      storage: {{ .Values.persistence.size | quote }}
-{{- end -}}
-```
-
-其中访问模式、存储容量、StorageClass、存在的 PVC 都通过 Values 来指定，增加了灵活性。对应的 `values.yaml` 配置部分我们可以给一个默认的配置：
-
-```yaml
-## 是否使用 PVC 开启数据持久化
-persistence:
-  enabled: true
-  ## 是否使用 storageClass，如果不适用则补配置
-  # storageClass: "xxx"
-  ##
-  ## 如果想使用一个存在的 PVC 对象，则直接传递给下面的 existingClaim 变量
-  # existingClaim: your-claim
-  accessMode: ReadWriteOnce  # 访问模式
-  size: 1Gi  # 存储容量
-```
-
-
-
-除了上面的这些主要的需求之外，还有一些额外的定制需求，比如用户想要配置更新策略，因为更新策略并不是一层不变的，这里和之前不太一样，我们需要用到一个新的函数 `toYaml`：
-
-```
-{{- if .Values.updateStrategy }}
-strategy: {{ toYaml .Values.updateStrategy | nindent 4 }}
-{{- end }}
-```
-
-意思就是我们将 `updateStrategy` 这个 Values 值转换成 YAML 格式，并保留4个空格。然后添加其他的配置，比如是否需要添加 nodeSelector、容忍、亲和性这些，这里我们都是使用 `toYaml` 函数来控制空格，如下所示：
-
-```
-{{- if .Values.nodeSelector }}
-nodeSelector: {{- toYaml .Values.nodeSelector | nindent 8 }}
-{{- end -}}
-{{- with .Values.affinity }}
-affinity: {{- toYaml . | nindent 8 }}
-{{- end }}
-{{- with .Values.tolerations }}
-tolerations: {{- toYaml . | nindent 8 }}
-{{- end }}
-```
-
-接下来当然就是镜像的配置了，如果是私有仓库还需要指定 `imagePullSecrets`：
-
-```
-{{- if .Values.image.pullSecrets }}
-imagePullSecrets:
-{{- range .Values.image.pullSecrets }}
-- name: {{ . }}
-{{- end }}
-{{- end }}
-
-containers:
-- name: {{ .Chart.Name }}
-  image: {{ printf "%s:%s" .Values.image.name .Values.image.tag }}
-  imagePullPolicy: {{ .Values.image.pullPolicy | quote }}
-```
-
-对应的 Values 值如下所示：
-
-```
-image:
-  name: registry.cn-hangzhou.aliyuncs.com/pinecone_cdp/jvm-oom
-  tag: jvm-40953c1c18-3
-  pullPolicy: IfNotPresent
-  ## 如果是私有仓库，需要指定 imagePullSecrets
-  pullSecrets:
-  - myRegistryKeySecretName
-```
-
-然后就是 resource 资源声明，这里我们定义一个默认的 resources 值，同样用 `toYaml` 函数来控制空格：
-
-```
-resources:
-{{ toYaml .Values.resources | indent 10 }}
-```
-
-最后是健康检查部分，虽然我们之前没有做 livenessProbe，但是我们开发 Chart 模板的时候就要尽可能考虑周全一点，这里我们加上存活性和可读性、启动三个探针，并且根据 `livenessProbe.enabled` 、`readinessProbe.enabled` 以及 `startupProbe.enabled` 三个 Values 值来判断是否需要添加探针，探针对应的参数也都通过 Values 值来配置：
-
-```
-{{- if .Values.startupProbe.enabled }}
-startupProbe:
-  httpGet:
-    path: /
-    port: 2368
-  initialDelaySeconds: {{ .Values.startupProbe.initialDelaySeconds }}
-  periodSeconds: {{ .Values.startupProbe.periodSeconds }}
-  timeoutSeconds: {{ .Values.startupProbe.timeoutSeconds }}
-  failureThreshold: {{ .Values.startupProbe.failureThreshold }}
-  successThreshold: {{ .Values.startupProbe.successThreshold }}
-{{- end }}
-{{- if .Values.livenessProbe.enabled }}
-livenessProbe:
-  httpGet:
-    path: /
-    port: 2368
-  initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
-  periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
-  timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
-  failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
-  successThreshold: {{ .Values.livenessProbe.successThreshold }}
-{{- end }}
-{{- if .Values.readinessProbe.enabled }}
-readinessProbe:
-  httpGet:
-    path: /
-    port: 2368
-  initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
-  periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
-  timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
-  failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
-  successThreshold: {{ .Values.readinessProbe.successThreshold }}
-{{- end }}
-```
 
 完整的 `values.yaml` 文件如下所示：
 
