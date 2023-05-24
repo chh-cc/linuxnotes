@@ -336,58 +336,125 @@ spec:
 
 ### 修改templates/ingress.yaml
 
-旧版ingress.yaml
+由于 Kubernetes 的版本迭代非常快，所以我们**在开发 Chart 包的时候有必要考虑到对不同版本的 Kubernetes 进行兼容**，最明显的就是 Ingress 的资源版本。Kubernetes 在 1.19 版本为 Ingress 资源引入了一个新的 API：`networking.k8s.io/v1`，这与之前的 `networking.k8s.io/v1beta1` beta 版本使用方式基本一致，但是和前面的 `extensions/v1beta1` 这个版本在使用上有很大的不同，资源对象的属性上有一定的区别，所以要兼容不同的版本，我们就需要对模板中的 Ingress 对象做兼容处理。
+
+在 Chart 包的 `_helpers.tpl` 文件中添加几个用于判断集群版本或 API 的命名模板：
 
 ```yaml
-apiVersion: extensions/v1beta1
-kind: Ingress
-metadata:
-  name: minimal-ingress
-  annotations:
-    kubernetes.io/ingress.class: nginx
-    nginx.ingress.kubernetes.io/rewrite-target: /
-spec:
-  rules:
-  - http:
-      paths:
-      - path: /testpath
-        backend:
-          serviceName: test
-          servicePort: 80
+{{/* Allow KubeVersion to be overridden. */}}
+{{- define "app.kubeVersion" -}}
+  {{- default .Capabilities.KubeVersion.Version .Values.kubeVersionOverride -}}
+{{- end -
+
+{{/* Get Ingress API Version */}}
+{{- define "app.ingress.apiVersion" -}}
+  {{- if and (.Capabilities.APIVersions.Has "networking.k8s.io/v1") (semverCompare ">= 1.19-0" (include "app.kubeVersion" .)) -}}
+      {{- print "networking.k8s.io/v1" -}}
+  {{- else if .Capabilities.APIVersions.Has "networking.k8s.io/v1beta1" -}}
+    {{- print "networking.k8s.io/v1beta1" -}}
+  {{- else -}}
+    {{- print "extensions/v1beta1" -}}
+  {{- end -}}
+{{- end -}}
+
+{{/* Check Ingress stability */}}
+{{- define "app.ingress.isStable" -}}
+  {{- eq (include "app.ingress.apiVersion" .) "networking.k8s.io/v1" -}}
+{{- end -}}
+
+{{/* Check Ingress supports pathType */}}
+{{/* pathType was added to networking.k8s.io/v1beta1 in Kubernetes 1.18 */}}
+{{- define "app.ingress.supportsPathType" -}}
+  {{- or (eq (include "app.ingress.isStable" .) "true") (and (eq (include "app.ingress.apiVersion" .) "networking.k8s.io/v1beta1") (semverCompare ">= 1.18-0" (include "app.kubeVersion" .))) -}}
+{{- end -}}
 ```
 
-新版ingress.yaml
+上面我们通过 `.Capabilities.APIVersions.Has` 来判断我们应该使用的 APIVersion，如果版本为 `networking.k8s.io/v1`，则定义为 `isStable`，此外还根据版本来判断是否需要支持 `pathType` 属性，然后在 Ingress 对象模板中就可以使用上面定义的命名模板来决定应该使用哪些属性
 
 ```yaml
-apiVersion: networking.k8s.io/v1
+{{- if .Values.ingress.enabled }}
+{{- $apiIsStable := eq (include "app.ingress.isStable" .) "true" -}}
+{{- $ingressSupportsPathType := eq (include "app.ingress.supportsPathType" .) "true" -}}
+apiVersion: {{ include "app.ingress.apiVersion" . }}
 kind: Ingress
 metadata:
-  name: jvm-oom
+  name: {{ include "app.fullname" . }}
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
+    xxx
+    {{- if and .Values.ingress.ingressClass (not $apiIsStable) }}
+    kubernetes.io/ingress.class: {{ .Values.ingress.ingressClass }}
+    {{- end }}
+  labels:
+    {{ include "app.labels" . | indent 4 }}
 spec:
-  ingressClassName: nginx
+  {{- if and .Values.ingress.ingressClass $apiIsStable }}
+  ingressClassName: {{ .Values.ingress.ingressClass }}
+  {{- end }}
   rules:
-  - http:
+  {{- if not (empty .Values.ingress.hosts) }}
+  - host: {{ .Values.ingress.hosts }}
+    http:
+  {{- else }}
+    http:
+  {{- end }}
       paths:
-      - path: /testpath
+      - path: /
+        {{- if $ingressSupportsPathType }}
         pathType: Prefix
+        {{- end }}
         backend:
+          {{- if $apiIsStable }}
           service:
-            name: test
+            name: {{ include "app.fullname" . }}
             port:
-              number: 80
+              number: {{ .Values.service.port }}
+          {{- else }}
+          serviceName: {{ include "app.fullname" . }}
+          servicePort: {{ .Values.service.port }}
+          {{- end }}
+{{- end }}
 ```
 
-
+### 修改templates/hpa.yaml
 
 ```yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+{{- if .Values.autoscaling.enabled }}
+apiVersion: autoscaling/v2beta1
+kind: HorizontalPodAutoscaler
 metadata:
-  name: jvm-oom
-  annotations:
+  name: {{ include "app.fullname" . }}
+  labels:
+    {{- include "app.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "app.fullname" . }}
+    minReplicas: {{ .Values.autoscaling.minReplicas }}
+    maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+    metrics:
+    {{- if .Values.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
+    {{- end }}
+    {{- if .Values.autoscaling.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.targetMemoryUtilizationPercentage }}
+    {{- end }}
+{{- end }}
 ```
+
+
+
+
 
 
 
@@ -449,85 +516,6 @@ spec:
 
 
 
-
-由于 Kubernetes 的版本迭代非常快，所以我们**在开发 Chart 包的时候有必要考虑到对不同版本的 Kubernetes 进行兼容**，最明显的就是 Ingress 的资源版本。Kubernetes 在 1.19 版本为 Ingress 资源引入了一个新的 API：`networking.k8s.io/v1`，这与之前的 `networking.k8s.io/v1beta1` beta 版本使用方式基本一致，但是和前面的 `extensions/v1beta1` 这个版本在使用上有很大的不同，资源对象的属性上有一定的区别，所以要兼容不同的版本，我们就需要对模板中的 Ingress 对象做兼容处理。
-
-在 Chart 包的 `_helpers.tpl` 文件中添加几个用于判断集群版本或 API 的命名模板：
-
-```yaml
-{{/* Allow KubeVersion to be overridden. */}}
-{{- define "app.kubeVersion" -}}
-  {{- default .Capabilities.KubeVersion.Version .Values.kubeVersionOverride -}}
-{{- end -
-
-{{/* Get Ingress API Version */}}
-{{- define "app.ingress.apiVersion" -}}
-  {{- if and (.Capabilities.APIVersions.Has "networking.k8s.io/v1") (semverCompare ">= 1.19-0" (include "app.kubeVersion" .)) -}}
-      {{- print "networking.k8s.io/v1" -}}
-  {{- else if .Capabilities.APIVersions.Has "networking.k8s.io/v1beta1" -}}
-    {{- print "networking.k8s.io/v1beta1" -}}
-  {{- else -}}
-    {{- print "extensions/v1beta1" -}}
-  {{- end -}}
-{{- end -}}
-
-{{/* Check Ingress stability */}}
-{{- define "app.ingress.isStable" -}}
-  {{- eq (include "app.ingress.apiVersion" .) "networking.k8s.io/v1" -}}
-{{- end -}}
-
-{{/* Check Ingress supports pathType */}}
-{{/* pathType was added to networking.k8s.io/v1beta1 in Kubernetes 1.18 */}}
-{{- define "app.ingress.supportsPathType" -}}
-  {{- or (eq (include "app.ingress.isStable" .) "true") (and (eq (include "app.ingress.apiVersion" .) "networking.k8s.io/v1beta1") (semverCompare ">= 1.18-0" (include "app.kubeVersion" .))) -}}
-{{- end -}}
-```
-
-上面我们通过 `.Capabilities.APIVersions.Has` 来判断我们应该使用的 APIVersion，如果版本为 `networking.k8s.io/v1`，则定义为 `isStable`，此外还根据版本来判断是否需要支持 `pathType` 属性，然后在 Ingress 对象模板中就可以使用上面定义的命名模板来决定应该使用哪些属性
-
-```yaml
-{{- if .Values.ingress.enabled }}
-{{- $apiIsStable := eq (include "app.ingress.isStable" .) "true" -}}
-{{- $ingressSupportsPathType := eq (include "app.ingress.supportsPathType" .) "true" -}}
-apiVersion: {{ include "app.ingress.apiVersion" . }}
-kind: Ingress
-metadata:
-  name: {{ template "app.fullname" . }}
-  annotations:
-    nginx.ingress.kubernetes.io/ssl-redirect: "false"
-    {{- if and .Values.ingress.ingressClass (not $apiIsStable) }}
-    kubernetes.io/ingress.class: {{ .Values.ingress.ingressClass }}
-    {{- end }}
-  labels:
-    {{ include "app.labels" . | indent 4 }}
-spec:
-  {{- if and .Values.ingress.ingressClass $apiIsStable }}
-  ingressClassName: {{ .Values.ingress.ingressClass }}
-  {{- end }}
-  rules:
-  {{- if not (empty .Values.url) }}
-  - host: {{ .Values.url }}
-    http:
-  {{- else }}
-    http:
-  {{- end }}
-      paths:
-      - path: /
-        {{- if $ingressSupportsPathType }}
-        pathType: Prefix
-        {{- end }}
-        backend:
-          {{- if $apiIsStable }}
-          service:
-            name: {{ include "app.fullname" . }}
-            port:
-              number: {{ .Values.service.port }}
-          {{- else }}
-          serviceName: {{ template "app.fullname" . }}
-          servicePort: {{ .Values.service.port }}
-          {{- end }}
-{{- end }}
-```
 
 由于有的场景下面并不需要使用 Ingress 来暴露服务，所以首先我们**通过一个 `ingress.enabled` 属性来控制是否需要渲染**，然后定义了一个 `$apiIsStable` 变量，来**表示当前集群是否是稳定版本的 API，然后需要根据该变量去渲染不同的属性**，比如对于 ingressClass，如果是稳定版本的 API 则是通过 `spec.ingressClassName` 来指定，否则是通过 `kubernetes.io/ingress.class` 这个 annotations 来指定。然后这里我们在 `values.yaml` 文件中添加如下所示默认的 Ingress 的配置数据：
 
