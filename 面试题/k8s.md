@@ -6,11 +6,25 @@
 
    cgroup：linux内核对进程的使用资源上限进行限制，如cpu、内存、网络带宽等
 
-2. 宿主机能看到容器的进程吗
+2. 如何制作容器镜像
+
+   docker commit
+
+   dockerfile
+
+3. 镜像瘦身的方法
+
+   减少镜像的分层
+
+   清理无用的数据，比如使用yum安装工具后要清理缓存
+
+   使用更小的基础镜像
+
+4. 宿主机能看到容器的进程吗
 
    能
 
-3. docker网络模型
+5. docker网络模型
 
    bridge：默认类型，给每个容器分配ip，并将容器连接到docker0的虚拟网桥
 
@@ -20,15 +34,15 @@
 
    none：禁用网络
 
-4. 本地镜像文件存放在哪里
+6. 本地镜像文件存放在哪里
 
    /var/lib/docker/目录下，其中container目录存放容器信息，graph目录存放镜像信息，aufs目录下存放具体的镜像底层文件
 
-5. 一个容器可以运行多个进程吗
+7. 一个容器可以运行多个进程吗
 
    一般不推荐运行多个进程，如果有类似需求可以通过额外的进程管理机制比如supervisor
 
-6. 说下常用的docker命令
+8. 说下常用的docker命令
 
    制作镜像docker build
 
@@ -42,7 +56,7 @@
 
    进入容器docker exec
 
-7. 让容器随着docker服务启动而自动启动
+9. 让容器随着docker服务启动而自动启动
 
    第一次启动容器：
 
@@ -52,15 +66,15 @@
 
    修改容器配置文件的RestartPolicy参数或docker update --restart=always
 
-8. 指定容器的端口映射
+10. 指定容器的端口映射
 
    docker run -p 宿主机端口:容器端口
 
-9. docker注入环境变量
+11. docker注入环境变量
 
-   运行容器时使用-e ..=..或者在dockerfile写入环境变量ENV ... ...
+    运行容器时使用-e ..=..或者在dockerfile写入环境变量ENV ... ...
 
-10. 容器异常排查
+12. 容器异常排查
 
    通过docker logs查看容器日志
 
@@ -84,7 +98,7 @@
 
    apiserver：资源增删查改的唯一入口，各个组件通过apiserver通信（只有apiserver和etcd直接打交道）：各个组件通过apiserver将信息存入etcd中，当需要获取这些信息时再从apiserver的REST接口获取（get、list、watch）
 
-   controller-manager：监控Kubernetes资源对象的状态，保证系统中的状态和期望状态一致
+   controller-manager：维护k8s系统资源的状态，执行各种控制器，保证系统中的状态和期望状态一致
 
    scheduler：通过apiserver的watch接口监听新建pod信息，把pod调度到一个或一批合适的节点
 
@@ -170,13 +184,13 @@
 
 5. 创建一个pod的流程
 
-   客户端提交一个pod的配置信息到apiserver，apiserver收到指令后通知controller-manager创建资源对象
+   pod——kubectl——apiserver——kubelet——CRI
 
-   controller-manager通过apiserver把pod配置信息存入etcd中
+   客户端提交一个pod的配置信息到apiserver，pod配置信息会存入到etcd中
 
-   scheduler检测到pod信息会把pod调度到合适的节点，把pod配置单发给节点的kubelet组件
+   scheduler检测到pod信息会把pod调度到合适的节点
 
-   kubelet指示当前节点上的Container Runtime运行对应的容器
+   kubelet检测到有pod要在当前节点运行，指示当前节点上的Container Runtime运行对应的容器
 
    Container Runtime下载镜像并启动容器
 
@@ -240,7 +254,7 @@
 
 1. 简单说下k8s集群内外如何互通
 
-   使用service：使用nodeport类型或loadbalancer的service，这样可以通过service的ip和端口调用服务
+   使用service：使用nodeport类型或loadbalancer的service，这样可以通过节点的ip和端口调用服务
 
    使用ingress：ingress controller可以将外部流量路由到k8s集群中特定的服务
 
@@ -250,7 +264,19 @@
 
    创建一个service的同时会创建一个同名的endpoint，ep记录了svc关联的一组pod的ip和端口
 
-3. 简述ingress？
+3. service和ingress的区别
+
+   service是四层代理，ingress是七层代理
+
+4. k8s负载均衡原理
+
+   通过sevice+endpoint实现负载均衡，如果endpoint有两个pod，流量就会分发到两个pod上
+
+5. k8s的服务发现原理
+
+   创建一个service后会自动创建一个同名的endpoint，然后会注册到Core DNS中，kube-proxy通过ipvs修改规则，服务通过DNS和service找到clusterip，流量转发给clusterip，然后被ipvs规则转发到对应的pod
+
+6. 简述ingress？
 
    k8s结合ingress对象和ingress-controller，实现不同的url请求转发到对应的pod应用服务
 
@@ -258,19 +284,15 @@
 
    ingress-controller是真正工作的组件，将请求转发到service对应的后端pod，跳过kube-proxy的转发功能
 
-4. ingress如何配置https流量
+7. ingress如何配置https流量
 
    ingress可以通过tls证书来配置https，使用secret对象存储tls证书，然后在ingress规则中指定要使用的证书
 
 ## 存储
 
-1. k8s数据持久化的方式有哪些
+1. k8s实现数据持久化的方式？
 
-   本地存储：如emptydir、hostpath，数据保存在集群特定的节点上，不能随应用漂移
-
-   网络存储：如ceph、glusternfs等，需要将存储服务挂载到本地使用
-
-   PV/PVC：PV是一块抽象的存储空间，生命周期独立于pod，PVC将数据卷抽象成一个独立于pod的对象，供k8s负载挂载使用
+   PV/PVC：PV是持久化存储卷，代表一个具体存储类型的卷，生命周期独立于pod；PVC将数据卷抽象成一个独立于pod的对象，供k8s负载挂载使用
 
 2. pv和pvc的生命周期（如何使用pvc）
 
@@ -288,19 +310,49 @@
 
    pv与pvc一一对应，pvc只有绑定了pv后才能被使用
 
-4. pv有哪些状态
+4. 删除pod后pv和pvc会怎样
+
+   当pod删除后，pv和pvc就会解除绑定，pv里的数据会根据回收策略进行处理：
+
+   recycle：删掉pvc并删除pv里的数据
+
+   retain：删掉pvc后pv的数据会保留，可以重新创建pvc绑定该pv
+
+   delete：pvc和pv都删除
+
+5. pvc绑定不上pv的原因
+
+   pvc的申请空间大小大于pv的容量
+
+   pvc的参数和pv不匹配，比如VolumeMode不一致
+
+6. pv有哪些状态
 
    available：可用状态，还没跟pvc绑定
 
    bound：已与某个pvc绑定
 
-   released：pv已经释放了pvc，可以重新绑定给其他pvc使用
+   released：pv已经释放了pvc，可以重新绑定pvc
 
    Failed：PV 操作失败或者 PV 所在的存储出现了故障，因此 PV 不能再被使用，需要手动修复或删除。
 
-5. 如何在pod中使用存储
+7. 如何在pod中使用存储
 
    先定义一个volume，然后将volume mount到pod的某个目录，可以使用emtpydir、hostpath、pvc等类型的volume
+
+8. secret有哪些类型
+
+   serviceaccounttoken类型，用来访问k8sapi，由k8s自动创建
+
+   存储密码秘钥的类型
+
+   还有用来存储docker仓库认证的类型
+
+9. 如何使用configmap和secret
+
+   通过环境变量引入
+
+   使用存储卷挂载
 
 ## 安全
 
@@ -354,7 +406,7 @@
 
 1. devops怎么做的？
 
-   可以用jenkins+gitlab+sonarqube+maven+nexus+harbor+k8s 实现一套完整的 devops 系统，开发提交代码到 github -->Jenkins 检测到代码更新 --> 调用 api 在k8s 中创建 jenkins slave pod--> jenkins slave 拉取代码 -->通过 maven 把拉取的代码进行构建成jar包-->上传代码到 sonarqube 进行代码扫描-->基于jar包构建docker镜像--> 把镜像上传到 harbor 仓库 --> 基于镜像部署到应用开发环境 --> 部署应用到测试环境--> 部署应用到生产环境
+   可以用jenkins+gitlab+sonarqube+maven+nexus+harbor+k8s 实现一套完整的 devops 系统，开发提交代码到 gitlab -->Jenkins 检测到代码更新 --> 调用 api 在k8s 中创建 jenkins slave pod--> jenkins slave 拉取代码 -->通过 maven 把拉取的代码进行构建成jar包-->上传代码到 sonarqube 进行代码扫描-->基于jar包构建docker镜像--> 把镜像上传到 harbor 仓库 --> 基于镜像部署到应用开发环境 --> 部署应用到测试环境--> 部署应用到生产环境
 
 ## 排障
 

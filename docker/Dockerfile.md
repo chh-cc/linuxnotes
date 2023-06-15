@@ -204,7 +204,7 @@ docker build -t shykes/myapp http://www.example.com/Dockerfile
 
 ```shell
 FROM lizhenliang/java:8-jdk-alpine
-LABEL maintainer www.aliangedu.cn
+maintainer www.aliangedu.cn
 RUN  sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories && \
      apk add -U tzdata && \
      ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
