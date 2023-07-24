@@ -12,15 +12,15 @@ https://kubernetes.io/
 
 虽然K8s 1.20版本宣布将在1.23版本之后将不再维护dockershim，意味着K8s将不直接支持Docker，不过大家不必过于担心。一是在1.23版本之前我们仍然可以使用Docker，二是dockershim肯定会有人接盘，我们同样可以使用Docker，三是Docker制作的镜像仍然可以在其他Runtime环境中使用
 
-## k8s高可用架构
+## k8s架构
 
-
+<img src="assets/image-20230625115935241.png" alt="image-20230625115935241" style="zoom:80%;" />
 
 
 整个k8s集群分为两大部分：
 
 - **控制平面/master节点**：负责控制并保持整个集群的正常运转，一般包括**controller plane的apiserver、controller-manager、scheduler、etcd**（如果磁盘 IO 、网络依赖较高，建议独立部署etcd）。公司生产环境**最少三台Master节点做高可用**，一般资源一次性给够，因为改动麻烦
-  - kube-apiserver：它是**资源增删查改操作的唯一入口**，各个组件通过apiserver进行通信：各个组件通过apiserver将信息存入etcd，当要获取这些信息的时候再通过apiserver的REST接口（用get、watch、list）去请求
+  - kube-apiserver：负责接收所有请求，**集群内对集群的任何修改都是通过命令行、ui把请求发给apiserver才能执行**，**各个组件通过apiserver进行通信**：各个组件通过apiserver将信息存入etcd，当要获取这些信息的时候再通过apiserver的REST接口（用get、watch、list）去请求
   - kube-controller-manager：**负责维护集群的状态**，执行各种控制器，比如故障检测、自动扩展、滚动更新，保证Pod或其他资源达到期望值
   - kube-scheduler：**负责调度**，它会根据指定的调度规则，把pod调度到一个或一批最佳的node节点
   - etcd：**保存了整个集群的状态**，一般生产环境建议部署3个以上奇数个节点（防止脑裂），规模大的话跟master分开，要用ssd盘，一般资源一次性给够，etcd备份：https://github.com/kubesphere/kubekey/blob/235de693d6e68740b573362b8fd3e1226d8c574f/pkg/etcd/templates/backup_script.go
@@ -53,60 +53,4 @@ https://kubernetes.io/
 然后，再为它定义一些“服务对象”，比如 Service、Secret、Horizontal Pod Autoscaler（自动水平扩展器）等。这些对象，会负责具体的平台级功能。这种使用方法，就是所谓的“声明式 API”。这种 API 对应的“编排对象”和“服务对象”，都是 Kubernetes 项目中的 API 对象（API Object）。
 
 这就是 Kubernetes 最核心的设计理念。
-
-## 集群安装比较
-
-| 工具      | 方法                                                         | 优点                                                         | 缺点                                                 |
-| --------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ---------------------------------------------------- |
-| 二进制    | 下载二进制文件，通过systemd来管理                            | 灵活度强                                                     | 复杂，需要关心每个组件的配置，对系统服务的依赖性过多 |
-| kubeadm   | 搭建集群的命令行工具，管理节点通过kubeadm init初始化，计算节点通过kubeadm join加入 | 相对二进制，控制面板组件的安装和配置被封装起来；管理集群生命周期，比如证书、升级 | 操作系统层面配置还需手动，CNI插件还需手动            |
-| kubespray | 通过ansible-playbook搭建                                     | 自动完成操作系统层面配置，用kubeadm管理集群                  | 缺少基于声明式API的支持                              |
-| KOPS      | 基于声明式API的集群管理工具                                  | 基于Cluster API进行集群管理，节点的操作系统安装等全是自动化  | 与云环境深度集成灵活性差                             |
-
-## YAML
-
-k8s把需要操作的资源对象编辑到yaml文件中。
-
-yaml基本语法：
-
-- 使用空格做为缩进
-- 缩进的空格数目不重要，只要相同层级的元素左侧对齐即可
-- 使用#标识注释，从这个字符一直到行尾，都会被解释器忽略
-- ---表示开始新的yaml文件
-
-数据结构：
-
-- 对象
-
-```yaml
-name: Tom
-age: 18
-```
-
-- 数组
-
-```yaml
-people
-- Tom
-- Jack
-```
-
-- 纯量
-
-```yaml
-数值
-number: 12.3
-
-布尔值
-isset: true
-
-null用~表示
-
-字符串默认不用引号，除非字符串中间包括空格或特殊字符
-
-多行字符串可以用|保留换行符
-this: |
-too
-bar
-```
 

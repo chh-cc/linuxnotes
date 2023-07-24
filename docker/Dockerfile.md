@@ -2,7 +2,7 @@
 
 ## dockerfile
 
-Dockerfile 是一个文本文件，其内包含了一条条的指令(Instruction)，每一条指令构建一层，因此每一条指令的内容，就是描述该层应当如何构建。
+Dockerfile 是一个文本文件，其内包含了一条条的指令(Instruction)，**每一条指令构建一层**，因此每一条指令的内容，就是描述该层应当如何构建。
 
 把jar包制作成docker镜像就需要通过dockerfile制作成镜像
 
@@ -47,22 +47,43 @@ ENTRYPOINT [“memached”,”-u”,”daemon”]
 **ENV**
 
 ```dockerfile
-指定环境变量，后续 RUN 指令可以使用，container启动后，可以通过docker inspect查看这个环境变量，也可以通过docker run - -env key=value时设置或修改环境变量。
-环境变量可用于ADD、COPY、ENV、EXPOSE、FROM、LABEL、USER、VOLUME、WORKDIR、ONBUILD指令中。
+#指定环境变量，构建期（RUN）和运行期（CMD/ENTRYPOINT）都可以生效
+#环境变量可用于ADD、COPY、ENV、EXPOSE、FROM、LABEL、USER、VOLUME、WORKDIR、ONBUILD指令中。
 ENV <key> <value>
 ENV <key>=<value> ...
 
-假如你安装了JAVA程序，需要设置JAVA_HOME，那么你可以在Dockerfile中这样写：
+#假如你安装了JAVA程序，需要设置JAVA_HOME，那么你可以在Dockerfile中这样写：
 ENV JAVA_HOME /path/to/java/dirent
 ENV JAVA_HOME /usr/java/latest
 ENV PATH $JAVA_HOME/bin:$PATH
 ENV LANG en_us.UTF-8
+
+#构建期不能修改ENV的值
+#运行期通过docker run -e app=456就可以修改
+ENV app=123
 ```
+
+**ARG**
+
+```shell
+#定义一个构建变量，定义以后RUN命令使用生效
+ARG parm=123456
+RUN echo $parm
+#不像ENV不能并排写
+ARG parm=123456 msg="hello world"
+#不能用于运行命令CMD和ENTRYPOINT
+
+#使用--build-arg version=3.13.5改变
+ARG version=3.13.4
+FROM alpine:$version
+```
+
+
 
 **RUN**
 
 ```dockerfile
-执行命令，比如
+#构建时期运行的命令，比如
 RUN mkdir -p /home/admin/app/ && \
          wget http://edas-hz.oss-cn-hangzhou.aliyuncs.com/demo/1.0/hello-edas-0.0.1-SNAPSHOT.jar -O /home/admin/app/hello-edas-0.0.1-SNAPSHOT.jar
     
@@ -77,10 +98,10 @@ RUN mkdir -p /home/admin/app/ && \
 Dockerfile每执行一个run会临时创建一个容器（镜像层），每次从头创建都会重新挂载这三个配置文件。所以有对于次三个配置文件有依赖操作的命令需要处于同一个RUN
 ```
 
-CMD（容易被替换）
+**CMD**（可以被替换）
 
 ```dockerfile
-用来指定启动容器时默认执行的命令。它支持三种格式：
+#用来指定启动容器时默认执行的命令。它支持三种格式：
 CMD ["executable","param1","param2"]      #使用exec执行，推荐方式；exec 可以保证我们的业务进程就是 1 号进程，这对于需要处理 SIGTERM 信号量实现优雅终止十分重要。
 CMD ["param1","param2"]                   #提供给ENTRYPOINT的默认参数； 
 CMD command param1 param2                 #在/bin/sh中执行，提供给需要交互的应用；
@@ -124,19 +145,13 @@ EXPOSE 22 80 8443
 **ADD**
 
 ```dockerfile
-将复制指定的 <src>路径下的内容到容器中的<dest>路径下，<src>可以是dockerfile所在目录的相对路径、一个URL、还可以是tar文件（会自动解压）
-ADD [--chown=<user>:<group>] <src>... <dest>
-ADD [--chown=<user>:<group>] ["<src>",... "<dest>"] (this form is required for paths containing whitespace)
-
-例子：
-ADD target/*.jar /application.jar
+#把上下文指定的内容复制到镜像中，如果是压缩包则自动解压，如果是远程文件则自动下载
+ADD https://xxxx.tar.gz /dest/
 
 •ADD支持Go风格的通配符，如ADD check* /testdir/
 •src如果是文件，则必须包含在编译上下文中，ADD 指令无法添加编译上下文之外的文件
-•src如果是URL
 •如果dest结尾没有/，那么dest是目标文件名，如果dest结尾有/，那么dest是目标目录名
 •如果src是一个目录，则所有文件都会被复制至dest
-•如果src是一个本地压缩文件，则在ADD 的同时完整解压操作
 •如果dest不存在，则ADD 指令会创建目标目录
 •应尽量减少通过ADDURL 添加remote 文件，建议使用curl 或者wget&& untar
 ```
@@ -146,17 +161,17 @@ ADD支持Go风格的通配符，如ADD check* /testdir/•src如果是文件，�
 **COPY**
 
 ```dockerfile
-复制本地主机的<src>（为 Dockerfile 所在目录的相对路径、文件或目录）下的内容到镜像中的 <dest> 下。目标路径不存在时，会自动创建。
-尽量使用COPY不使用ADD.
+#把上下文指定的内容复制到镜像中，不会自动解压和远程下载
+#尽量使用COPY不使用ADD.
 COPY [--chown=<user>:<group>] <src>... <dest>
 COPY [--chown=<user>:<group>] ["<src>",... "<dest>"] (this form is required for paths containing whitespace)
 ```
 
 **WORKDIR**
 
-```text
-为后续的RUN、CMD和ENTRYPOINT 指令配置工作目录，类似cd，可多次切换
-用WORKDIR，不要用RUN cd 尽量使用绝对目录！
+```shell
+#为后续的RUN、CMD、ENTRYPOINT、COPY、ADD指令配置工作目录，类似cd，可多次切换
+#用WORKDIR，不要用RUN cd 尽量使用绝对目录！
 WORKDIR /path/to/workdir
 ```
 
@@ -203,157 +218,34 @@ docker build -t shykes/myapp http://www.example.com/Dockerfile
 ### 制作jar包镜像
 
 ```shell
-FROM lizhenliang/java:8-jdk-alpine
-maintainer www.aliangedu.cn
-RUN  sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories && \
-     apk add -U tzdata && \
-     ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
-COPY ./target/portal-service.jar ./
-COPY skywalking /skywalking
-EXPOSE 8080
-CMD java -jar -javaagent:/skywalking/skywalking-agent.jar=agent.service_name=ms-portal,agent.instance_name=$(echo $HOSTNAME | awk -F- '{print $1"-"$NF}'),collector.backend_service=192.168.31.90:11800 /portal-service.jar
+FROM openjdk:8-jre-alpine
+LABEL maintainer="xxxxx"
+
+COPY target/*.jar /app.jar
+RUN ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && echo 'Asia/Shanghai'
+
+ENV JAVA_OPTS=" "
+ENV PARAMS=" "
+
+ENTRYPOINT [ "sh","-c","java -Djava.security.egd=file:/dev/./urandom $JAVA_OPTS -jar /app.jar $PARAMS"]
+
+#docker run -e JAVA_OPTS="-Xmx512m -Xms33 -" -e PARAMS="--spring.profiles=dev --server.port=8080" -jar /app/app.jar
 ```
 
-## 优化dockerfile
+## 镜像瘦身
 
-- 从Docker 1.10起，`COPY`、`ADD`和`RUN`语句会在镜像中添加新层。
-  
-- 可以把几个RUN命令合并成一句
-  
-- 使用多阶段构建（多个from）
+- 选择最小的基础镜像，优先选alpine
 
-  多阶段构建的应用场景及优势就是为了降低复杂性并减少依赖，避免镜像包含不必要的软件包
+- 合并RUN环节的所有指令，少一些层
 
-  简单来说，多阶段构建就是允许一个`Dockerfile`中出现多条`FROM`指令，只有最后一条`FROM`指令中指定的基础镜像作为本次构建镜像的基础镜像，其它的阶段都可以认为是只为中间步骤
+- RUN期间可能安装一些程序会生成临时缓存，要自行删除
 
-  每一条`FROM`指令都表示着多阶段构建过程中的一个构建阶段，后面的构建阶段可以拷贝利用前面构建阶段的产物
-
-  - 单阶段构建
-
-    ```dockerfile
-    #通过dockerfile打包应用
-    FROM node:8
-    
-    EXPOSE 3000
-    
-    WORKDIR /app
-    COPY package.json index.js ./
-    RUN npm install
-    
-    CMD ["npm", "start"]
-    #构建镜像
-    docker build -t node-vanilla .
-    #可以看到最终的镜像上添加了五个新层：Dockerfile里的每条语句一层。
-    docker history node-vanilla
-    IMAGE          CREATED BY                                      SIZE
-    075d229d3f48   /bin/sh -c #(nop)  CMD ["npm" "start"]          0B
-    bc8c3cc813ae   /bin/sh -c npm install                          2.91MB
-    bac31afb6f42   /bin/sh -c #(nop) COPY multi:3071ddd474429e1…   364B
-    500a9fbef90e   /bin/sh -c #(nop) WORKDIR /app                  0B
-    78b28027dfbf   /bin/sh -c #(nop)  EXPOSE 3000                  0B
-    b87c2ad8344d   /bin/sh -c #(nop)  CMD ["node"]                 0B
-    <missing>      /bin/sh -c set -ex   && for key in     6A010…   4.17MB
-    <missing>      /bin/sh -c #(nop)  ENV YARN_VERSION=1.3.2       0B
-    <missing>      /bin/sh -c ARCH= && dpkgArch="$(dpkg --print…   56.9MB
-    <missing>      /bin/sh -c #(nop)  ENV NODE_VERSION=8.9.4       0B
-    <missing>      /bin/sh -c set -ex   && for key in     94AE3…   129kB
-    <missing>      /bin/sh -c groupadd --gid 1000 node   && use…   335kB
-    <missing>      /bin/sh -c set -ex;  apt-get update;  apt-ge…   324MB
-    <missing>      /bin/sh -c apt-get update && apt-get install…   123MB
-    <missing>      /bin/sh -c set -ex;  if ! command -v gpg > /…   0B
-    <missing>      /bin/sh -c apt-get update && apt-get install…   44.6MB
-    <missing>      /bin/sh -c #(nop)  CMD ["bash"]                 0B
-    <missing>      /bin/sh -c #(nop) ADD file:1dd78a123212328bd…   123MB
-    ```
-
-  - 多阶段构建
-
-    ```dockerfile
-    FROM node:8 as build
-    
-    WORKDIR /app
-    COPY package.json index.js ./
-    RUN npm install
-    
-    FROM node:8
-    
-    COPY --from=build /app /
-    EXPOSE 3000
-    CMD ["index.js"]
-    
-    docker build -t node-multi-stage .
-    
-    docker history node-multi-stage
-    IMAGE          CREATED BY                                      SIZE
-    331b81a245b1   /bin/sh -c #(nop)  CMD ["index.js"]             0B
-    bdfc932314af   /bin/sh -c #(nop)  EXPOSE 3000                  0B
-    f8992f6c62a6   /bin/sh -c #(nop) COPY dir:e2b57dff89be62f77…   1.62MB
-    b87c2ad8344d   /bin/sh -c #(nop)  CMD ["node"]                 0B
-    <missing>      /bin/sh -c set -ex   && for key in     6A010…   4.17MB
-    <missing>      /bin/sh -c #(nop)  ENV YARN_VERSION=1.3.2       0B
-    <missing>      /bin/sh -c ARCH= && dpkgArch="$(dpkg --print…   56.9MB
-    <missing>      /bin/sh -c #(nop)  ENV NODE_VERSION=8.9.4       0B
-    <missing>      /bin/sh -c set -ex   && for key in     94AE3…   129kB
-    <missing>      /bin/sh -c groupadd --gid 1000 node   && use…   335kB
-    <missing>      /bin/sh -c set -ex;  apt-get update;  apt-ge…   324MB
-    <missing>      /bin/sh -c apt-get update && apt-get install…   123MB
-    <missing>      /bin/sh -c set -ex;  if ! command -v gpg > /…   0B
-    <missing>      /bin/sh -c apt-get update && apt-get install…   44.6MB
-    <missing>      /bin/sh -c #(nop)  CMD ["bash"]                 0B
-    <missing>      /bin/sh -c #(nop) ADD file:1dd78a123212328bd…   123MB
-    
-    #可以看到镜像小了一点点
-    docker images | grep node-
-    node-multi-stage   331b81a245b1   678MB
-    node-vanilla       075d229d3f48   679MB
-    ```
-
-- 使用Distroless移除容器中的所有累赘
-
-  - 目前的镜像不仅含有Node.js，还含有`yarn`、`npm`、`bash`以及大量其他二进制文件。“Distroless”镜像只包含应用程序及其运行时依赖。不包含包管理器、Shell以及其他标准Linux发行版中能找到的其他程序。
-
-    ```dockerfile
-    FROM node:8 as build
-    
-    WORKDIR /app
-    COPY package.json index.js ./
-    RUN npm install
-    
-    FROM gcr.io/distroless/nodejs
-    
-    COPY --from=build /app /
-    EXPOSE 3000
-    CMD ["index.js"]
-    
-    docker images | grep node-distroless
-    node-distroless   7b4db3b7f1e5   76.7MB
-    
-    #不过由于Distroless是原始操作系统的精简版本，不包含额外的程序。容器里并没有Shell！
-    ```
-
-- 使用apline镜像，如果用到Glibc，可以是slim如node:slim、python:slim
-
-  ```dockerfile
-  FROM node:8 as build
-  
-  WORKDIR /app
-  COPY package.json index.js ./
-  RUN npm install
-  
-  FROM node:8-alpine
-  
-  COPY --from=build /app /
-  EXPOSE 3000
-  CMD ["npm", "start"]
-  
-  docker images | grep node-alpine
-  node-alpine   aa1f85f8e724   69.7MB
-  
-  docker exec -ti 9d8e97e307d7 sh
-  / #
+  ```shell
+  RUN apt-get update && apt-get install -y \
+      bzr \
+      cvs \
+      git \
+      && rm -rf /var/lib/apt/lists/*
   ```
 
-  
-
-
-
+- 使用多段构建

@@ -39,21 +39,21 @@ docker国内加速镜像站：
 
 
 
-namespace的种类：
+namespace6项隔离：
 
-- pid namespace
+- **pid namespace**
   - 不同用户的进程就是通过Pidnamespace隔离开的，且不同namespace 中可以有相同Pid。
   - 有了Pidnamespace, 每个namespace中的Pid能够相互隔离。
-- net namespace
+- **net namespace**
   - 网络隔离是通过net namespace实现的，每个net namespace有独立的network devices, IPaddresses, IP routing tables, /proc/net 目录。
-- ipc namespace
+- **ipc namespace**
   - Container中进程交互还是采用linux常见的进程间交互方法（interprocesscommunication –IPC）, 包括常见的信号量、消息队列和共享内存。
   - container 的进程间交互实际上还是host上具有相同Pidnamespace中的进程间交互，因此需要在IPC资源申请时加入namespace信息-每个IPC资源有一个唯一的32 位ID。
-- mnt namespace
+- **mnt namespace**
   - mntnamespace允许不同namespace的进程看到的文件结构不同，这样每个namespace 中的进程所看到的文件目录就被隔离开了。
-- uts namespace
+- **uts namespace**
   - 允许每个container拥有独立的hostname和domain name, 使其在网络上可以被视作一个独立的节点而非Host上的一个进程。
-- user namespace
+- **user namespace**
   - 每个container可以有不同的user 和group id, 也就是说可以在container内部用container内部的用户执行程序而非Host上的用户。
 
 简单举个例子，在不同pid namespace下，看到的进程pid是不一样的；在不同network namespace下，看到的网络配置是不一样的
@@ -129,9 +129,7 @@ $ docker image inspect ubuntu:latest
 
 ## 安装
 
-操作系统要求：
-CentOS 7 要求系统为64位，系统内核版本为 3.10 以上
-CentOS 6.5.X 或更高的版本的 CenOS 上，要求系统为64位，系统内核为2.6.32-431或者更高版本。
+https://docs.docker.com/engine/install/centos
 
 ```shell
 #先执行以下命令卸载旧版 Docker
@@ -146,7 +144,7 @@ $ sudo yum remove docker \
 #添加 Docker 安装源
 wget https://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo -O /etc/yum.repos.d/docker-ce.repo
 #正常情况下，直接安装最新版本的 Docker 即可
-$ sudo yum install docker-ce docker-ce-cli containerd.io
+$ sudo yum install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 #如果你想要安装指定版本的 Docker
 $ sudo yum list docker-ce --showduplicates | sort -r
 docker-ce.x86_64            18.06.1.ce-3.el7                   docker-ce-stable
